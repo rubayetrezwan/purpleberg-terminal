@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { FileText } from "lucide-react";
-import { COLORS } from "../config";
+import { useColors } from "../ThemeContext";
 import { Panel, PanelHeader, Badge, LoadingSpinner } from "../shared";
 
 export default function NewsCenter({ news, loading }) {
+  const COLORS = useColors();
   const [searchFilter, setSearchFilter] = useState("");
 
   const allNews = news || [];

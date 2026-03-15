@@ -3,11 +3,13 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { DollarSign, TrendingUp, Calculator, Activity } from "lucide-react";
-import { COLORS, FX_SYMBOLS, fmt, fmtPct } from "../config";
+import { FX_SYMBOLS, fmt, fmtPct } from "../config";
+import { useColors } from "../ThemeContext";
 import { useQuotes, useHistorical } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, DataCell, LoadingSpinner } from "../shared";
 
 export default function FXDashboard() {
+  const COLORS = useColors();
   const fxSymbols = useMemo(() => FX_SYMBOLS.map((f) => f.symbol), []);
   const { data: fxQuotes, loading } = useQuotes(fxSymbols, 10000);
   const [selPairSymbol, setSelPairSymbol] = useState(FX_SYMBOLS[0].symbol);

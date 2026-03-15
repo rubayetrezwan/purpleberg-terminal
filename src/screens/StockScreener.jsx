@@ -1,9 +1,11 @@
 import { useState, useMemo } from "react";
 import { Filter } from "lucide-react";
-import { COLORS, fmt, fmtK, fmtPct } from "../config";
+import { fmt, fmtK, fmtPct } from "../config";
+import { useColors } from "../ThemeContext";
 import { Panel, PanelHeader, Badge, ChgVal, LoadingSpinner } from "../shared";
 
 export default function StockScreener({ allStockQuotes }) {
+  const COLORS = useColors();
   const stocks = allStockQuotes || [];
   const [sortCol, setSortCol] = useState("marketCap");
   const [sortDir, setSortDir] = useState(-1);

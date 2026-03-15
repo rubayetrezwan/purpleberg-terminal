@@ -4,10 +4,12 @@ import {
   Tooltip, ResponsiveContainer,
 } from "recharts";
 import { AlertTriangle, Shield, Activity, PieChart as PieIcon } from "lucide-react";
-import { COLORS, fmt, fmtPct } from "../config";
+import { fmt, fmtPct } from "../config";
+import { useColors } from "../ThemeContext";
 import { Panel, PanelHeader, MiniTable } from "../shared";
 
 export default function RiskAnalytics({ allStockQuotes }) {
+  const COLORS = useColors();
   const stocks = allStockQuotes || [];
 
   // Calculate real return distribution from stock data

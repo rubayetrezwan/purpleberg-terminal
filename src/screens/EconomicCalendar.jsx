@@ -1,5 +1,5 @@
 import { Calendar, Landmark, BarChart3 } from "lucide-react";
-import { COLORS } from "../config";
+import { useColors } from "../ThemeContext";
 import { Panel, PanelHeader, Badge, ChgVal, MiniTable } from "../shared";
 
 // Economic calendar data - refreshed periodically
@@ -20,6 +20,7 @@ const ECON_EVENTS = [
 ];
 
 export default function EconomicCalendar() {
+  const COLORS = useColors();
   return (
     <div style={{ padding: 12 }}>
       <Panel>

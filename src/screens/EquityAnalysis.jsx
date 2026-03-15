@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -6,20 +6,32 @@ import {
 import {
   TrendingUp, Activity, Calculator, Building, PieChart as PieIcon,
 } from "lucide-react";
-import { COLORS, fmt, fmtK, fmtPct } from "../config";
+import { fmt, fmtK, fmtPct } from "../config";
+import { useColors } from "../ThemeContext";
 import { useHistorical, useFinancials } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, DataCell, TabBar, MiniTable, LoadingSpinner } from "../shared";
 
 export default function EquityAnalysis({ allStockQuotes }) {
+  const COLORS = useColors();
   const stocks = allStockQuotes || [];
-  const [selectedSymbol, setSelectedSymbol] = useState(stocks[0]?.symbol || "AAPL");
+  const [selectedSymbol, setSelectedSymbol] = useState("AAPL");
   const [tab, setTab] = useState("CHART");
   const [chartType, setChartType] = useState("area");
   const [chartRange, setChartRange] = useState("3mo");
 
+  // Auto-select first US stock when data loads (skip DSE stocks for charts)
+  useEffect(() => {
+    if (stocks.length > 0 && !stocks.find((s) => s.symbol === selectedSymbol)) {
+      const usStock = stocks.find((s) => s.exchange !== "DSE");
+      if (usStock) setSelectedSymbol(usStock.symbol);
+      else setSelectedSymbol(stocks[0].symbol);
+    }
+  }, [stocks.length]);
+
   const selected = stocks.find((s) => s.symbol === selectedSymbol) || stocks[0] || {};
-  const { data: histData, loading: histLoading } = useHistorical(selected.symbol, chartRange);
-  const { data: finData, loading: finLoading } = useFinancials(selected.symbol);
+  const isDSE = selected.exchange === "DSE";
+  const { data: histData, loading: histLoading } = useHistorical(isDSE ? null : selected.symbol, chartRange);
+  const { data: finData, loading: finLoading } = useFinancials(isDSE ? null : selected.symbol);
 
   const chartData = useMemo(() => {
     return histData.map((d) => ({
@@ -77,7 +89,7 @@ export default function EquityAnalysis({ allStockQuotes }) {
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <span style={{ fontSize: 20, fontWeight: 800, color: COLORS.text }}>{selected.symbol?.replace(".DS", "")}</span>
               <span style={{ fontSize: 13, color: COLORS.textDim }}>{selected.name}</span>
-              <Badge>{selected.exchange || "—"}</Badge>
+              <Badge>{selected.exchange || "\u2014"}</Badge>
               <Badge color={COLORS.cyan}>{selected.currency || "USD"}</Badge>
               {selected.marketState && (
                 <Badge color={selected.marketState === "REGULAR" ? COLORS.green : COLORS.orange}>
@@ -139,8 +151,18 @@ export default function EquityAnalysis({ allStockQuotes }) {
                 </span>
               </div>
               <div style={{ padding: 8, height: 320 }}>
-                {histLoading ? (
+                {isDSE ? (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: COLORS.textMuted, fontSize: 12, flexDirection: "column", gap: 8 }}>
+                    <span style={{ fontSize: 24, opacity: 0.4 }}>DSE</span>
+                    <span>Chart data is not available for DSE securities.</span>
+                    <span style={{ fontSize: 10, color: COLORS.textDim }}>Price and change data shown in the sidebar are live from DSE.</span>
+                  </div>
+                ) : histLoading ? (
                   <LoadingSpinner text="Loading chart data..." />
+                ) : chartData.length === 0 ? (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: COLORS.textMuted, fontSize: 12 }}>
+                    No chart data available for {selected.symbol}
+                  </div>
                 ) : (
                   <ResponsiveContainer>
                     {chartType === "area" ? (
@@ -185,55 +207,67 @@ export default function EquityAnalysis({ allStockQuotes }) {
           )}
 
           {tab === "FINANCIALS" && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            isDSE ? (
               <Panel>
-                <PanelHeader icon={<TrendingUp size={14} color={COLORS.green} />} title="QUARTERLY EARNINGS" subtitle="Revenue & Earnings" />
-                <div style={{ padding: 8, height: 220 }}>
-                  {finLoading ? (
-                    <LoadingSpinner />
-                  ) : finData?.quarterlyRevenue?.length ? (
-                    <ResponsiveContainer>
-                      <BarChart data={finData.quarterlyRevenue}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                        <XAxis dataKey="quarter" tick={{ fontSize: 9, fill: COLORS.textMuted }} />
-                        <YAxis tick={{ fontSize: 9, fill: COLORS.textMuted }} tickFormatter={(v) => fmtK(v)} />
-                        <Tooltip contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11 }} formatter={(v) => fmtK(v)} />
-                        <Bar dataKey="revenue" fill={COLORS.purple} radius={[3, 3, 0, 0]} barSize={24} name="Revenue" />
-                        <Bar dataKey="earnings" fill={COLORS.green} radius={[3, 3, 0, 0]} barSize={24} name="Earnings" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <LoadingSpinner text="No quarterly data available" />
-                  )}
+                <div style={{ padding: 40, textAlign: "center", color: COLORS.textMuted, fontSize: 12 }}>
+                  Financial data is not available for DSE securities.
                 </div>
               </Panel>
-              <Panel>
-                <PanelHeader icon={<PieIcon size={14} color={COLORS.orange} />} title="MARGIN ANALYSIS" subtitle="Profitability metrics" />
-                <div style={{ padding: 12 }}>
-                  {finLoading ? (
-                    <LoadingSpinner />
-                  ) : (
-                    Object.entries(finData?.margins || {}).map(([k, v]) => (
-                      <div key={k} style={{ marginBottom: 10 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                          <span style={{ fontSize: 11, color: COLORS.textDim, textTransform: "capitalize" }}>{k} Margin</span>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.green, fontFamily: "'JetBrains Mono',monospace" }}>{v}%</span>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <Panel>
+                  <PanelHeader icon={<TrendingUp size={14} color={COLORS.green} />} title="QUARTERLY EARNINGS" subtitle="Revenue & Earnings" />
+                  <div style={{ padding: 8, height: 220 }}>
+                    {finLoading ? (
+                      <LoadingSpinner />
+                    ) : finData?.quarterlyRevenue?.length ? (
+                      <ResponsiveContainer>
+                        <BarChart data={finData.quarterlyRevenue}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
+                          <XAxis dataKey="quarter" tick={{ fontSize: 9, fill: COLORS.textMuted }} />
+                          <YAxis tick={{ fontSize: 9, fill: COLORS.textMuted }} tickFormatter={(v) => fmtK(v)} />
+                          <Tooltip contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11 }} formatter={(v) => fmtK(v)} />
+                          <Bar dataKey="revenue" fill={COLORS.purple} radius={[3, 3, 0, 0]} barSize={24} name="Revenue" />
+                          <Bar dataKey="earnings" fill={COLORS.green} radius={[3, 3, 0, 0]} barSize={24} name="Earnings" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <LoadingSpinner text="No quarterly data available" />
+                    )}
+                  </div>
+                </Panel>
+                <Panel>
+                  <PanelHeader icon={<PieIcon size={14} color={COLORS.orange} />} title="MARGIN ANALYSIS" subtitle="Profitability metrics" />
+                  <div style={{ padding: 12 }}>
+                    {finLoading ? (
+                      <LoadingSpinner />
+                    ) : (
+                      Object.entries(finData?.margins || {}).map(([k, v]) => (
+                        <div key={k} style={{ marginBottom: 10 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                            <span style={{ fontSize: 11, color: COLORS.textDim, textTransform: "capitalize" }}>{k} Margin</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.green, fontFamily: "'JetBrains Mono',monospace" }}>{v}%</span>
+                          </div>
+                          <div style={{ height: 6, background: COLORS.bgPanel, borderRadius: 3, overflow: "hidden" }}>
+                            <div style={{ width: `${Math.min(Math.max(parseFloat(v) || 0, 0), 100)}%`, height: "100%", background: `linear-gradient(90deg, ${COLORS.purpleDark}, ${COLORS.purple})`, borderRadius: 3 }} />
+                          </div>
                         </div>
-                        <div style={{ height: 6, background: COLORS.bgPanel, borderRadius: 3, overflow: "hidden" }}>
-                          <div style={{ width: `${Math.min(Math.max(parseFloat(v) || 0, 0), 100)}%`, height: "100%", background: `linear-gradient(90deg, ${COLORS.purpleDark}, ${COLORS.purple})`, borderRadius: 3 }} />
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </Panel>
-            </div>
+                      ))
+                    )}
+                  </div>
+                </Panel>
+              </div>
+            )
           )}
 
           {tab === "ESTIMATES" && (
             <Panel>
               <PanelHeader icon={<Activity size={14} color={COLORS.cyan} />} title="ANALYST ESTIMATES" subtitle="Consensus recommendations" />
-              {finLoading ? (
+              {isDSE ? (
+                <div style={{ padding: 40, textAlign: "center", color: COLORS.textMuted, fontSize: 12 }}>
+                  Analyst estimates are not available for DSE securities.
+                </div>
+              ) : finLoading ? (
                 <LoadingSpinner />
               ) : (
                 <>
@@ -270,7 +304,11 @@ export default function EquityAnalysis({ allStockQuotes }) {
           {tab === "RATIOS" && (
             <Panel>
               <PanelHeader icon={<Calculator size={14} color={COLORS.purple} />} title="VALUATION & RATIOS" subtitle="Key financial ratios" />
-              {finLoading ? (
+              {isDSE ? (
+                <div style={{ padding: 40, textAlign: "center", color: COLORS.textMuted, fontSize: 12 }}>
+                  Ratio data is not available for DSE securities.
+                </div>
+              ) : finLoading ? (
                 <LoadingSpinner />
               ) : (
                 <div style={{ padding: 16, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
@@ -285,7 +323,18 @@ export default function EquityAnalysis({ allStockQuotes }) {
           {tab === "PROFILE" && (
             <Panel>
               <PanelHeader icon={<Building size={14} color={COLORS.blue} />} title="COMPANY PROFILE" subtitle="Overview & description" />
-              {finLoading ? (
+              {isDSE ? (
+                <div style={{ padding: 16 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
+                    <DataCell label="Exchange" value="Dhaka Stock Exchange" />
+                    <DataCell label="Currency" value="BDT" />
+                    <DataCell label="Price" value={`${fmt(selected.price)} BDT`} />
+                  </div>
+                  <div style={{ fontSize: 12, color: COLORS.textDim, lineHeight: 1.6 }}>
+                    {selected.name} is listed on the Dhaka Stock Exchange (DSE). Detailed company profile data is sourced from DSE directly. Visit dsebd.org for more information.
+                  </div>
+                </div>
+              ) : finLoading ? (
                 <LoadingSpinner />
               ) : (
                 <div style={{ padding: 16 }}>

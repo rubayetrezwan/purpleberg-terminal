@@ -3,11 +3,13 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { Activity, TrendingUp, Hash } from "lucide-react";
-import { COLORS, fmt } from "../config";
+import { fmt } from "../config";
+import { useColors } from "../ThemeContext";
 import { api } from "../api";
 import { Panel, PanelHeader, DataCell, MiniTable } from "../shared";
 
 export default function OptionsPricer() {
+  const COLORS = useColors();
   const [spot, setSpot] = useState("");
   const [strike, setStrike] = useState("");
   const [vol, setVol] = useState("25");

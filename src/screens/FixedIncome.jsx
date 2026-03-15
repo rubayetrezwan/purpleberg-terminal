@@ -3,11 +3,13 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { Landmark, Globe, Shield } from "lucide-react";
-import { COLORS, BOND_SYMBOLS, fmt } from "../config";
+import { BOND_SYMBOLS, fmt } from "../config";
+import { useColors } from "../ThemeContext";
 import { useQuotes } from "../hooks";
 import { Panel, PanelHeader, ChgVal, MiniTable, LoadingSpinner } from "../shared";
 
 export default function FixedIncome() {
+  const COLORS = useColors();
   const bondSymbols = useMemo(() => BOND_SYMBOLS.map((b) => b.symbol), []);
   const { data: bondQuotes, loading } = useQuotes(bondSymbols, 30000);
 

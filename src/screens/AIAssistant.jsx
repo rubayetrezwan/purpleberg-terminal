@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { Brain, User, Send, AlertTriangle } from "lucide-react";
-import { COLORS } from "../config";
+import { useColors } from "../ThemeContext";
 import { api } from "../api";
 import { Panel, PanelHeader, Badge } from "../shared";
 
 export default function AIAssistant() {
+  const COLORS = useColors();
   const [messages, setMessages] = useState([
     {
       role: "assistant",

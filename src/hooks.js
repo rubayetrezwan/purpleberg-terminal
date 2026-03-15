@@ -46,7 +46,7 @@ export function useHistorical(symbol, range = "3mo") {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!symbol) return;
+    if (!symbol) { setLoading(false); setData([]); return; }
     let cancelled = false;
     setLoading(true);
 
@@ -71,7 +71,7 @@ export function useFinancials(symbol) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!symbol) return;
+    if (!symbol) { setLoading(false); setData(null); return; }
     let cancelled = false;
     setLoading(true);
 

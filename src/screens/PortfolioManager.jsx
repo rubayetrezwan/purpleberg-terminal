@@ -3,11 +3,13 @@ import {
   PieChart, Pie, Cell, AreaChart, Area, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { Briefcase, TrendingUp, PieChart as PieIcon, Plus, Trash2 } from "lucide-react";
-import { COLORS, fmt, fmtK, fmtPct } from "../config";
+import { fmt, fmtK, fmtPct } from "../config";
+import { useColors } from "../ThemeContext";
 import { useQuotes, usePortfolio } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, MiniTable, LoadingSpinner } from "../shared";
 
 export default function PortfolioManager() {
+  const COLORS = useColors();
   const { holdings, addHolding, removeHolding } = usePortfolio();
   const [showAdd, setShowAdd] = useState(false);
   const [newSymbol, setNewSymbol] = useState("");

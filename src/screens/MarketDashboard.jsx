@@ -6,11 +6,13 @@ import {
 import {
   Globe, BarChart3, Zap, Layers, Hash, Landmark,
 } from "lucide-react";
-import { COLORS, INDEX_SYMBOLS, COMMODITY_SYMBOLS, BOND_SYMBOLS, fmt, fmtK, fmtPct } from "../config";
+import { INDEX_SYMBOLS, COMMODITY_SYMBOLS, BOND_SYMBOLS, fmt, fmtK, fmtPct } from "../config";
+import { useColors } from "../ThemeContext";
 import { useQuotes } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, MiniTable, LoadingSpinner } from "../shared";
 
 export default function MarketDashboard({ allStockQuotes, news }) {
+  const COLORS = useColors();
   const indexSymbols = useMemo(() => INDEX_SYMBOLS.map((i) => i.symbol), []);
   const commoditySymbols = useMemo(() => COMMODITY_SYMBOLS.map((c) => c.symbol), []);
   const bondSymbols = useMemo(() => BOND_SYMBOLS.map((b) => b.symbol), []);

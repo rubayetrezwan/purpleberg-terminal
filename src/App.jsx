@@ -3,9 +3,10 @@ import {
   Search, Globe, TrendingUp, DollarSign, Landmark, Activity,
   Filter, Briefcase, Shield, Calendar, FileText, MessageSquare,
   Brain, Zap, Bell, Settings, User, Maximize2, Minimize2,
-  Command, ChevronRight,
+  Command, ChevronRight, Sun, Moon,
 } from "lucide-react";
-import { COLORS, US_STOCKS, ts, fmt } from "./config";
+import { US_STOCKS, ts, fmt } from "./config";
+import { useColors, useTheme } from "./ThemeContext";
 import { useQuotes, useNews } from "./hooks";
 import { api } from "./api";
 import { Badge, ChgVal } from "./shared";
@@ -40,6 +41,8 @@ const SCREENS = [
 ];
 
 export default function App() {
+  const COLORS = useColors();
+  const { isDark, toggle: toggleTheme } = useTheme();
   const [screen, setScreen] = useState("DASHBOARD");
   const [cmdOpen, setCmdOpen] = useState(false);
   const [cmdQuery, setCmdQuery] = useState("");
@@ -168,7 +171,7 @@ export default function App() {
         select { outline: none; }
       `}</style>
 
-      {/* ═══ TOP BAR ═══ */}
+      {/* TOP BAR */}
       <div
         style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -216,11 +219,25 @@ export default function App() {
           <Search size={13} color={COLORS.textMuted} />
           <span style={{ fontSize: 11, color: COLORS.textMuted }}>Search functions... (Ctrl+K)</span>
           <span style={{ fontSize: 9, color: COLORS.textMuted, marginLeft: "auto", padding: "1px 6px", background: COLORS.border + "44", borderRadius: 2 }}>
-            ⌘K
+            Ctrl+K
           </span>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {/* THEME TOGGLE */}
+          <div
+            onClick={toggleTheme}
+            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            style={{
+              width: 28, height: 28, borderRadius: 6,
+              background: COLORS.bgInput,
+              border: `1px solid ${COLORS.border}`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer",
+            }}
+          >
+            {isDark ? <Sun size={14} color={COLORS.gold} /> : <Moon size={14} color={COLORS.purpleDark} />}
+          </div>
           <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono',monospace", color: COLORS.green }}>
             {time}
           </span>
@@ -241,7 +258,7 @@ export default function App() {
       </div>
 
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        {/* ═══ SIDEBAR ═══ */}
+        {/* SIDEBAR */}
         <div
           style={{
             width: sidebarCollapsed ? 48 : 160, background: COLORS.bgPanel,
@@ -295,17 +312,20 @@ export default function App() {
           })}
           <div style={{ marginTop: "auto", padding: 8, borderTop: `1px solid ${COLORS.border}`, textAlign: "center" }}>
             <div style={{ fontSize: 8, color: COLORS.textMuted, letterSpacing: 1 }}>PURPLEBERG</div>
-            <div style={{ fontSize: 7, color: COLORS.textMuted }}>v2.0.0 • Live Data</div>
+            <div style={{ fontSize: 7, color: COLORS.textMuted }}>v2.0.0 | Live Data</div>
+            <div style={{ fontSize: 8, color: COLORS.purple, marginTop: 2, fontWeight: 600, letterSpacing: 0.3 }}>
+              by Rubayet Rezwan
+            </div>
           </div>
         </div>
 
-        {/* ═══ MAIN CONTENT ═══ */}
+        {/* MAIN CONTENT */}
         <div style={{ flex: 1, overflow: "auto", background: COLORS.bg }}>
           {renderScreen()}
         </div>
       </div>
 
-      {/* ═══ BOTTOM TICKER ═══ */}
+      {/* BOTTOM TICKER */}
       <div
         style={{
           height: 24, background: COLORS.bgPanel,
@@ -338,7 +358,7 @@ export default function App() {
         </span>
       </div>
 
-      {/* ═══ COMMAND PALETTE ═══ */}
+      {/* COMMAND PALETTE */}
       {cmdOpen && (
         <div
           onClick={() => setCmdOpen(false)}

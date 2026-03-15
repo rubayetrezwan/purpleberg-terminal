@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { MessageSquare, Send } from "lucide-react";
-import { COLORS, ts } from "../config";
+import { ts } from "../config";
+import { useColors } from "../ThemeContext";
 import { Panel, PanelHeader } from "../shared";
-
-const INITIAL_MESSAGES = [
-  { from: "System", time: "—", text: "Welcome to Purpleberg IB Chat. This is a local demo — messages are not sent externally.", color: COLORS.purple },
-];
 
 const CONTACTS = ["Trading Desk", "Research", "Risk", "PM", "Compliance", "Sales", "Quant Team", "Operations"];
 
 export default function Messaging() {
-  const [messages, setMessages] = useState(INITIAL_MESSAGES);
+  const COLORS = useColors();
+  const [messages, setMessages] = useState([
+    { from: "System", time: "\u2014", text: "Welcome to Purpleberg IB Chat. This is a local demo \u2014 messages are not sent externally.", color: "purple" },
+  ]);
   const [input, setInput] = useState("");
   const [activeContact, setActiveContact] = useState("Trading Desk");
 
@@ -18,7 +18,7 @@ export default function Messaging() {
     if (!input.trim()) return;
     setMessages((prev) => [
       ...prev,
-      { from: "You", time: ts().slice(0, 5), text: input, color: COLORS.purpleLight },
+      { from: "You", time: ts().slice(0, 5), text: input, color: "purpleLight" },
     ]);
     setInput("");
   };
@@ -60,14 +60,14 @@ export default function Messaging() {
           {messages.map((m, i) => (
             <div key={i} style={{ marginBottom: 10 }}>
               <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 2 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: m.color }}>{m.from}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: COLORS[m.color] || m.color }}>{m.from}</span>
                 <span style={{ fontSize: 9, color: COLORS.textMuted, fontFamily: "'JetBrains Mono',monospace" }}>{m.time}</span>
               </div>
               <div
                 style={{
                   fontSize: 12, color: COLORS.text, lineHeight: 1.4,
                   padding: "6px 10px", background: COLORS.bgPanel,
-                  borderRadius: 4, borderLeft: `2px solid ${m.color}`,
+                  borderRadius: 4, borderLeft: `2px solid ${COLORS[m.color] || m.color}`,
                 }}
               >
                 {m.text}
