@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import {
-  AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart,
+  AreaChart, Area, LineChart, Line, BarChart, Bar, Cell, ComposedChart,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
@@ -151,13 +151,104 @@ export default function EquityAnalysis({ allStockQuotes }) {
                 </span>
               </div>
               <div style={{ padding: 8, height: 320 }}>
-                {isDSE ? (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: COLORS.textMuted, fontSize: 12, flexDirection: "column", gap: 8 }}>
-                    <span style={{ fontSize: 24, opacity: 0.4 }}>DSE</span>
-                    <span>Chart data is not available for DSE securities.</span>
-                    <span style={{ fontSize: 10, color: COLORS.textDim }}>Price and change data shown in the sidebar are live from DSE.</span>
-                  </div>
-                ) : histLoading ? (
+                {isDSE ? (() => {
+                  const o = selected.open || selected.price;
+                  const h = selected.high || selected.price;
+                  const l = selected.low || selected.price;
+                  const c = selected.price;
+                  const ycp = selected.prevClose || c;
+                  const bullish = c >= ycp;
+                  const barColor = bullish ? COLORS.green : COLORS.red;
+
+                  // Build a bar chart from OHLC price levels
+                  const dseChartData = [
+                    { name: "YCP", value: ycp, fill: COLORS.orange },
+                    { name: "Open", value: o, fill: COLORS.cyan },
+                    { name: "High", value: h, fill: COLORS.green },
+                    { name: "Low", value: l, fill: COLORS.red },
+                    { name: "LTP", value: c, fill: barColor },
+                  ];
+                  const allVals = [ycp, o, h, l, c].filter((v) => v > 0);
+                  const minVal = Math.min(...allVals);
+                  const maxVal = Math.max(...allVals);
+                  const domainPad = Math.max((maxVal - minVal) * 0.5, maxVal * 0.01);
+
+                  return (
+                    <div style={{ height: "100%", display: "grid", gridTemplateColumns: "1fr 280px", gap: 12 }}>
+                      {/* OHLC Bar Chart using Recharts */}
+                      <div style={{ padding: "4px 0" }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={dseChartData} barCategoryGap="20%">
+                            <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
+                            <XAxis dataKey="name" tick={{ fontSize: 10, fill: COLORS.textMuted, fontWeight: 600 }} />
+                            <YAxis
+                              tick={{ fontSize: 9, fill: COLORS.textMuted }}
+                              domain={[minVal - domainPad, maxVal + domainPad]}
+                              tickFormatter={(v) => fmt(v)}
+                            />
+                            <Tooltip
+                              contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11, color: COLORS.text }}
+                              formatter={(v) => [fmt(v) + " BDT", "Price"]}
+                            />
+                            <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={36}>
+                              {dseChartData.map((entry, idx) => (
+                                <Cell key={idx} fill={entry.fill} fillOpacity={0.8} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      {/* Right side: Price + Stats */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 0" }}>
+                        <div>
+                          <span style={{ fontSize: 28, fontWeight: 800, color: COLORS.text, fontFamily: "'JetBrains Mono',monospace" }}>
+                            {fmt(c)}
+                          </span>
+                          <span style={{ fontSize: 12, color: COLORS.textMuted, marginLeft: 6 }}>BDT</span>
+                          <div style={{ display: "flex", gap: 8, marginTop: 4, alignItems: "center" }}>
+                            <ChgVal val={selected.changePercent} />
+                            <span style={{ fontSize: 11, color: barColor, fontFamily: "'JetBrains Mono',monospace" }}>
+                              {selected.change >= 0 ? "+" : ""}{fmt(selected.change)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Day range bar */}
+                        {l > 0 && h > 0 && h !== l && (
+                          <div>
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                              <span style={{ fontSize: 9, color: COLORS.red }}>{fmt(l)}</span>
+                              <span style={{ fontSize: 9, color: COLORS.textMuted }}>DAY RANGE</span>
+                              <span style={{ fontSize: 9, color: COLORS.green }}>{fmt(h)}</span>
+                            </div>
+                            <div style={{ height: 6, background: COLORS.bgPanel, borderRadius: 3, position: "relative" }}>
+                              <div style={{
+                                position: "absolute", left: `${Math.min(Math.max(((c - l) / (h - l)) * 100, 0), 100)}%`,
+                                top: -2, width: 10, height: 10, borderRadius: 5, background: COLORS.purple,
+                                transform: "translateX(-50%)", border: `2px solid ${COLORS.bg}`,
+                              }} />
+                              <div style={{ width: "100%", height: "100%", background: `linear-gradient(90deg, ${COLORS.red}33, ${COLORS.green}33)`, borderRadius: 3 }} />
+                            </div>
+                          </div>
+                        )}
+
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 4 }}>
+                          <DataCell label="Open" value={fmt(o)} />
+                          <DataCell label="Close" value={fmt(c)} color={barColor} />
+                          <DataCell label="YCP" value={fmt(ycp)} />
+                          <DataCell label="Volume" value={fmtK(selected.volume)} />
+                          <DataCell label="Trades" value={fmtK(selected.trades || 0)} />
+                          <DataCell label="Turnover" value={fmtK(selected.value || 0)} />
+                        </div>
+
+                        <div style={{ fontSize: 9, color: COLORS.textDim, marginTop: "auto", borderTop: `1px solid ${COLORS.border}22`, paddingTop: 6 }}>
+                          Live from DSE • Sun–Thu 10:00–14:30 BST
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })() : histLoading ? (
                   <LoadingSpinner text="Loading chart data..." />
                 ) : chartData.length === 0 ? (
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: COLORS.textMuted, fontSize: 12 }}>
@@ -209,8 +300,24 @@ export default function EquityAnalysis({ allStockQuotes }) {
           {tab === "FINANCIALS" && (
             isDSE ? (
               <Panel>
-                <div style={{ padding: 40, textAlign: "center", color: COLORS.textMuted, fontSize: 12 }}>
-                  Financial data is not available for DSE securities.
+                <PanelHeader icon={<TrendingUp size={14} color={COLORS.green} />} title="TRADING SUMMARY" subtitle={`${selected.symbol} — Dhaka Stock Exchange`} />
+                <div style={{ padding: 16 }}>
+                  <MiniTable
+                    headers={["Metric", "Value"]}
+                    rows={[
+                      [<span style={{ color: COLORS.text }}>Last Traded Price</span>, <span style={{ color: COLORS.gold, fontWeight: 700 }}>{fmt(selected.price)} BDT</span>],
+                      [<span style={{ color: COLORS.text }}>Day Change</span>, <span style={{ color: selected.change >= 0 ? COLORS.green : COLORS.red, fontWeight: 700 }}>{selected.change >= 0 ? "+" : ""}{fmt(selected.change)} ({fmtPct(selected.changePercent)})</span>],
+                      [<span style={{ color: COLORS.text }}>Day High</span>, <span style={{ color: COLORS.green, fontWeight: 600 }}>{fmt(selected.high)} BDT</span>],
+                      [<span style={{ color: COLORS.text }}>Day Low</span>, <span style={{ color: COLORS.red, fontWeight: 600 }}>{fmt(selected.low)} BDT</span>],
+                      [<span style={{ color: COLORS.text }}>Previous Close (YCP)</span>, <span style={{ color: COLORS.text, fontWeight: 600 }}>{fmt(selected.prevClose)} BDT</span>],
+                      [<span style={{ color: COLORS.text }}>Volume</span>, <span style={{ color: COLORS.text, fontWeight: 600 }}>{fmtK(selected.volume)}</span>],
+                      [<span style={{ color: COLORS.text }}>Total Trades</span>, <span style={{ color: COLORS.text, fontWeight: 600 }}>{fmtK(selected.trades || 0)}</span>],
+                      [<span style={{ color: COLORS.text }}>Turnover (BDT)</span>, <span style={{ color: COLORS.text, fontWeight: 600 }}>{fmtK(selected.value || 0)}</span>],
+                    ]}
+                  />
+                  <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 12 }}>
+                    Detailed financial statements for DSE securities are available at <a href="https://www.dsebd.org" target="_blank" rel="noopener noreferrer" style={{ color: COLORS.purpleLight }}>dsebd.org</a>
+                  </div>
                 </div>
               </Panel>
             ) : (
@@ -264,8 +371,16 @@ export default function EquityAnalysis({ allStockQuotes }) {
             <Panel>
               <PanelHeader icon={<Activity size={14} color={COLORS.cyan} />} title="ANALYST ESTIMATES" subtitle="Consensus recommendations" />
               {isDSE ? (
-                <div style={{ padding: 40, textAlign: "center", color: COLORS.textMuted, fontSize: 12 }}>
-                  Analyst estimates are not available for DSE securities.
+                <div style={{ padding: 16 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
+                    <DataCell label="LTP" value={`${fmt(selected.price)} BDT`} color={COLORS.gold} />
+                    <DataCell label="YCP" value={`${fmt(selected.prevClose)} BDT`} />
+                    <DataCell label="Day Change" value={`${selected.change >= 0 ? "+" : ""}${fmt(selected.change)}`} color={selected.change >= 0 ? COLORS.green : COLORS.red} />
+                    <DataCell label="Change %" value={fmtPct(selected.changePercent)} color={selected.changePercent >= 0 ? COLORS.green : COLORS.red} />
+                  </div>
+                  <div style={{ fontSize: 11, color: COLORS.textDim, lineHeight: 1.6 }}>
+                    Analyst coverage and consensus estimates for DSE-listed securities are not available through this terminal. For research reports and recommendations, visit <a href="https://www.dsebd.org" target="_blank" rel="noopener noreferrer" style={{ color: COLORS.purpleLight }}>dsebd.org</a> or your local brokerage platform.
+                  </div>
                 </div>
               ) : finLoading ? (
                 <LoadingSpinner />
@@ -305,8 +420,20 @@ export default function EquityAnalysis({ allStockQuotes }) {
             <Panel>
               <PanelHeader icon={<Calculator size={14} color={COLORS.purple} />} title="VALUATION & RATIOS" subtitle="Key financial ratios" />
               {isDSE ? (
-                <div style={{ padding: 40, textAlign: "center", color: COLORS.textMuted, fontSize: 12 }}>
-                  Ratio data is not available for DSE securities.
+                <div style={{ padding: 16 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
+                    <DataCell label="LTP" value={`${fmt(selected.price)} BDT`} color={COLORS.gold} />
+                    <DataCell label="Day High" value={`${fmt(selected.high)} BDT`} color={COLORS.green} />
+                    <DataCell label="Day Low" value={`${fmt(selected.low)} BDT`} color={COLORS.red} />
+                    <DataCell label="Volume" value={fmtK(selected.volume)} />
+                    <DataCell label="Trades" value={fmtK(selected.trades || 0)} />
+                    <DataCell label="Turnover" value={fmtK(selected.value || 0)} />
+                    <DataCell label="YCP" value={`${fmt(selected.prevClose)} BDT`} />
+                    <DataCell label="Spread" value={`${fmt(selected.high - selected.low)} BDT`} />
+                  </div>
+                  <div style={{ fontSize: 10, color: COLORS.textDim }}>
+                    P/E, P/B, and other valuation ratios for DSE securities are available at <a href="https://www.dsebd.org" target="_blank" rel="noopener noreferrer" style={{ color: COLORS.purpleLight }}>dsebd.org</a>
+                  </div>
                 </div>
               ) : finLoading ? (
                 <LoadingSpinner />
@@ -326,12 +453,20 @@ export default function EquityAnalysis({ allStockQuotes }) {
               {isDSE ? (
                 <div style={{ padding: 16 }}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
+                    <DataCell label="Trading Code" value={selected.symbol} color={COLORS.purpleLight} />
                     <DataCell label="Exchange" value="Dhaka Stock Exchange" />
-                    <DataCell label="Currency" value="BDT" />
-                    <DataCell label="Price" value={`${fmt(selected.price)} BDT`} />
+                    <DataCell label="Currency" value="BDT (৳)" />
+                    <DataCell label="Last Price" value={`${fmt(selected.price)} BDT`} color={COLORS.gold} />
+                    <DataCell label="Market State" value={selected.marketState === "REGULAR" ? "OPEN" : "CLOSED"} color={selected.marketState === "REGULAR" ? COLORS.green : COLORS.orange} />
+                    <DataCell label="Volume" value={fmtK(selected.volume)} />
                   </div>
-                  <div style={{ fontSize: 12, color: COLORS.textDim, lineHeight: 1.6 }}>
-                    {selected.name} is listed on the Dhaka Stock Exchange (DSE). Detailed company profile data is sourced from DSE directly. Visit dsebd.org for more information.
+                  <div style={{ fontSize: 12, color: COLORS.textDim, lineHeight: 1.6, marginBottom: 12 }}>
+                    <strong style={{ color: COLORS.text }}>{selected.name}</strong> is listed on the Dhaka Stock Exchange (DSE), the primary stock exchange of Bangladesh.
+                  </div>
+                  <div style={{ fontSize: 11, color: COLORS.textDim, lineHeight: 1.6 }}>
+                    <strong style={{ color: COLORS.textMuted }}>Market Hours:</strong> Sunday–Thursday, 10:00 AM – 2:30 PM BST<br />
+                    <strong style={{ color: COLORS.textMuted }}>Website:</strong>{" "}
+                    <a href="https://www.dsebd.org" target="_blank" rel="noopener noreferrer" style={{ color: COLORS.purpleLight }}>dsebd.org</a>
                   </div>
                 </div>
               ) : finLoading ? (
