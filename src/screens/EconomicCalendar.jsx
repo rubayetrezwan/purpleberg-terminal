@@ -75,7 +75,6 @@ export default function EconomicCalendar() {
               [<span style={{ color: COLORS.text }}>European Central Bank</span>, <span style={{ color: COLORS.gold, fontWeight: 700 }}>Check ECB</span>, <a href="https://www.ecb.europa.eu" target="_blank" rel="noopener noreferrer" style={{ color: COLORS.purpleLight, fontSize: 10 }}>ecb.europa.eu</a>],
               [<span style={{ color: COLORS.text }}>Bank of England</span>, <span style={{ color: COLORS.gold, fontWeight: 700 }}>Check BOE</span>, <a href="https://www.bankofengland.co.uk" target="_blank" rel="noopener noreferrer" style={{ color: COLORS.purpleLight, fontSize: 10 }}>bankofengland.co.uk</a>],
               [<span style={{ color: COLORS.text }}>Bank of Japan</span>, <span style={{ color: COLORS.gold, fontWeight: 700 }}>Check BOJ</span>, <a href="https://www.boj.or.jp/en" target="_blank" rel="noopener noreferrer" style={{ color: COLORS.purpleLight, fontSize: 10 }}>boj.or.jp</a>],
-              [<span style={{ color: COLORS.text }}>Bangladesh Bank</span>, <span style={{ color: COLORS.gold, fontWeight: 700 }}>Check BB</span>, <a href="https://www.bb.org.bd" target="_blank" rel="noopener noreferrer" style={{ color: COLORS.purpleLight, fontSize: 10 }}>bb.org.bd</a>],
               [<span style={{ color: COLORS.text }}>RBI (India)</span>, <span style={{ color: COLORS.gold, fontWeight: 700 }}>Check RBI</span>, <a href="https://www.rbi.org.in" target="_blank" rel="noopener noreferrer" style={{ color: COLORS.purpleLight, fontSize: 10 }}>rbi.org.in</a>],
             ]}
           />
@@ -90,7 +89,6 @@ export default function EconomicCalendar() {
               { l: "FRED (St. Louis Fed)", url: "https://fred.stlouisfed.org", desc: "380K+ economic data series" },
               { l: "TradingEconomics", url: "https://tradingeconomics.com/calendar", desc: "Global economic calendar" },
               { l: "Investing.com", url: "https://www.investing.com/economic-calendar", desc: "Economic calendar + forecasts" },
-              { l: "Bangladesh Bureau of Statistics", url: "https://bbs.gov.bd", desc: "Bangladesh economic data" },
             ].map((item) => (
               <div key={item.l} style={{ marginBottom: 8, padding: "4px 0", borderBottom: `1px solid ${COLORS.border}22` }}>
                 <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: COLORS.purpleLight, textDecoration: "none", fontWeight: 600 }}>

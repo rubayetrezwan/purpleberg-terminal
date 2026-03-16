@@ -41,9 +41,6 @@ export const US_STOCKS = [
   "LIN", "NEE", "INTC", "GS", "MS", "C", "PYPL", "UBER",
 ];
 
-// BD stocks are fetched directly from DSE via /api/dse endpoint
-// They are automatically merged in the App component
-
 export const INDEX_SYMBOLS = [
   { symbol: "^GSPC", name: "S&P 500", short: "SPX" },
   { symbol: "^DJI", name: "Dow Jones", short: "DJI" },
@@ -61,7 +58,6 @@ export const FX_SYMBOLS = [
   { symbol: "EURUSD=X", pair: "EUR/USD" },
   { symbol: "GBPUSD=X", pair: "GBP/USD" },
   { symbol: "USDJPY=X", pair: "USD/JPY" },
-  { symbol: "USDBDT=X", pair: "USD/BDT" },
   { symbol: "USDCHF=X", pair: "USD/CHF" },
   { symbol: "AUDUSD=X", pair: "AUD/USD" },
   { symbol: "USDCAD=X", pair: "USD/CAD" },

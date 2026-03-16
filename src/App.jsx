@@ -8,7 +8,6 @@ import {
 import { US_STOCKS, ts, fmt } from "./config";
 import { useColors, useTheme } from "./ThemeContext";
 import { useQuotes, useNews } from "./hooks";
-import { api } from "./api";
 import { Badge, ChgVal } from "./shared";
 
 // Screens
@@ -50,28 +49,9 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const cmdRef = useRef(null);
 
-  // ── Global data: fetch US stock quotes + DSE data, share across screens ──
-  const { data: usStockQuotes, loading: stocksLoading } = useQuotes(US_STOCKS, 20000);
-  const [dseQuotes, setDseQuotes] = useState([]);
+  // ── Global data: fetch US stock quotes, share across screens ──
+  const { data: allStockQuotes, loading: stocksLoading } = useQuotes(US_STOCKS, 20000);
   const { data: newsData, loading: newsLoading } = useNews(null, 120000);
-
-  // Fetch DSE (Bangladesh) stocks
-  useEffect(() => {
-    const fetchDSE = async () => {
-      try {
-        const data = await api.dse();
-        setDseQuotes(data);
-      } catch {}
-    };
-    fetchDSE();
-    const iv = setInterval(fetchDSE, 60000); // DSE data refreshes every minute
-    return () => clearInterval(iv);
-  }, []);
-
-  // Merge US + BD stocks
-  const allStockQuotes = useMemo(() => {
-    return [...usStockQuotes, ...dseQuotes];
-  }, [usStockQuotes, dseQuotes]);
 
   // ── Clock ──
   useEffect(() => {

@@ -50,7 +50,7 @@ export default function MarketDashboard({ allStockQuotes, news }) {
   const treemapData = useMemo(() => {
     if (!allStockQuotes?.length) return [];
     return [...allStockQuotes]
-      .filter((q) => q.exchange !== "DSE" && q.price > 0)
+      .filter((q) => q.price > 0)
       .sort((a, b) => (b.marketCap || b.volume * b.price) - (a.marketCap || a.volume * a.price))
       .slice(0, 16)
       .map((q) => ({

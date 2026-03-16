@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import {
-  AreaChart, Area, LineChart, Line, BarChart, Bar, Cell, ComposedChart,
+  AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
@@ -19,19 +19,15 @@ export default function EquityAnalysis({ allStockQuotes }) {
   const [chartType, setChartType] = useState("area");
   const [chartRange, setChartRange] = useState("3mo");
 
-  // Auto-select first US stock when data loads (skip DSE stocks for charts)
   useEffect(() => {
     if (stocks.length > 0 && !stocks.find((s) => s.symbol === selectedSymbol)) {
-      const usStock = stocks.find((s) => s.exchange !== "DSE");
-      if (usStock) setSelectedSymbol(usStock.symbol);
-      else setSelectedSymbol(stocks[0].symbol);
+      setSelectedSymbol(stocks[0].symbol);
     }
   }, [stocks.length]);
 
   const selected = stocks.find((s) => s.symbol === selectedSymbol) || stocks[0] || {};
-  const isDSE = selected.exchange === "DSE";
-  const { data: histData, loading: histLoading } = useHistorical(isDSE ? null : selected.symbol, chartRange);
-  const { data: finData, loading: finLoading } = useFinancials(isDSE ? null : selected.symbol);
+  const { data: histData, loading: histLoading } = useHistorical(selected.symbol, chartRange);
+  const { data: finData, loading: finLoading } = useFinancials(selected.symbol);
 
   const chartData = useMemo(() => {
     return histData.map((d) => ({
@@ -67,7 +63,7 @@ export default function EquityAnalysis({ allStockQuotes }) {
           >
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: selectedSymbol === s.symbol ? COLORS.purpleLight : COLORS.text }}>
-                {s.symbol?.replace(".DS", "")}
+                {s.symbol}
               </span>
               <span style={{ fontSize: 11, fontWeight: 600, color: COLORS.text, fontFamily: "'JetBrains Mono',monospace" }}>
                 {fmt(s.price)}
@@ -87,7 +83,7 @@ export default function EquityAnalysis({ allStockQuotes }) {
         <div style={{ padding: "12px 16px", background: COLORS.bgPanel, borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 20, fontWeight: 800, color: COLORS.text }}>{selected.symbol?.replace(".DS", "")}</span>
+              <span style={{ fontSize: 20, fontWeight: 800, color: COLORS.text }}>{selected.symbol}</span>
               <span style={{ fontSize: 13, color: COLORS.textDim }}>{selected.name}</span>
               <Badge>{selected.exchange || "\u2014"}</Badge>
               <Badge color={COLORS.cyan}>{selected.currency || "USD"}</Badge>
@@ -151,104 +147,7 @@ export default function EquityAnalysis({ allStockQuotes }) {
                 </span>
               </div>
               <div style={{ padding: 8, height: 320 }}>
-                {isDSE ? (() => {
-                  const o = selected.open || selected.price;
-                  const h = selected.high || selected.price;
-                  const l = selected.low || selected.price;
-                  const c = selected.price;
-                  const ycp = selected.prevClose || c;
-                  const bullish = c >= ycp;
-                  const barColor = bullish ? COLORS.green : COLORS.red;
-
-                  // Build a bar chart from OHLC price levels
-                  const dseChartData = [
-                    { name: "YCP", value: ycp, fill: COLORS.orange },
-                    { name: "Open", value: o, fill: COLORS.cyan },
-                    { name: "High", value: h, fill: COLORS.green },
-                    { name: "Low", value: l, fill: COLORS.red },
-                    { name: "LTP", value: c, fill: barColor },
-                  ];
-                  const allVals = [ycp, o, h, l, c].filter((v) => v > 0);
-                  const minVal = Math.min(...allVals);
-                  const maxVal = Math.max(...allVals);
-                  const domainPad = Math.max((maxVal - minVal) * 0.5, maxVal * 0.01);
-
-                  return (
-                    <div style={{ height: "100%", display: "grid", gridTemplateColumns: "1fr 280px", gap: 12 }}>
-                      {/* OHLC Bar Chart using Recharts */}
-                      <div style={{ padding: "4px 0" }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={dseChartData} barCategoryGap="20%">
-                            <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                            <XAxis dataKey="name" tick={{ fontSize: 10, fill: COLORS.textMuted, fontWeight: 600 }} />
-                            <YAxis
-                              tick={{ fontSize: 9, fill: COLORS.textMuted }}
-                              domain={[minVal - domainPad, maxVal + domainPad]}
-                              tickFormatter={(v) => fmt(v)}
-                            />
-                            <Tooltip
-                              contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11, color: COLORS.text }}
-                              formatter={(v) => [fmt(v) + " BDT", "Price"]}
-                            />
-                            <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={36}>
-                              {dseChartData.map((entry, idx) => (
-                                <Cell key={idx} fill={entry.fill} fillOpacity={0.8} />
-                              ))}
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-
-                      {/* Right side: Price + Stats */}
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 0" }}>
-                        <div>
-                          <span style={{ fontSize: 28, fontWeight: 800, color: COLORS.text, fontFamily: "'JetBrains Mono',monospace" }}>
-                            {fmt(c)}
-                          </span>
-                          <span style={{ fontSize: 12, color: COLORS.textMuted, marginLeft: 6 }}>BDT</span>
-                          <div style={{ display: "flex", gap: 8, marginTop: 4, alignItems: "center" }}>
-                            <ChgVal val={selected.changePercent} />
-                            <span style={{ fontSize: 11, color: barColor, fontFamily: "'JetBrains Mono',monospace" }}>
-                              {selected.change >= 0 ? "+" : ""}{fmt(selected.change)}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Day range bar */}
-                        {l > 0 && h > 0 && h !== l && (
-                          <div>
-                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                              <span style={{ fontSize: 9, color: COLORS.red }}>{fmt(l)}</span>
-                              <span style={{ fontSize: 9, color: COLORS.textMuted }}>DAY RANGE</span>
-                              <span style={{ fontSize: 9, color: COLORS.green }}>{fmt(h)}</span>
-                            </div>
-                            <div style={{ height: 6, background: COLORS.bgPanel, borderRadius: 3, position: "relative" }}>
-                              <div style={{
-                                position: "absolute", left: `${Math.min(Math.max(((c - l) / (h - l)) * 100, 0), 100)}%`,
-                                top: -2, width: 10, height: 10, borderRadius: 5, background: COLORS.purple,
-                                transform: "translateX(-50%)", border: `2px solid ${COLORS.bg}`,
-                              }} />
-                              <div style={{ width: "100%", height: "100%", background: `linear-gradient(90deg, ${COLORS.red}33, ${COLORS.green}33)`, borderRadius: 3 }} />
-                            </div>
-                          </div>
-                        )}
-
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 4 }}>
-                          <DataCell label="Open" value={fmt(o)} />
-                          <DataCell label="Close" value={fmt(c)} color={barColor} />
-                          <DataCell label="YCP" value={fmt(ycp)} />
-                          <DataCell label="Volume" value={fmtK(selected.volume)} />
-                          <DataCell label="Trades" value={fmtK(selected.trades || 0)} />
-                          <DataCell label="Turnover" value={fmtK(selected.value || 0)} />
-                        </div>
-
-                        <div style={{ fontSize: 9, color: COLORS.textDim, marginTop: "auto", borderTop: `1px solid ${COLORS.border}22`, paddingTop: 6 }}>
-                          Live from DSE • Sun–Thu 10:00–14:30 BST
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })() : histLoading ? (
+                {histLoading ? (
                   <LoadingSpinner text="Loading chart data..." />
                 ) : chartData.length === 0 ? (
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: COLORS.textMuted, fontSize: 12 }}>
@@ -298,91 +197,55 @@ export default function EquityAnalysis({ allStockQuotes }) {
           )}
 
           {tab === "FINANCIALS" && (
-            isDSE ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <Panel>
-                <PanelHeader icon={<TrendingUp size={14} color={COLORS.green} />} title="TRADING SUMMARY" subtitle={`${selected.symbol} — Dhaka Stock Exchange`} />
-                <div style={{ padding: 16 }}>
-                  <MiniTable
-                    headers={["Metric", "Value"]}
-                    rows={[
-                      [<span style={{ color: COLORS.text }}>Last Traded Price</span>, <span style={{ color: COLORS.gold, fontWeight: 700 }}>{fmt(selected.price)} BDT</span>],
-                      [<span style={{ color: COLORS.text }}>Day Change</span>, <span style={{ color: selected.change >= 0 ? COLORS.green : COLORS.red, fontWeight: 700 }}>{selected.change >= 0 ? "+" : ""}{fmt(selected.change)} ({fmtPct(selected.changePercent)})</span>],
-                      [<span style={{ color: COLORS.text }}>Day High</span>, <span style={{ color: COLORS.green, fontWeight: 600 }}>{fmt(selected.high)} BDT</span>],
-                      [<span style={{ color: COLORS.text }}>Day Low</span>, <span style={{ color: COLORS.red, fontWeight: 600 }}>{fmt(selected.low)} BDT</span>],
-                      [<span style={{ color: COLORS.text }}>Previous Close (YCP)</span>, <span style={{ color: COLORS.text, fontWeight: 600 }}>{fmt(selected.prevClose)} BDT</span>],
-                      [<span style={{ color: COLORS.text }}>Volume</span>, <span style={{ color: COLORS.text, fontWeight: 600 }}>{fmtK(selected.volume)}</span>],
-                      [<span style={{ color: COLORS.text }}>Total Trades</span>, <span style={{ color: COLORS.text, fontWeight: 600 }}>{fmtK(selected.trades || 0)}</span>],
-                      [<span style={{ color: COLORS.text }}>Turnover (BDT)</span>, <span style={{ color: COLORS.text, fontWeight: 600 }}>{fmtK(selected.value || 0)}</span>],
-                    ]}
-                  />
-                  <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 12 }}>
-                    Detailed financial statements for DSE securities are available at <a href="https://www.dsebd.org" target="_blank" rel="noopener noreferrer" style={{ color: COLORS.purpleLight }}>dsebd.org</a>
-                  </div>
+                <PanelHeader icon={<TrendingUp size={14} color={COLORS.green} />} title="QUARTERLY EARNINGS" subtitle="Revenue & Earnings" />
+                <div style={{ padding: 8, height: 220 }}>
+                  {finLoading ? (
+                    <LoadingSpinner />
+                  ) : finData?.quarterlyRevenue?.length ? (
+                    <ResponsiveContainer>
+                      <BarChart data={finData.quarterlyRevenue}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
+                        <XAxis dataKey="quarter" tick={{ fontSize: 9, fill: COLORS.textMuted }} />
+                        <YAxis tick={{ fontSize: 9, fill: COLORS.textMuted }} tickFormatter={(v) => fmtK(v)} />
+                        <Tooltip contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11 }} formatter={(v) => fmtK(v)} />
+                        <Bar dataKey="revenue" fill={COLORS.purple} radius={[3, 3, 0, 0]} barSize={24} name="Revenue" />
+                        <Bar dataKey="earnings" fill={COLORS.green} radius={[3, 3, 0, 0]} barSize={24} name="Earnings" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <LoadingSpinner text="No quarterly data available" />
+                  )}
                 </div>
               </Panel>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <Panel>
-                  <PanelHeader icon={<TrendingUp size={14} color={COLORS.green} />} title="QUARTERLY EARNINGS" subtitle="Revenue & Earnings" />
-                  <div style={{ padding: 8, height: 220 }}>
-                    {finLoading ? (
-                      <LoadingSpinner />
-                    ) : finData?.quarterlyRevenue?.length ? (
-                      <ResponsiveContainer>
-                        <BarChart data={finData.quarterlyRevenue}>
-                          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                          <XAxis dataKey="quarter" tick={{ fontSize: 9, fill: COLORS.textMuted }} />
-                          <YAxis tick={{ fontSize: 9, fill: COLORS.textMuted }} tickFormatter={(v) => fmtK(v)} />
-                          <Tooltip contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11 }} formatter={(v) => fmtK(v)} />
-                          <Bar dataKey="revenue" fill={COLORS.purple} radius={[3, 3, 0, 0]} barSize={24} name="Revenue" />
-                          <Bar dataKey="earnings" fill={COLORS.green} radius={[3, 3, 0, 0]} barSize={24} name="Earnings" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <LoadingSpinner text="No quarterly data available" />
-                    )}
-                  </div>
-                </Panel>
-                <Panel>
-                  <PanelHeader icon={<PieIcon size={14} color={COLORS.orange} />} title="MARGIN ANALYSIS" subtitle="Profitability metrics" />
-                  <div style={{ padding: 12 }}>
-                    {finLoading ? (
-                      <LoadingSpinner />
-                    ) : (
-                      Object.entries(finData?.margins || {}).map(([k, v]) => (
-                        <div key={k} style={{ marginBottom: 10 }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                            <span style={{ fontSize: 11, color: COLORS.textDim, textTransform: "capitalize" }}>{k} Margin</span>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.green, fontFamily: "'JetBrains Mono',monospace" }}>{v}%</span>
-                          </div>
-                          <div style={{ height: 6, background: COLORS.bgPanel, borderRadius: 3, overflow: "hidden" }}>
-                            <div style={{ width: `${Math.min(Math.max(parseFloat(v) || 0, 0), 100)}%`, height: "100%", background: `linear-gradient(90deg, ${COLORS.purpleDark}, ${COLORS.purple})`, borderRadius: 3 }} />
-                          </div>
+              <Panel>
+                <PanelHeader icon={<PieIcon size={14} color={COLORS.orange} />} title="MARGIN ANALYSIS" subtitle="Profitability metrics" />
+                <div style={{ padding: 12 }}>
+                  {finLoading ? (
+                    <LoadingSpinner />
+                  ) : (
+                    Object.entries(finData?.margins || {}).map(([k, v]) => (
+                      <div key={k} style={{ marginBottom: 10 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                          <span style={{ fontSize: 11, color: COLORS.textDim, textTransform: "capitalize" }}>{k} Margin</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.green, fontFamily: "'JetBrains Mono',monospace" }}>{v}%</span>
                         </div>
-                      ))
-                    )}
-                  </div>
-                </Panel>
-              </div>
-            )
+                        <div style={{ height: 6, background: COLORS.bgPanel, borderRadius: 3, overflow: "hidden" }}>
+                          <div style={{ width: `${Math.min(Math.max(parseFloat(v) || 0, 0), 100)}%`, height: "100%", background: `linear-gradient(90deg, ${COLORS.purpleDark}, ${COLORS.purple})`, borderRadius: 3 }} />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </Panel>
+            </div>
           )}
 
           {tab === "ESTIMATES" && (
             <Panel>
               <PanelHeader icon={<Activity size={14} color={COLORS.cyan} />} title="ANALYST ESTIMATES" subtitle="Consensus recommendations" />
-              {isDSE ? (
-                <div style={{ padding: 16 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
-                    <DataCell label="LTP" value={`${fmt(selected.price)} BDT`} color={COLORS.gold} />
-                    <DataCell label="YCP" value={`${fmt(selected.prevClose)} BDT`} />
-                    <DataCell label="Day Change" value={`${selected.change >= 0 ? "+" : ""}${fmt(selected.change)}`} color={selected.change >= 0 ? COLORS.green : COLORS.red} />
-                    <DataCell label="Change %" value={fmtPct(selected.changePercent)} color={selected.changePercent >= 0 ? COLORS.green : COLORS.red} />
-                  </div>
-                  <div style={{ fontSize: 11, color: COLORS.textDim, lineHeight: 1.6 }}>
-                    Analyst coverage and consensus estimates for DSE-listed securities are not available through this terminal. For research reports and recommendations, visit <a href="https://www.dsebd.org" target="_blank" rel="noopener noreferrer" style={{ color: COLORS.purpleLight }}>dsebd.org</a> or your local brokerage platform.
-                  </div>
-                </div>
-              ) : finLoading ? (
+              {finLoading ? (
                 <LoadingSpinner />
               ) : (
                 <>
@@ -419,23 +282,7 @@ export default function EquityAnalysis({ allStockQuotes }) {
           {tab === "RATIOS" && (
             <Panel>
               <PanelHeader icon={<Calculator size={14} color={COLORS.purple} />} title="VALUATION & RATIOS" subtitle="Key financial ratios" />
-              {isDSE ? (
-                <div style={{ padding: 16 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
-                    <DataCell label="LTP" value={`${fmt(selected.price)} BDT`} color={COLORS.gold} />
-                    <DataCell label="Day High" value={`${fmt(selected.high)} BDT`} color={COLORS.green} />
-                    <DataCell label="Day Low" value={`${fmt(selected.low)} BDT`} color={COLORS.red} />
-                    <DataCell label="Volume" value={fmtK(selected.volume)} />
-                    <DataCell label="Trades" value={fmtK(selected.trades || 0)} />
-                    <DataCell label="Turnover" value={fmtK(selected.value || 0)} />
-                    <DataCell label="YCP" value={`${fmt(selected.prevClose)} BDT`} />
-                    <DataCell label="Spread" value={`${fmt(selected.high - selected.low)} BDT`} />
-                  </div>
-                  <div style={{ fontSize: 10, color: COLORS.textDim }}>
-                    P/E, P/B, and other valuation ratios for DSE securities are available at <a href="https://www.dsebd.org" target="_blank" rel="noopener noreferrer" style={{ color: COLORS.purpleLight }}>dsebd.org</a>
-                  </div>
-                </div>
-              ) : finLoading ? (
+              {finLoading ? (
                 <LoadingSpinner />
               ) : (
                 <div style={{ padding: 16, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
@@ -450,26 +297,7 @@ export default function EquityAnalysis({ allStockQuotes }) {
           {tab === "PROFILE" && (
             <Panel>
               <PanelHeader icon={<Building size={14} color={COLORS.blue} />} title="COMPANY PROFILE" subtitle="Overview & description" />
-              {isDSE ? (
-                <div style={{ padding: 16 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
-                    <DataCell label="Trading Code" value={selected.symbol} color={COLORS.purpleLight} />
-                    <DataCell label="Exchange" value="Dhaka Stock Exchange" />
-                    <DataCell label="Currency" value="BDT (৳)" />
-                    <DataCell label="Last Price" value={`${fmt(selected.price)} BDT`} color={COLORS.gold} />
-                    <DataCell label="Market State" value={selected.marketState === "REGULAR" ? "OPEN" : "CLOSED"} color={selected.marketState === "REGULAR" ? COLORS.green : COLORS.orange} />
-                    <DataCell label="Volume" value={fmtK(selected.volume)} />
-                  </div>
-                  <div style={{ fontSize: 12, color: COLORS.textDim, lineHeight: 1.6, marginBottom: 12 }}>
-                    <strong style={{ color: COLORS.text }}>{selected.name}</strong> is listed on the Dhaka Stock Exchange (DSE), the primary stock exchange of Bangladesh.
-                  </div>
-                  <div style={{ fontSize: 11, color: COLORS.textDim, lineHeight: 1.6 }}>
-                    <strong style={{ color: COLORS.textMuted }}>Market Hours:</strong> Sunday–Thursday, 10:00 AM – 2:30 PM BST<br />
-                    <strong style={{ color: COLORS.textMuted }}>Website:</strong>{" "}
-                    <a href="https://www.dsebd.org" target="_blank" rel="noopener noreferrer" style={{ color: COLORS.purpleLight }}>dsebd.org</a>
-                  </div>
-                </div>
-              ) : finLoading ? (
+              {finLoading ? (
                 <LoadingSpinner />
               ) : (
                 <div style={{ padding: 16 }}>

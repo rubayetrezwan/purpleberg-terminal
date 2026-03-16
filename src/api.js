@@ -22,8 +22,6 @@ export const api = {
   news: (symbols) =>
     get(`/news${symbols ? `?symbols=${symbols.join(",")}` : ""}`),
 
-  dse: () => get("/dse"),
-
   search: (query) =>
     get(`/search?q=${encodeURIComponent(query)}`),
 
