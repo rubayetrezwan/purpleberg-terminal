@@ -38,7 +38,7 @@ export default function MarketDashboard({ allStockQuotes, news }) {
     const losers = sorted.filter((q) => q.changePercent < 0).slice(0, 5);
     return [...gainers, ...losers]
       .sort((a, b) => b.changePercent - a.changePercent)
-      .map((q) => ({ name: q.symbol, val: q.changePercent || 0 }));
+      .map((q) => ({ name: q.symbol.replace(".DS", ""), val: q.changePercent || 0 }));
   }, [allStockQuotes]);
 
   const treemapData = useMemo(() => {
@@ -47,7 +47,7 @@ export default function MarketDashboard({ allStockQuotes, news }) {
       .filter((q) => q.price > 0)
       .sort((a, b) => (b.marketCap || b.volume * b.price) - (a.marketCap || a.volume * a.price))
       .slice(0, 16)
-      .map((q) => ({ name: q.symbol, size: q.marketCap, chg: q.changePercent || 0 }));
+      .map((q) => ({ name: q.symbol.replace(".DS", ""), size: q.marketCap, chg: q.changePercent || 0 }));
   }, [allStockQuotes]);
 
   const commodities = COMMODITY_SYMBOLS.map((c) => {

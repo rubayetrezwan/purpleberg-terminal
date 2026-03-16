@@ -64,6 +64,7 @@ export const FX_SYMBOLS = [
   { symbol: "USDINR=X", pair: "USD/INR" },
   { symbol: "EURGBP=X", pair: "EUR/GBP" },
   { symbol: "USDSGD=X", pair: "USD/SGD" },
+  { symbol: "USDBDT=X", pair: "USD/BDT" },
 ];
 
 export const COMMODITY_SYMBOLS = [

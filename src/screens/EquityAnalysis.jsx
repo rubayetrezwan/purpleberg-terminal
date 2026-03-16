@@ -57,7 +57,7 @@ export default function EquityAnalysis({ allStockQuotes }) {
             }}
           >
             <div>
-              <span style={{ fontSize: 14, fontWeight: 700, color: COLORS.text }}>{selected.symbol}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: COLORS.text }}>{selected.symbol?.replace(".DS", "")}</span>
               <span style={{ fontSize: 11, color: COLORS.textMuted, marginLeft: 8 }}>{fmt(selected.price)}</span>
               <ChgVal val={selected.changePercent} />
             </div>
@@ -76,7 +76,7 @@ export default function EquityAnalysis({ allStockQuotes }) {
                     display: "flex", justifyContent: "space-between",
                   }}
                 >
-                  <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.text }}>{s.symbol}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.text }}>{s.symbol.replace(".DS", "")}</span>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <span style={{ fontSize: 11, color: COLORS.text, fontFamily: "'JetBrains Mono',monospace" }}>{fmt(s.price)}</span>
                     <ChgVal val={s.changePercent} />
@@ -90,7 +90,7 @@ export default function EquityAnalysis({ allStockQuotes }) {
         {/* Mobile header */}
         <div style={{ padding: "8px 12px", background: COLORS.bgPanel, borderBottom: `1px solid ${COLORS.border}` }}>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 4 }}>
-            <span style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>{selected.symbol}</span>
+            <span style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>{selected.symbol?.replace(".DS", "")}</span>
             <Badge>{selected.exchange || "\u2014"}</Badge>
             {selected.marketState && (
               <Badge color={selected.marketState === "REGULAR" ? COLORS.green : COLORS.orange}>
@@ -133,7 +133,7 @@ export default function EquityAnalysis({ allStockQuotes }) {
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: selectedSymbol === s.symbol ? COLORS.purpleLight : COLORS.text }}>{s.symbol}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: selectedSymbol === s.symbol ? COLORS.purpleLight : COLORS.text }}>{s.symbol.replace(".DS", "")}</span>
               <span style={{ fontSize: 11, fontWeight: 600, color: COLORS.text, fontFamily: "'JetBrains Mono',monospace" }}>{fmt(s.price)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -149,7 +149,7 @@ export default function EquityAnalysis({ allStockQuotes }) {
         <div style={{ padding: "12px 16px", background: COLORS.bgPanel, borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 20, fontWeight: 800, color: COLORS.text }}>{selected.symbol}</span>
+              <span style={{ fontSize: 20, fontWeight: 800, color: COLORS.text }}>{selected.symbol?.replace(".DS", "")}</span>
               <span style={{ fontSize: 13, color: COLORS.textDim }}>{selected.name}</span>
               <Badge>{selected.exchange || "\u2014"}</Badge>
               <Badge color={COLORS.cyan}>{selected.currency || "USD"}</Badge>

@@ -129,6 +129,34 @@ export function useNews(symbols, intervalMs = 120000) {
   return { data, loading };
 }
 
+// ── Fetch DSE (Dhaka Stock Exchange) data ────────────────
+export function useDSE(intervalMs = 60000) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchData = async () => {
+      try {
+        const result = await api.dse();
+        if (!cancelled && result.length > 0) {
+          setData(result);
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    fetchData();
+    const iv = setInterval(fetchData, intervalMs);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [intervalMs]);
+
+  return { data, loading };
+}
+
 // ── Portfolio persistence (localStorage) ────────────────
 const PORTFOLIO_KEY = "purpleberg_portfolio";
 

@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { US_STOCKS, ts, fmt } from "./config";
 import { useColors, useTheme } from "./ThemeContext";
-import { useQuotes, useNews, useIsMobile } from "./hooks";
+import { useQuotes, useNews, useIsMobile, useDSE } from "./hooks";
 import { Badge, ChgVal } from "./shared";
 
 // Screens
@@ -62,9 +62,13 @@ export default function App() {
   const isMobile = useIsMobile(768);
   const isTablet = useIsMobile(1024);
 
-  // ── Global data: fetch US stock quotes, share across screens ──
-  const { data: allStockQuotes, loading: stocksLoading } = useQuotes(US_STOCKS, 20000);
+  // ── Global data: fetch US stock quotes + DSE, share across screens ──
+  const { data: usQuotes, loading: usLoading } = useQuotes(US_STOCKS, 20000);
+  const { data: dseQuotes, loading: dseLoading } = useDSE(60000);
   const { data: newsData, loading: newsLoading } = useNews(null, 120000);
+
+  const allStockQuotes = useMemo(() => [...usQuotes, ...dseQuotes], [usQuotes, dseQuotes]);
+  const stocksLoading = usLoading && dseLoading;
 
   // ── Clock ──
   useEffect(() => {

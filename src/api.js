@@ -26,6 +26,8 @@ export const api = {
 
   treasuryRates: () => get("/treasury-rates"),
 
+  dse: () => get("/dse"),
+
   search: (query) =>
     get(`/search?q=${encodeURIComponent(query)}`),
 
