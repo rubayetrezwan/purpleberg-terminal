@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { fmt, fmtK, fmtPct } from "../config";
 import { useColors } from "../ThemeContext";
-import { useHistorical, useFinancials, useIsMobile } from "../hooks";
+import { useHistorical, useFinancialsWithRetry, useQuotes, useIsMobile } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, DataCell, TabBar, MiniTable, LoadingSpinner } from "../shared";
 
 export default function EquityAnalysis({ allStockQuotes, initialSymbol, onSymbolConsumed }) {
@@ -29,15 +29,23 @@ export default function EquityAnalysis({ allStockQuotes, initialSymbol, onSymbol
     }
   }, [initialSymbol]);
 
-  useEffect(() => {
-    if (stocks.length > 0 && !stocks.find((s) => s.symbol === selectedSymbol)) {
-      setSelectedSymbol(stocks[0].symbol);
-    }
-  }, [stocks.length]);
+  // If selected symbol is not in the pre-loaded list, fetch it individually
+  const isExternal = selectedSymbol && !stocks.find((s) => s.symbol === selectedSymbol);
+  const externalSymbols = useMemo(() => isExternal ? [selectedSymbol] : [], [isExternal, selectedSymbol]);
+  const { data: externalQuotes } = useQuotes(externalSymbols, 15000);
 
-  const selected = stocks.find((s) => s.symbol === selectedSymbol) || stocks[0] || {};
+  const selected = useMemo(() => {
+    const fromList = stocks.find((s) => s.symbol === selectedSymbol);
+    if (fromList) return fromList;
+    const fromExternal = externalQuotes.find((s) => s.symbol === selectedSymbol);
+    if (fromExternal) return fromExternal;
+    // Return a placeholder while loading external data
+    if (isExternal) return { symbol: selectedSymbol, name: selectedSymbol, price: 0, change: 0, changePercent: 0, marketCap: 0, pe: 0, volume: 0, exchange: "", currency: "USD", marketState: "" };
+    return stocks[0] || {};
+  }, [stocks, selectedSymbol, externalQuotes, isExternal]);
+
   const { data: histData, loading: histLoading } = useHistorical(selected.symbol, chartRange);
-  const { data: finData, loading: finLoading } = useFinancials(selected.symbol);
+  const { data: finData, loading: finLoading, error: finError } = useFinancialsWithRetry(selected.symbol);
 
   const chartData = useMemo(() => {
     return histData.map((d) => ({
@@ -81,13 +89,18 @@ export default function EquityAnalysis({ allStockQuotes, initialSymbol, onSymbol
                     padding: "8px 12px", cursor: "pointer",
                     borderBottom: `1px solid ${COLORS.border}22`,
                     background: selectedSymbol === s.symbol ? COLORS.purpleDim + "44" : "transparent",
-                    display: "flex", justifyContent: "space-between",
                   }}
                 >
-                  <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.text }}>{s.symbol}</span>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <span style={{ fontSize: 11, color: COLORS.text, fontFamily: "'JetBrains Mono',monospace" }}>{fmt(s.price)}</span>
-                    <ChgVal val={s.changePercent} />
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.text }}>{s.symbol}</span>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <span style={{ fontSize: 11, color: COLORS.text, fontFamily: "'JetBrains Mono',monospace" }}>{fmt(s.price)}</span>
+                      <ChgVal val={s.changePercent} />
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
+                    <span style={{ fontSize: 9, color: COLORS.textMuted }}>P/E: {s.pe > 0 ? fmt(s.pe, 1) : "N/A"}</span>
+                    <span style={{ fontSize: 9, color: COLORS.textMuted }}>MCap: {fmtK(s.marketCap)}</span>
                   </div>
                 </div>
               ))}
@@ -114,7 +127,7 @@ export default function EquityAnalysis({ allStockQuotes, initialSymbol, onSymbol
         </div>
 
         <TabBar tabs={["CHART", "FINANCIALS", "ESTIMATES", "RATIOS", "PROFILE"]} active={tab} onChange={setTab} />
-        <div style={{ padding: 8 }}>{renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finData, selected, COLORS, isMobile: true })}</div>
+        <div style={{ padding: 8 }}>{renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finError, finData, selected, COLORS, isMobile: true })}</div>
       </div>
     );
   }
@@ -148,6 +161,10 @@ export default function EquityAnalysis({ allStockQuotes, initialSymbol, onSymbol
               <span style={{ fontSize: 9, color: COLORS.textMuted }}>{(s.name || "").slice(0, 18)}</span>
               <ChgVal val={s.changePercent} />
             </div>
+            <div style={{ display: "flex", gap: 6, marginTop: 1 }}>
+              <span style={{ fontSize: 8, color: COLORS.textMuted, fontFamily: "'JetBrains Mono',monospace" }}>P/E: {s.pe > 0 ? fmt(s.pe, 1) : "—"}</span>
+              <span style={{ fontSize: 8, color: COLORS.textMuted, fontFamily: "'JetBrains Mono',monospace" }}>MCap: {fmtK(s.marketCap)}</span>
+            </div>
           </div>
         ))}
       </div>
@@ -178,13 +195,13 @@ export default function EquityAnalysis({ allStockQuotes, initialSymbol, onSymbol
         </div>
 
         <TabBar tabs={["CHART", "FINANCIALS", "ESTIMATES", "RATIOS", "PROFILE"]} active={tab} onChange={setTab} />
-        <div style={{ padding: 12 }}>{renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finData, selected, COLORS, isMobile: false })}</div>
+        <div style={{ padding: 12 }}>{renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finError, finData, selected, COLORS, isMobile: false })}</div>
       </div>
     </div>
   );
 }
 
-function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finData, selected, COLORS, isMobile }) {
+function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finError, finData, selected, COLORS, isMobile }) {
   if (tab === "CHART") {
     return (
       <Panel>

@@ -291,7 +291,22 @@ app.get("/api/financials/:symbol", async (req, res) => {
     const { symbol } = req.params;
     const cacheKey = `fin:${symbol}`;
 
-    const data = await cached(cacheKey, 3600_000, () => yahooSummary(symbol));
+    // Try to get fresh data, with retry on auth failure
+    let data;
+    try {
+      data = await cached(cacheKey, 1800_000, () => yahooSummary(symbol));
+    } catch (e1) {
+      console.error(`Financials first attempt failed for ${symbol}:`, e1.message);
+      // Force crumb refresh and retry
+      crumbExpiry = 0;
+      try {
+        data = await yahooSummary(symbol);
+        cache.set(cacheKey, { data, ts: Date.now() });
+      } catch (e2) {
+        console.error(`Financials retry failed for ${symbol}:`, e2.message);
+        data = {};
+      }
+    }
 
     const fd = data.financialData || {};
     const ks = data.defaultKeyStatistics || {};
@@ -311,7 +326,7 @@ app.get("/api/financials/:symbol", async (req, res) => {
     const holdPct = totalRec ? Math.round((recTrend.hold || 0) / totalRec * 100) : 0;
     const sellPct = totalRec ? Math.round(((recTrend.sell || 0) + (recTrend.strongSell || 0)) / totalRec * 100) : 0;
 
-    res.json({
+    const result = {
       profile: {
         sector: profile.sector || "N/A",
         industry: profile.industry || "N/A",
@@ -347,10 +362,26 @@ app.get("/api/financials/:symbol", async (req, res) => {
       },
       recommendations: { buy: buyPct, hold: holdPct, sell: sellPct },
       quarterlyRevenue,
-    });
+    };
+
+    // Don't cache empty results (they indicate API failure)
+    const hasData = profile.sector || quarterlyRevenue.length > 0 || raw(ks.trailingPe);
+    if (!hasData) {
+      cache.delete(cacheKey); // Remove bad cache entry
+    }
+
+    res.json(result);
   } catch (e) {
     console.error("Financials error:", e.message);
-    res.json({});
+    // Return structure with empty data rather than empty object
+    res.json({
+      profile: { sector: "N/A", industry: "N/A", country: "N/A", employees: 0, summary: "", website: "" },
+      margins: { gross: "0", operating: "0", profit: "0", ebitda: "0" },
+      ratios: { pe: 0, pb: 0, ps: 0, evEbitda: 0, roe: "0", roa: "0", debtToEquity: 0, currentRatio: 0 },
+      estimates: { targetHigh: 0, targetLow: 0, targetMean: 0, targetMedian: 0, revenueEstimate: "N/A", epsEstimate: 0, epsPrev: 0 },
+      recommendations: { buy: 0, hold: 0, sell: 0 },
+      quarterlyRevenue: [],
+    });
   }
 });
 

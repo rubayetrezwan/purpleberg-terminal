@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { api } from "./api";
 
 // ── Responsive breakpoint hook ──────────────────────────
@@ -129,6 +129,96 @@ export function useNews(symbols, intervalMs = 120000) {
   return { data, loading };
 }
 
+
+// ── Live search with debounce ────────────────────────────
+export function useSearch(query, delayMs = 300) {
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (!query || query.length < 2) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    if (timerRef.current) clearTimeout(timerRef.current);
+
+    timerRef.current = setTimeout(async () => {
+      try {
+        const data = await api.search(query);
+        setResults(data || []);
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, delayMs);
+
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [query, delayMs]);
+
+  return { results, loading };
+}
+
+// ── Financials with retry ────────────────────────────────
+export function useFinancialsWithRetry(symbol, maxRetries = 2) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!symbol) { setLoading(false); setData(null); return; }
+    let cancelled = false;
+    let attempt = 0;
+    setLoading(true);
+    setError(null);
+
+    const tryFetch = async () => {
+      while (attempt <= maxRetries && !cancelled) {
+        try {
+          const result = await api.financials(symbol);
+          if (!cancelled) {
+            // Check if result has actual data (not empty object from server error)
+            const hasData = result && (result.profile?.sector || result.quarterlyRevenue?.length || result.ratios?.pe);
+            if (hasData) {
+              setData(result);
+              setError(null);
+              setLoading(false);
+              return;
+            }
+            // Got empty result, retry
+            attempt++;
+            if (attempt <= maxRetries) {
+              await new Promise((r) => setTimeout(r, 1500 * attempt));
+              continue;
+            }
+            // All retries exhausted but got empty data
+            setData(result);
+            setError("limited");
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          attempt++;
+          if (attempt > maxRetries && !cancelled) {
+            setError(e.message);
+            setLoading(false);
+            return;
+          }
+          if (!cancelled) await new Promise((r) => setTimeout(r, 1500 * attempt));
+        }
+      }
+    };
+
+    tryFetch();
+    return () => { cancelled = true; };
+  }, [symbol, maxRetries]);
+
+  return { data, loading, error };
+}
 
 // ── Portfolio persistence (localStorage) ────────────────
 const PORTFOLIO_KEY = "purpleberg_portfolio";

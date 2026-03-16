@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { US_STOCKS, ts, fmt, fmtK } from "./config";
 import { useColors, useTheme } from "./ThemeContext";
-import { useQuotes, useNews, useIsMobile } from "./hooks";
+import { useQuotes, useNews, useIsMobile, useSearch } from "./hooks";
 import { Badge, ChgVal } from "./shared";
 
 // Screens
@@ -97,6 +97,9 @@ export default function App() {
 
   const [initialSymbol, setInitialSymbol] = useState(null);
 
+  // Live Yahoo Finance search for any stock
+  const { results: searchResults, loading: searchLoading } = useSearch(cmdQuery, 400);
+
   const filteredScreens = cmdQuery
     ? SCREENS.filter(
         (s) =>
@@ -106,14 +109,23 @@ export default function App() {
       )
     : SCREENS;
 
-  // Search stocks in command palette
+  // Search pre-loaded stocks in command palette
   const filteredStocks = useMemo(() => {
     if (!cmdQuery || cmdQuery.length < 1) return [];
     const q = cmdQuery.toLowerCase();
     return allStockQuotes
       .filter((s) => s.symbol.toLowerCase().includes(q) || (s.name || "").toLowerCase().includes(q))
-      .slice(0, 8);
+      .slice(0, 6);
   }, [cmdQuery, allStockQuotes]);
+
+  // Yahoo search results (exclude already shown pre-loaded stocks)
+  const yahooResults = useMemo(() => {
+    if (!searchResults.length) return [];
+    const loadedSyms = new Set(filteredStocks.map((s) => s.symbol));
+    return searchResults
+      .filter((r) => !loadedSyms.has(r.symbol))
+      .slice(0, 6);
+  }, [searchResults, filteredStocks]);
 
   const selectScreen = (id) => {
     setScreen(id);
@@ -128,12 +140,12 @@ export default function App() {
     setCmdQuery("");
   };
 
-  // ── Ticker bar: top 8 stocks for bottom bar ──
+  // ── Ticker bar: top stocks for scrolling bottom bar ──
   const tickerStocks = useMemo(() => {
     return allStockQuotes
-      .filter((q) => q.marketCap > 1e11)
+      .filter((q) => q.price > 0)
       .sort((a, b) => b.marketCap - a.marketCap)
-      .slice(0, 8);
+      .slice(0, 20);
   }, [allStockQuotes]);
 
   const renderScreen = () => {
@@ -184,6 +196,7 @@ export default function App() {
         ::-webkit-scrollbar-thumb:hover { background: ${COLORS.purple}; }
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
         @keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+        @keyframes tickerScroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         input::placeholder { color: ${COLORS.textMuted}; }
         select { outline: none; }
         * { -webkit-tap-highlight-color: transparent; }
@@ -273,7 +286,7 @@ export default function App() {
               }}
             >
               <Search size={13} color={COLORS.textMuted} />
-              <span style={{ fontSize: 11, color: COLORS.textMuted }}>Search functions... (Ctrl+K)</span>
+              <span style={{ fontSize: 11, color: COLORS.textMuted }}>Search any stock, function... (Ctrl+K)</span>
               {!isTablet && (
                 <span style={{ fontSize: 9, color: COLORS.textMuted, marginLeft: "auto", padding: "1px 6px", background: COLORS.border + "44", borderRadius: 2 }}>
                   Ctrl+K
@@ -484,31 +497,52 @@ export default function App() {
             height: 24, background: COLORS.bgPanel,
             borderTop: `1px solid ${COLORS.border}`,
             display: "flex", alignItems: "center",
-            padding: "0 12px", gap: 16, overflow: "hidden", flexShrink: 0,
+            overflow: "hidden", flexShrink: 0, position: "relative",
           }}
         >
-          {tickerStocks.map((s) => (
-            <span key={s.symbol} style={{ fontSize: 10, whiteSpace: "nowrap", display: "flex", gap: 4, alignItems: "center" }}>
-              <span style={{ color: COLORS.textMuted, fontWeight: 600 }}>{s.symbol}</span>
-              <span style={{ color: COLORS.text, fontFamily: "'JetBrains Mono',monospace" }}>
-                {fmt(s.price, s.price > 1000 ? 0 : 2)}
+          <div
+            style={{
+              display: "flex", alignItems: "center", gap: 24,
+              animation: tickerStocks.length > 0 ? "tickerScroll 60s linear infinite" : "none",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {/* Duplicate ticker items for seamless scrolling */}
+            {[...tickerStocks, ...tickerStocks].map((s, i) => (
+              <span key={`${s.symbol}-${i}`} style={{ fontSize: 10, whiteSpace: "nowrap", display: "inline-flex", gap: 4, alignItems: "center" }}>
+                <span style={{ color: COLORS.textMuted, fontWeight: 600 }}>{s.symbol}</span>
+                <span style={{ color: COLORS.text, fontFamily: "'JetBrains Mono',monospace" }}>
+                  {fmt(s.price, s.price > 1000 ? 0 : 2)}
+                </span>
+                <span
+                  style={{
+                    color: (s.changePercent ?? 0) >= 0 ? COLORS.green : COLORS.red,
+                    fontFamily: "'JetBrains Mono',monospace",
+                  }}
+                >
+                  {(s.changePercent ?? 0) >= 0 ? "+" : ""}
+                  {fmt(s.changePercent)}%
+                </span>
+                <span style={{ color: COLORS.textMuted, fontFamily: "'JetBrains Mono',monospace", fontSize: 9 }}>
+                  {fmtK(s.marketCap)}
+                </span>
+                <span style={{ color: COLORS.textMuted, fontSize: 9 }}>
+                  {s.pe > 0 ? `${fmt(s.pe, 1)}x` : ""}
+                </span>
               </span>
-              <span
-                style={{
-                  color: (s.changePercent ?? 0) >= 0 ? COLORS.green : COLORS.red,
-                  fontFamily: "'JetBrains Mono',monospace",
-                }}
-              >
-                {(s.changePercent ?? 0) >= 0 ? "+" : ""}
-                {fmt(s.changePercent)}%
-              </span>
-            </span>
-          ))}
-          <span style={{ marginLeft: "auto", fontSize: 10, color: COLORS.textMuted }}>
+            ))}
+          </div>
+          <div style={{
+            position: "absolute", right: 0, top: 0, bottom: 0,
+            display: "flex", alignItems: "center",
+            padding: "0 12px",
+            background: `linear-gradient(90deg, transparent, ${COLORS.bgPanel} 30%)`,
+            fontSize: 10, color: COLORS.textMuted,
+          }}>
             <span style={{ color: allStockQuotes.length > 0 ? COLORS.green : COLORS.red }}>●</span>
             {" "}
-            {allStockQuotes.length > 0 ? `${allStockQuotes.length} securities streaming` : "Connecting..."} | Purpleberg Terminal
-          </span>
+            {allStockQuotes.length > 0 ? `${allStockQuotes.length} LIVE` : "..."} | v2.1.0
+          </div>
         </div>
       )}
 
@@ -560,7 +594,7 @@ export default function App() {
                     else if (filteredScreens.length > 0) selectScreen(filteredScreens[0].id);
                   }
                 }}
-                placeholder="Type a function name or keyword..."
+                placeholder="Search any stock, ETF, or function..."
                 style={{
                   flex: 1, background: "transparent", border: "none",
                   color: COLORS.text, fontSize: isMobile ? 16 : 14, outline: "none",
@@ -574,11 +608,11 @@ export default function App() {
               </span>
             </div>
             <div style={{ maxHeight: isMobile ? "55vh" : 360, overflowY: "auto" }}>
-              {/* Stock search results */}
+              {/* Pre-loaded stock search results */}
               {filteredStocks.length > 0 && (
                 <>
                   <div style={{ padding: "6px 16px", fontSize: 9, fontWeight: 600, color: COLORS.textMuted, letterSpacing: 1, borderBottom: `1px solid ${COLORS.border}22` }}>
-                    EQUITIES
+                    TRACKED EQUITIES
                   </div>
                   {filteredStocks.map((s) => (
                     <div
@@ -603,6 +637,39 @@ export default function App() {
                         <ChgVal val={s.changePercent} />
                         <span style={{ fontSize: 10, color: COLORS.textDim }}>{fmtK(s.marketCap)}</span>
                         <span style={{ fontSize: 10, color: COLORS.textMuted }}>{s.pe > 0 ? fmt(s.pe, 1) + "x" : "N/A"}</span>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+              {/* Yahoo Finance search results (any stock) */}
+              {(yahooResults.length > 0 || searchLoading) && cmdQuery.length >= 2 && (
+                <>
+                  <div style={{ padding: "6px 16px", fontSize: 9, fontWeight: 600, color: COLORS.textMuted, letterSpacing: 1, borderBottom: `1px solid ${COLORS.border}22` }}>
+                    {searchLoading ? "SEARCHING YAHOO FINANCE..." : "YAHOO FINANCE SEARCH"}
+                  </div>
+                  {yahooResults.map((r) => (
+                    <div
+                      key={r.symbol}
+                      onClick={() => selectStock(r.symbol)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 12,
+                        padding: isMobile ? "12px 16px" : "8px 16px",
+                        cursor: "pointer",
+                        borderBottom: `1px solid ${COLORS.border}22`,
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.background = COLORS.bgPanel)}
+                      onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <Search size={14} color={COLORS.cyan} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.cyan }}>{r.symbol}</div>
+                        <div style={{ fontSize: 10, color: COLORS.textMuted }}>{(r.name || "").slice(0, 40)}</div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <Badge color={COLORS.blue}>{r.type || "EQUITY"}</Badge>
+                        <Badge>{r.exchange || "—"}</Badge>
+                        <ChevronRight size={12} color={COLORS.textMuted} />
                       </div>
                     </div>
                   ))}
