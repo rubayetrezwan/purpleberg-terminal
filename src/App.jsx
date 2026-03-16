@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { US_STOCKS, ts, fmt } from "./config";
 import { useColors, useTheme } from "./ThemeContext";
-import { useQuotes, useNews, useIsMobile, useDSE } from "./hooks";
+import { useQuotes, useNews, useIsMobile } from "./hooks";
 import { Badge, ChgVal } from "./shared";
 
 // Screens
@@ -62,13 +62,9 @@ export default function App() {
   const isMobile = useIsMobile(768);
   const isTablet = useIsMobile(1024);
 
-  // ── Global data: fetch US stock quotes + DSE, share across screens ──
-  const { data: usQuotes, loading: usLoading } = useQuotes(US_STOCKS, 20000);
-  const { data: dseQuotes, loading: dseLoading } = useDSE(60000);
+  // ── Global data: fetch stock quotes, share across screens ──
+  const { data: allStockQuotes, loading: stocksLoading } = useQuotes(US_STOCKS, 20000);
   const { data: newsData, loading: newsLoading } = useNews(null, 120000);
-
-  const allStockQuotes = useMemo(() => [...usQuotes, ...dseQuotes], [usQuotes, dseQuotes]);
-  const stocksLoading = usLoading && dseLoading;
 
   // ── Clock ──
   useEffect(() => {
@@ -99,6 +95,8 @@ export default function App() {
     if (cmdOpen && cmdRef.current) cmdRef.current.focus();
   }, [cmdOpen]);
 
+  const [initialSymbol, setInitialSymbol] = useState(null);
+
   const filteredScreens = cmdQuery
     ? SCREENS.filter(
         (s) =>
@@ -108,8 +106,24 @@ export default function App() {
       )
     : SCREENS;
 
+  // Search stocks in command palette
+  const filteredStocks = useMemo(() => {
+    if (!cmdQuery || cmdQuery.length < 1) return [];
+    const q = cmdQuery.toLowerCase();
+    return allStockQuotes
+      .filter((s) => s.symbol.toLowerCase().includes(q) || (s.name || "").toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [cmdQuery, allStockQuotes]);
+
   const selectScreen = (id) => {
     setScreen(id);
+    setCmdOpen(false);
+    setCmdQuery("");
+  };
+
+  const selectStock = (symbol) => {
+    setInitialSymbol(symbol);
+    setScreen("EQUITY");
     setCmdOpen(false);
     setCmdQuery("");
   };
@@ -127,7 +141,7 @@ export default function App() {
       case "DASHBOARD":
         return <MarketDashboard allStockQuotes={allStockQuotes} news={newsData} />;
       case "EQUITY":
-        return <EquityAnalysis allStockQuotes={allStockQuotes} />;
+        return <EquityAnalysis allStockQuotes={allStockQuotes} initialSymbol={initialSymbol} onSymbolConsumed={() => setInitialSymbol(null)} />;
       case "FX":
         return <FXDashboard />;
       case "FIXED_INCOME":
@@ -541,7 +555,10 @@ export default function App() {
                 value={cmdQuery}
                 onChange={(e) => setCmdQuery(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && filteredScreens.length > 0) selectScreen(filteredScreens[0].id);
+                  if (e.key === "Enter") {
+                    if (filteredStocks.length > 0) selectStock(filteredStocks[0].symbol);
+                    else if (filteredScreens.length > 0) selectScreen(filteredScreens[0].id);
+                  }
                 }}
                 placeholder="Type a function name or keyword..."
                 style={{
@@ -557,39 +574,81 @@ export default function App() {
               </span>
             </div>
             <div style={{ maxHeight: isMobile ? "55vh" : 360, overflowY: "auto" }}>
-              {filteredScreens.map((s) => {
-                const Icon = s.icon;
-                return (
-                  <div
-                    key={s.id}
-                    onClick={() => selectScreen(s.id)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 12,
-                      padding: isMobile ? "14px 16px" : "10px 16px",
-                      cursor: "pointer",
-                      borderBottom: `1px solid ${COLORS.border}22`,
-                    }}
-                    onMouseOver={(e) => (e.currentTarget.style.background = COLORS.bgPanel)}
-                    onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
-                  >
-                    <Icon size={16} color={COLORS.purple} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.text }}>{s.label}</div>
-                      <div style={{ fontSize: 10, color: COLORS.textMuted }}>{s.desc}</div>
-                    </div>
-                    <span
-                      style={{
-                        fontSize: 11, fontFamily: "'JetBrains Mono',monospace",
-                        color: COLORS.purpleLight, padding: "2px 8px",
-                        background: COLORS.purpleDim + "44", borderRadius: 3,
-                      }}
-                    >
-                      {s.mnemonic}
-                    </span>
-                    <ChevronRight size={14} color={COLORS.textMuted} />
+              {/* Stock search results */}
+              {filteredStocks.length > 0 && (
+                <>
+                  <div style={{ padding: "6px 16px", fontSize: 9, fontWeight: 600, color: COLORS.textMuted, letterSpacing: 1, borderBottom: `1px solid ${COLORS.border}22` }}>
+                    EQUITIES
                   </div>
-                );
-              })}
+                  {filteredStocks.map((s) => (
+                    <div
+                      key={s.symbol}
+                      onClick={() => selectStock(s.symbol)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 12,
+                        padding: isMobile ? "12px 16px" : "8px 16px",
+                        cursor: "pointer",
+                        borderBottom: `1px solid ${COLORS.border}22`,
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.background = COLORS.bgPanel)}
+                      onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <TrendingUp size={14} color={COLORS.green} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.purpleLight }}>{s.symbol}</div>
+                        <div style={{ fontSize: 10, color: COLORS.textMuted }}>{(s.name || "").slice(0, 30)}</div>
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.text, fontFamily: "'JetBrains Mono',monospace" }}>
+                        {fmt(s.price)}
+                      </span>
+                      <ChgVal val={s.changePercent} />
+                    </div>
+                  ))}
+                </>
+              )}
+              {/* Screen navigation results */}
+              {filteredScreens.length > 0 && (
+                <>
+                  {filteredStocks.length > 0 && (
+                    <div style={{ padding: "6px 16px", fontSize: 9, fontWeight: 600, color: COLORS.textMuted, letterSpacing: 1, borderBottom: `1px solid ${COLORS.border}22` }}>
+                      FUNCTIONS
+                    </div>
+                  )}
+                  {filteredScreens.map((s) => {
+                    const Icon = s.icon;
+                    return (
+                      <div
+                        key={s.id}
+                        onClick={() => selectScreen(s.id)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 12,
+                          padding: isMobile ? "14px 16px" : "10px 16px",
+                          cursor: "pointer",
+                          borderBottom: `1px solid ${COLORS.border}22`,
+                        }}
+                        onMouseOver={(e) => (e.currentTarget.style.background = COLORS.bgPanel)}
+                        onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+                      >
+                        <Icon size={16} color={COLORS.purple} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.text }}>{s.label}</div>
+                          <div style={{ fontSize: 10, color: COLORS.textMuted }}>{s.desc}</div>
+                        </div>
+                        <span
+                          style={{
+                            fontSize: 11, fontFamily: "'JetBrains Mono',monospace",
+                            color: COLORS.purpleLight, padding: "2px 8px",
+                            background: COLORS.purpleDim + "44", borderRadius: 3,
+                          }}
+                        >
+                          {s.mnemonic}
+                        </span>
+                        <ChevronRight size={14} color={COLORS.textMuted} />
+                      </div>
+                    );
+                  })}
+                </>
+              )}
             </div>
           </div>
         </div>

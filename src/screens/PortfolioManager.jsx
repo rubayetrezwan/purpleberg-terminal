@@ -52,7 +52,7 @@ export default function PortfolioManager() {
   const pieData = useMemo(() => {
     if (!enriched.length) return [];
     return enriched.map((h) => ({
-      name: h.symbol.replace(".DS", ""),
+      name: h.symbol,
       value: parseFloat(((h.mktValue / totalValue) * 100).toFixed(1)),
     }));
   }, [enriched, totalValue]);
@@ -158,7 +158,7 @@ export default function PortfolioManager() {
             <MiniTable
               headers={["Symbol", "Name", "Shares", "Avg Cost", "Last", "Mkt Value", "P&L %", ""]}
               rows={enriched.map((h) => [
-                <span style={{ color: COLORS.purpleLight, fontWeight: 700 }}>{h.symbol.replace(".DS", "")}</span>,
+                <span style={{ color: COLORS.purpleLight, fontWeight: 700 }}>{h.symbol}</span>,
                 <span style={{ color: COLORS.textDim, fontSize: 10, textAlign: "left" }}>{(h.name || "").slice(0, 16)}</span>,
                 <span style={{ color: COLORS.text }}>{h.shares}</span>,
                 <span style={{ color: COLORS.textDim }}>{fmt(h.avgCost)}</span>,
@@ -218,7 +218,7 @@ export default function PortfolioManager() {
                 .slice(0, 8)
                 .map((h) => (
                   <div key={h.symbol} style={{ display: "flex", justifyContent: "space-between", padding: "3px 4px", borderBottom: `1px solid ${COLORS.border}22` }}>
-                    <span style={{ fontSize: 11, color: COLORS.text, fontWeight: 600 }}>{h.symbol.replace(".DS", "")}</span>
+                    <span style={{ fontSize: 11, color: COLORS.text, fontWeight: 600 }}>{h.symbol}</span>
                     <ChgVal val={h.changePercent} />
                   </div>
                 ))}

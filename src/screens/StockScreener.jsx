@@ -130,7 +130,7 @@ export default function StockScreener({ allStockQuotes }) {
               <tbody>
                 {filtered.map((s) => (
                   <tr key={s.symbol} style={{ borderBottom: `1px solid ${COLORS.border}22` }}>
-                    <td style={{ padding: "6px 8px", fontWeight: 700, color: COLORS.purpleLight }}>{s.symbol.replace(".DS", "")}</td>
+                    <td style={{ padding: "6px 8px", fontWeight: 700, color: COLORS.purpleLight }}>{s.symbol}</td>
                     <td style={{ padding: "6px 8px", color: COLORS.textDim, fontSize: 10 }}>{(s.name || "").slice(0, 22)}</td>
                     <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600, color: COLORS.text, fontFamily: "'JetBrains Mono',monospace" }}>{fmt(s.price)}</td>
                     <td style={{ padding: "6px 8px", textAlign: "right" }}><ChgVal val={s.changePercent} /></td>

@@ -39,6 +39,13 @@ export const US_STOCKS = [
   "MRK", "COST", "AVGO", "CRM", "AMD", "CSCO", "ACN", "ORCL",
   "ADBE", "LLY", "TMO", "NKE", "MCD", "TXN", "QCOM", "CVX",
   "LIN", "NEE", "INTC", "GS", "MS", "C", "PYPL", "UBER",
+  "AMGN", "IBM", "GE", "CAT", "BA", "RTX", "HON", "LOW",
+  "SPGI", "DE", "BLK", "ISRG", "MDLZ", "ADP", "VRTX", "GILD",
+  "SYK", "MMC", "REGN", "LRCX", "ADI", "PANW", "ETN", "CB",
+  "SBUX", "MO", "KLAC", "CME", "SO", "DUK", "CI", "ZTS",
+  "BSX", "ICE", "MCK", "SHW", "CL", "SNPS", "CDNS", "CMG",
+  "FDX", "GM", "F", "ABNB", "RIVN", "COIN", "SQ", "SHOP",
+  "SNOW", "PLTR", "NET", "DDOG", "ZS",
 ];
 
 export const INDEX_SYMBOLS = [
@@ -64,7 +71,7 @@ export const FX_SYMBOLS = [
   { symbol: "USDINR=X", pair: "USD/INR" },
   { symbol: "EURGBP=X", pair: "EUR/GBP" },
   { symbol: "USDSGD=X", pair: "USD/SGD" },
-  { symbol: "USDBDT=X", pair: "USD/BDT" },
+  { symbol: "NZDUSD=X", pair: "NZD/USD" },
 ];
 
 export const COMMODITY_SYMBOLS = [
