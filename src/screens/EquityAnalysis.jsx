@@ -198,7 +198,7 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
             <LoadingSpinner text="Loading chart data..." />
           ) : chartData.length === 0 ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: COLORS.textMuted, fontSize: 12 }}>
-              No chart data available for {selected.symbol}
+              No chart data available for {selected.symbol?.replace(".DS", "")}
             </div>
           ) : (
             <ResponsiveContainer>
