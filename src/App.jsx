@@ -3,11 +3,11 @@ import {
   Search, Globe, TrendingUp, DollarSign, Landmark, Activity,
   Filter, Briefcase, Shield, Calendar, FileText, MessageSquare,
   Brain, Zap, Bell, Settings, User, Maximize2, Minimize2,
-  Command, ChevronRight, Sun, Moon,
+  Command, ChevronRight, Sun, Moon, Menu, X,
 } from "lucide-react";
 import { US_STOCKS, ts, fmt } from "./config";
 import { useColors, useTheme } from "./ThemeContext";
-import { useQuotes, useNews } from "./hooks";
+import { useQuotes, useNews, useIsMobile } from "./hooks";
 import { Badge, ChgVal } from "./shared";
 
 // Screens
@@ -39,6 +39,15 @@ const SCREENS = [
   { id: "AI", label: "ASKB", icon: Brain, mnemonic: "ASKB", desc: "AI Assistant" },
 ];
 
+// Bottom tab screens for mobile quick access
+const MOBILE_TABS = [
+  { id: "DASHBOARD", label: "Market", icon: Globe },
+  { id: "EQUITY", label: "Equities", icon: TrendingUp },
+  { id: "FX", label: "FX", icon: DollarSign },
+  { id: "NEWS", label: "News", icon: FileText },
+  { id: "AI", label: "ASKB", icon: Brain },
+];
+
 export default function App() {
   const COLORS = useColors();
   const { isDark, toggle: toggleTheme } = useTheme();
@@ -47,7 +56,11 @@ export default function App() {
   const [cmdQuery, setCmdQuery] = useState("");
   const [time, setTime] = useState(ts());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const cmdRef = useRef(null);
+
+  const isMobile = useIsMobile(768);
+  const isTablet = useIsMobile(1024);
 
   // ── Global data: fetch US stock quotes, share across screens ──
   const { data: allStockQuotes, loading: stocksLoading } = useQuotes(US_STOCKS, 20000);
@@ -59,6 +72,11 @@ export default function App() {
     return () => clearInterval(iv);
   }, []);
 
+  // Close mobile menu on screen change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [screen]);
+
   // ── Command palette keyboard shortcuts ──
   useEffect(() => {
     const handler = (e) => {
@@ -67,7 +85,7 @@ export default function App() {
         setCmdOpen(true);
         setCmdQuery("");
       }
-      if (e.key === "Escape") setCmdOpen(false);
+      if (e.key === "Escape") { setCmdOpen(false); setMobileMenuOpen(false); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -92,7 +110,7 @@ export default function App() {
     setCmdQuery("");
   };
 
-  // ── Ticker bar: top 6 stocks for bottom bar ──
+  // ── Ticker bar: top 8 stocks for bottom bar ──
   const tickerStocks = useMemo(() => {
     return allStockQuotes
       .filter((q) => q.marketCap > 1e11)
@@ -147,19 +165,38 @@ export default function App() {
         ::-webkit-scrollbar-thumb { background: ${COLORS.border}; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: ${COLORS.purple}; }
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+        @keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
         input::placeholder { color: ${COLORS.textMuted}; }
         select { outline: none; }
+        * { -webkit-tap-highlight-color: transparent; }
+        @media (max-width: 768px) {
+          .hide-mobile { display: none !important; }
+        }
+        @media (max-width: 1024px) {
+          .hide-tablet { display: none !important; }
+        }
       `}</style>
 
       {/* TOP BAR */}
       <div
         style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "0 12px", height: 38, background: COLORS.bgPanel,
+          padding: isMobile ? "0 8px" : "0 12px",
+          height: isMobile ? 44 : 38,
+          background: COLORS.bgPanel,
           borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12 }}>
+          {/* Mobile hamburger */}
+          {isMobile && (
+            <div
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              style={{ padding: 4, cursor: "pointer" }}
+            >
+              {mobileMenuOpen ? <X size={20} color={COLORS.text} /> : <Menu size={20} color={COLORS.text} />}
+            </div>
+          )}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <div
               style={{
@@ -170,134 +207,217 @@ export default function App() {
             >
               <Zap size={12} color={COLORS.white} />
             </div>
-            <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: 1, color: COLORS.purpleLight }}>
+            <span style={{ fontSize: isMobile ? 12 : 14, fontWeight: 800, letterSpacing: 1, color: COLORS.purpleLight }}>
               PURPLEBERG
             </span>
-            <span style={{ fontSize: 10, color: COLORS.textMuted, fontWeight: 600 }}>TERMINAL</span>
+            {!isMobile && <span style={{ fontSize: 10, color: COLORS.textMuted, fontWeight: 600 }}>TERMINAL</span>}
           </div>
-          <div style={{ width: 1, height: 20, background: COLORS.border }} />
-          <span style={{ fontSize: 11, color: COLORS.textMuted }}>{currentScreen?.mnemonic}</span>
-          <span style={{ fontSize: 11, color: COLORS.textDim }}>|</span>
-          <span style={{ fontSize: 11, color: COLORS.text, fontWeight: 600 }}>{currentScreen?.desc}</span>
+          {!isMobile && (
+            <>
+              <div style={{ width: 1, height: 20, background: COLORS.border }} />
+              <span style={{ fontSize: 11, color: COLORS.textMuted }}>{currentScreen?.mnemonic}</span>
+              <span style={{ fontSize: 11, color: COLORS.textDim }}>|</span>
+              <span style={{ fontSize: 11, color: COLORS.text, fontWeight: 600 }}>{currentScreen?.desc}</span>
+            </>
+          )}
           {stocksLoading && (
             <span style={{ fontSize: 9, color: COLORS.orange, animation: "pulse 1.5s infinite" }}>
-              Loading data...
+              Loading...
             </span>
           )}
         </div>
 
-        {/* COMMAND BAR */}
-        <div
-          onClick={() => { setCmdOpen(true); setCmdQuery(""); }}
-          style={{
-            display: "flex", alignItems: "center", gap: 8,
-            padding: "4px 14px", background: COLORS.bgInput,
-            border: `1px solid ${COLORS.border}`, borderRadius: 4,
-            cursor: "pointer", minWidth: 300,
-          }}
-        >
-          <Search size={13} color={COLORS.textMuted} />
-          <span style={{ fontSize: 11, color: COLORS.textMuted }}>Search functions... (Ctrl+K)</span>
-          <span style={{ fontSize: 9, color: COLORS.textMuted, marginLeft: "auto", padding: "1px 6px", background: COLORS.border + "44", borderRadius: 2 }}>
-            Ctrl+K
-          </span>
-        </div>
+        {/* COMMAND BAR - hidden on mobile, shown as icon */}
+        {isMobile ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div
+              onClick={() => { setCmdOpen(true); setCmdQuery(""); }}
+              style={{ padding: 4, cursor: "pointer" }}
+            >
+              <Search size={18} color={COLORS.textMuted} />
+            </div>
+            <div onClick={toggleTheme} style={{ padding: 4, cursor: "pointer" }}>
+              {isDark ? <Sun size={16} color={COLORS.gold} /> : <Moon size={16} color={COLORS.purpleDark} />}
+            </div>
+            <Badge color={allStockQuotes.length > 0 ? COLORS.green : COLORS.orange}>
+              {allStockQuotes.length} LIVE
+            </Badge>
+          </div>
+        ) : (
+          <>
+            <div
+              onClick={() => { setCmdOpen(true); setCmdQuery(""); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "4px 14px", background: COLORS.bgInput,
+                border: `1px solid ${COLORS.border}`, borderRadius: 4,
+                cursor: "pointer", minWidth: isTablet ? 200 : 300,
+              }}
+            >
+              <Search size={13} color={COLORS.textMuted} />
+              <span style={{ fontSize: 11, color: COLORS.textMuted }}>Search functions... (Ctrl+K)</span>
+              {!isTablet && (
+                <span style={{ fontSize: 9, color: COLORS.textMuted, marginLeft: "auto", padding: "1px 6px", background: COLORS.border + "44", borderRadius: 2 }}>
+                  Ctrl+K
+                </span>
+              )}
+            </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {/* THEME TOGGLE */}
-          <div
-            onClick={toggleTheme}
-            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            style={{
-              width: 28, height: 28, borderRadius: 6,
-              background: COLORS.bgInput,
-              border: `1px solid ${COLORS.border}`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer",
-            }}
-          >
-            {isDark ? <Sun size={14} color={COLORS.gold} /> : <Moon size={14} color={COLORS.purpleDark} />}
-          </div>
-          <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono',monospace", color: COLORS.green }}>
-            {time}
-          </span>
-          <div style={{ width: 1, height: 20, background: COLORS.border }} />
-          <Badge color={allStockQuotes.length > 0 ? COLORS.green : COLORS.orange}>
-            {allStockQuotes.length} LIVE
-          </Badge>
-          <div
-            style={{
-              width: 24, height: 24, borderRadius: 12,
-              background: COLORS.purpleDim,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}
-          >
-            <User size={12} color={COLORS.purpleLight} />
-          </div>
-        </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div
+                onClick={toggleTheme}
+                title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+                style={{
+                  width: 28, height: 28, borderRadius: 6,
+                  background: COLORS.bgInput,
+                  border: `1px solid ${COLORS.border}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer",
+                }}
+              >
+                {isDark ? <Sun size={14} color={COLORS.gold} /> : <Moon size={14} color={COLORS.purpleDark} />}
+              </div>
+              <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono',monospace", color: COLORS.green }}>
+                {time}
+              </span>
+              <div style={{ width: 1, height: 20, background: COLORS.border }} />
+              <Badge color={allStockQuotes.length > 0 ? COLORS.green : COLORS.orange}>
+                {allStockQuotes.length} LIVE
+              </Badge>
+              <div
+                style={{
+                  width: 24, height: 24, borderRadius: 12,
+                  background: COLORS.purpleDim,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <User size={12} color={COLORS.purpleLight} />
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        {/* SIDEBAR */}
-        <div
-          style={{
-            width: sidebarCollapsed ? 48 : 160, background: COLORS.bgPanel,
-            borderRight: `1px solid ${COLORS.border}`, flexShrink: 0,
-            display: "flex", flexDirection: "column", transition: "width 0.2s",
-          }}
-        >
+      <div style={{ display: "flex", flex: 1, overflow: "hidden", position: "relative" }}>
+        {/* MOBILE SLIDE-OUT MENU */}
+        {isMobile && mobileMenuOpen && (
+          <>
+            <div
+              onClick={() => setMobileMenuOpen(false)}
+              style={{
+                position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)",
+                zIndex: 90,
+              }}
+            />
+            <div
+              style={{
+                position: "absolute", top: 0, left: 0, bottom: 0,
+                width: 240, background: COLORS.bgPanel,
+                borderRight: `1px solid ${COLORS.border}`,
+                zIndex: 100, overflowY: "auto",
+                animation: "slideIn 0.2s ease-out",
+              }}
+            >
+              <div style={{ padding: "12px 16px", borderBottom: `1px solid ${COLORS.border}` }}>
+                <div style={{ fontSize: 12, color: COLORS.textMuted, fontWeight: 600, letterSpacing: 1 }}>NAVIGATION</div>
+              </div>
+              {SCREENS.map((s) => {
+                const Icon = s.icon;
+                const active = screen === s.id;
+                return (
+                  <div
+                    key={s.id}
+                    onClick={() => { setScreen(s.id); setMobileMenuOpen(false); }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 12,
+                      padding: "12px 16px", cursor: "pointer",
+                      background: active ? COLORS.purpleDim + "44" : "transparent",
+                      borderLeft: active ? `3px solid ${COLORS.purple}` : "3px solid transparent",
+                    }}
+                  >
+                    <Icon size={16} color={active ? COLORS.purpleLight : COLORS.textMuted} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: active ? 700 : 500, color: active ? COLORS.purpleLight : COLORS.text }}>
+                        {s.label}
+                      </div>
+                      <div style={{ fontSize: 10, color: COLORS.textMuted }}>{s.desc}</div>
+                    </div>
+                  </div>
+                );
+              })}
+              <div style={{ padding: 16, borderTop: `1px solid ${COLORS.border}` }}>
+                <div style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 1, textAlign: "center" }}>
+                  PURPLEBERG v2.0.0
+                  <div style={{ fontSize: 9, color: COLORS.purple, marginTop: 2, fontWeight: 600 }}>by Rubayet Rezwan</div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* DESKTOP SIDEBAR */}
+        {!isMobile && (
           <div
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             style={{
-              padding: 8, cursor: "pointer",
-              borderBottom: `1px solid ${COLORS.border}`, textAlign: "center",
+              width: sidebarCollapsed ? 48 : (isTablet ? 130 : 160),
+              background: COLORS.bgPanel,
+              borderRight: `1px solid ${COLORS.border}`, flexShrink: 0,
+              display: "flex", flexDirection: "column", transition: "width 0.2s",
             }}
           >
-            {sidebarCollapsed ? (
-              <Maximize2 size={14} color={COLORS.textMuted} />
-            ) : (
-              <Minimize2 size={14} color={COLORS.textMuted} />
-            )}
-          </div>
-          {SCREENS.map((s) => {
-            const Icon = s.icon;
-            const active = screen === s.id;
-            return (
-              <div
-                key={s.id}
-                onClick={() => setScreen(s.id)}
-                title={s.desc}
-                style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  padding: sidebarCollapsed ? "10px 0" : "8px 12px",
-                  cursor: "pointer",
-                  background: active ? COLORS.purpleDim + "44" : "transparent",
-                  borderLeft: active ? `3px solid ${COLORS.purple}` : "3px solid transparent",
-                  justifyContent: sidebarCollapsed ? "center" : "flex-start",
-                }}
-                onMouseOver={(e) => { if (!active) e.currentTarget.style.background = COLORS.bgCard; }}
-                onMouseOut={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
-              >
-                <Icon size={14} color={active ? COLORS.purpleLight : COLORS.textMuted} />
-                {!sidebarCollapsed && (
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: active ? 700 : 500, color: active ? COLORS.purpleLight : COLORS.textDim }}>
-                      {s.label}
+            <div
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              style={{
+                padding: 8, cursor: "pointer",
+                borderBottom: `1px solid ${COLORS.border}`, textAlign: "center",
+              }}
+            >
+              {sidebarCollapsed ? (
+                <Maximize2 size={14} color={COLORS.textMuted} />
+              ) : (
+                <Minimize2 size={14} color={COLORS.textMuted} />
+              )}
+            </div>
+            {SCREENS.map((s) => {
+              const Icon = s.icon;
+              const active = screen === s.id;
+              return (
+                <div
+                  key={s.id}
+                  onClick={() => setScreen(s.id)}
+                  title={s.desc}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: sidebarCollapsed ? "10px 0" : "8px 12px",
+                    cursor: "pointer",
+                    background: active ? COLORS.purpleDim + "44" : "transparent",
+                    borderLeft: active ? `3px solid ${COLORS.purple}` : "3px solid transparent",
+                    justifyContent: sidebarCollapsed ? "center" : "flex-start",
+                  }}
+                  onMouseOver={(e) => { if (!active) e.currentTarget.style.background = COLORS.bgCard; }}
+                  onMouseOut={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
+                >
+                  <Icon size={14} color={active ? COLORS.purpleLight : COLORS.textMuted} />
+                  {!sidebarCollapsed && (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: active ? 700 : 500, color: active ? COLORS.purpleLight : COLORS.textDim }}>
+                        {s.label}
+                      </div>
+                      <div style={{ fontSize: 9, color: COLORS.textMuted }}>{s.mnemonic}</div>
                     </div>
-                    <div style={{ fontSize: 9, color: COLORS.textMuted }}>{s.mnemonic}</div>
-                  </div>
-                )}
+                  )}
+                </div>
+              );
+            })}
+            <div style={{ marginTop: "auto", padding: 8, borderTop: `1px solid ${COLORS.border}`, textAlign: "center" }}>
+              <div style={{ fontSize: 8, color: COLORS.textMuted, letterSpacing: 1 }}>PURPLEBERG</div>
+              <div style={{ fontSize: 7, color: COLORS.textMuted }}>v2.0.0 | Live Data</div>
+              <div style={{ fontSize: 8, color: COLORS.purple, marginTop: 2, fontWeight: 600, letterSpacing: 0.3 }}>
+                by Rubayet Rezwan
               </div>
-            );
-          })}
-          <div style={{ marginTop: "auto", padding: 8, borderTop: `1px solid ${COLORS.border}`, textAlign: "center" }}>
-            <div style={{ fontSize: 8, color: COLORS.textMuted, letterSpacing: 1 }}>PURPLEBERG</div>
-            <div style={{ fontSize: 7, color: COLORS.textMuted }}>v2.0.0 | Live Data</div>
-            <div style={{ fontSize: 8, color: COLORS.purple, marginTop: 2, fontWeight: 600, letterSpacing: 0.3 }}>
-              by Rubayet Rezwan
             </div>
           </div>
-        </div>
+        )}
 
         {/* MAIN CONTENT */}
         <div style={{ flex: 1, overflow: "auto", background: COLORS.bg }}>
@@ -305,38 +425,74 @@ export default function App() {
         </div>
       </div>
 
-      {/* BOTTOM TICKER */}
-      <div
-        style={{
-          height: 24, background: COLORS.bgPanel,
-          borderTop: `1px solid ${COLORS.border}`,
-          display: "flex", alignItems: "center",
-          padding: "0 12px", gap: 16, overflow: "hidden", flexShrink: 0,
-        }}
-      >
-        {tickerStocks.map((s) => (
-          <span key={s.symbol} style={{ fontSize: 10, whiteSpace: "nowrap", display: "flex", gap: 4, alignItems: "center" }}>
-            <span style={{ color: COLORS.textMuted, fontWeight: 600 }}>{s.symbol.replace(".DS", "")}</span>
-            <span style={{ color: COLORS.text, fontFamily: "'JetBrains Mono',monospace" }}>
-              {fmt(s.price, s.price > 1000 ? 0 : 2)}
+      {/* BOTTOM: Ticker (desktop) or Tab Bar (mobile) */}
+      {isMobile ? (
+        <div
+          style={{
+            height: 56, background: COLORS.bgPanel,
+            borderTop: `1px solid ${COLORS.border}`,
+            display: "flex", alignItems: "center", justifyContent: "space-around",
+            flexShrink: 0,
+            paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          }}
+        >
+          {MOBILE_TABS.map((tab) => {
+            const Icon = tab.icon;
+            const active = screen === tab.id;
+            return (
+              <div
+                key={tab.id}
+                onClick={() => setScreen(tab.id)}
+                style={{
+                  display: "flex", flexDirection: "column", alignItems: "center",
+                  gap: 2, cursor: "pointer", padding: "4px 8px",
+                  opacity: active ? 1 : 0.6,
+                }}
+              >
+                <Icon size={18} color={active ? COLORS.purple : COLORS.textMuted} />
+                <span style={{
+                  fontSize: 9, fontWeight: active ? 700 : 500,
+                  color: active ? COLORS.purpleLight : COLORS.textMuted,
+                }}>
+                  {tab.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div
+          style={{
+            height: 24, background: COLORS.bgPanel,
+            borderTop: `1px solid ${COLORS.border}`,
+            display: "flex", alignItems: "center",
+            padding: "0 12px", gap: 16, overflow: "hidden", flexShrink: 0,
+          }}
+        >
+          {tickerStocks.map((s) => (
+            <span key={s.symbol} style={{ fontSize: 10, whiteSpace: "nowrap", display: "flex", gap: 4, alignItems: "center" }}>
+              <span style={{ color: COLORS.textMuted, fontWeight: 600 }}>{s.symbol}</span>
+              <span style={{ color: COLORS.text, fontFamily: "'JetBrains Mono',monospace" }}>
+                {fmt(s.price, s.price > 1000 ? 0 : 2)}
+              </span>
+              <span
+                style={{
+                  color: (s.changePercent ?? 0) >= 0 ? COLORS.green : COLORS.red,
+                  fontFamily: "'JetBrains Mono',monospace",
+                }}
+              >
+                {(s.changePercent ?? 0) >= 0 ? "+" : ""}
+                {fmt(s.changePercent)}%
+              </span>
             </span>
-            <span
-              style={{
-                color: (s.changePercent ?? 0) >= 0 ? COLORS.green : COLORS.red,
-                fontFamily: "'JetBrains Mono',monospace",
-              }}
-            >
-              {(s.changePercent ?? 0) >= 0 ? "+" : ""}
-              {fmt(s.changePercent)}%
-            </span>
+          ))}
+          <span style={{ marginLeft: "auto", fontSize: 10, color: COLORS.textMuted }}>
+            <span style={{ color: allStockQuotes.length > 0 ? COLORS.green : COLORS.red }}>●</span>
+            {" "}
+            {allStockQuotes.length > 0 ? `${allStockQuotes.length} securities streaming` : "Connecting..."} | Purpleberg Terminal
           </span>
-        ))}
-        <span style={{ marginLeft: "auto", fontSize: 10, color: COLORS.textMuted }}>
-          <span style={{ color: allStockQuotes.length > 0 ? COLORS.green : COLORS.red }}>●</span>
-          {" "}
-          {allStockQuotes.length > 0 ? `${allStockQuotes.length} securities streaming` : "Connecting..."} | Purpleberg Terminal
-        </span>
-      </div>
+        </div>
+      )}
 
       {/* COMMAND PALETTE */}
       {cmdOpen && (
@@ -345,22 +501,33 @@ export default function App() {
           style={{
             position: "fixed", inset: 0,
             background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)",
-            display: "flex", alignItems: "flex-start", justifyContent: "center",
-            paddingTop: 100, zIndex: 999,
+            display: "flex",
+            alignItems: isMobile ? "flex-end" : "flex-start",
+            justifyContent: "center",
+            paddingTop: isMobile ? 0 : 100, zIndex: 999,
           }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              width: 520, background: COLORS.bgCard,
-              border: `1px solid ${COLORS.border}`, borderRadius: 8,
+              width: isMobile ? "100%" : 520,
+              maxHeight: isMobile ? "70vh" : "auto",
+              background: COLORS.bgCard,
+              border: isMobile ? "none" : `1px solid ${COLORS.border}`,
+              borderRadius: isMobile ? "16px 16px 0 0" : 8,
               boxShadow: `0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px ${COLORS.purple}44`,
+              display: "flex", flexDirection: "column",
             }}
           >
+            {isMobile && (
+              <div style={{ display: "flex", justifyContent: "center", padding: "8px 0" }}>
+                <div style={{ width: 40, height: 4, borderRadius: 2, background: COLORS.border }} />
+              </div>
+            )}
             <div
               style={{
                 display: "flex", alignItems: "center", gap: 8,
-                padding: "12px 16px",
+                padding: isMobile ? "8px 16px" : "12px 16px",
                 borderBottom: `1px solid ${COLORS.border}`,
               }}
             >
@@ -372,17 +539,20 @@ export default function App() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && filteredScreens.length > 0) selectScreen(filteredScreens[0].id);
                 }}
-                placeholder="Type a function name, mnemonic, or keyword..."
+                placeholder="Type a function name or keyword..."
                 style={{
                   flex: 1, background: "transparent", border: "none",
-                  color: COLORS.text, fontSize: 14, outline: "none",
+                  color: COLORS.text, fontSize: isMobile ? 16 : 14, outline: "none",
                 }}
               />
-              <span style={{ fontSize: 10, color: COLORS.textMuted, padding: "2px 6px", background: COLORS.border + "44", borderRadius: 2 }}>
-                ESC
+              <span
+                onClick={() => setCmdOpen(false)}
+                style={{ fontSize: 10, color: COLORS.textMuted, padding: "2px 6px", background: COLORS.border + "44", borderRadius: 2, cursor: "pointer" }}
+              >
+                {isMobile ? "CLOSE" : "ESC"}
               </span>
             </div>
-            <div style={{ maxHeight: 360, overflowY: "auto" }}>
+            <div style={{ maxHeight: isMobile ? "55vh" : 360, overflowY: "auto" }}>
               {filteredScreens.map((s) => {
                 const Icon = s.icon;
                 return (
@@ -391,7 +561,8 @@ export default function App() {
                     onClick={() => selectScreen(s.id)}
                     style={{
                       display: "flex", alignItems: "center", gap: 12,
-                      padding: "10px 16px", cursor: "pointer",
+                      padding: isMobile ? "14px 16px" : "10px 16px",
+                      cursor: "pointer",
                       borderBottom: `1px solid ${COLORS.border}22`,
                     }}
                     onMouseOver={(e) => (e.currentTarget.style.background = COLORS.bgPanel)}

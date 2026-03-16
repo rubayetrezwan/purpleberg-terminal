@@ -5,11 +5,12 @@ import {
 import { Briefcase, TrendingUp, PieChart as PieIcon, Plus, Trash2 } from "lucide-react";
 import { fmt, fmtK, fmtPct } from "../config";
 import { useColors } from "../ThemeContext";
-import { useQuotes, usePortfolio } from "../hooks";
+import { useQuotes, usePortfolio, useIsMobile } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, MiniTable, LoadingSpinner } from "../shared";
 
 export default function PortfolioManager() {
   const COLORS = useColors();
+  const isMobile = useIsMobile(768);
   const { holdings, addHolding, removeHolding } = usePortfolio();
   const [showAdd, setShowAdd] = useState(false);
   const [newSymbol, setNewSymbol] = useState("");
@@ -71,9 +72,9 @@ export default function PortfolioManager() {
   };
 
   return (
-    <div style={{ padding: 12 }}>
+    <div style={{ padding: isMobile ? 8 : 12 }}>
       {/* SUMMARY CARDS */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: isMobile ? 6 : 10, marginBottom: 10 }}>
         {[
           { l: "Portfolio Value", v: totalValue > 0 ? "$" + fmtK(totalValue) : "$0", c: COLORS.gold },
           { l: "Total P&L", v: (totalPnL >= 0 ? "+$" : "-$") + fmtK(Math.abs(totalPnL)), c: totalPnL >= 0 ? COLORS.green : COLORS.red },
@@ -89,7 +90,7 @@ export default function PortfolioManager() {
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 300px", gap: 10 }}>
         {/* HOLDINGS TABLE */}
         <Panel>
           <PanelHeader

@@ -6,24 +6,21 @@ import {
 import { AlertTriangle, Shield, Activity, PieChart as PieIcon } from "lucide-react";
 import { fmt, fmtPct, fmtK } from "../config";
 import { useColors } from "../ThemeContext";
+import { useIsMobile } from "../hooks";
 import { Panel, PanelHeader, Badge, MiniTable } from "../shared";
 
 export default function RiskAnalytics({ allStockQuotes }) {
   const COLORS = useColors();
+  const isMobile = useIsMobile(768);
   const stocks = allStockQuotes || [];
 
-  // Calculate real return distribution from stock data
   const returnData = useMemo(() => {
     if (!stocks.length) return [];
     return stocks
       .filter((s) => s.changePercent != null)
-      .map((s) => ({
-        ret: parseFloat((s.changePercent || 0).toFixed(2)),
-        name: s.symbol,
-      }));
+      .map((s) => ({ ret: parseFloat((s.changePercent || 0).toFixed(2)), name: s.symbol }));
   }, [stocks]);
 
-  // VaR calculations from actual stock returns
   const { var95, var99, cvar95, avgReturn, maxLoss, maxGain, stdDev } = useMemo(() => {
     if (!returnData.length) return { var95: 0, var99: 0, cvar95: 0, avgReturn: 0, maxLoss: 0, maxGain: 0, stdDev: 0 };
     const sorted = [...returnData].sort((a, b) => a.ret - b.ret);
@@ -39,11 +36,9 @@ export default function RiskAnalytics({ allStockQuotes }) {
     return { var95: v95, var99: v99, cvar95: cv95, avgReturn: avg, maxLoss: ml, maxGain: mg, stdDev: sd };
   }, [returnData]);
 
-  // Stress test: apply real multipliers to today's actual portfolio metrics
   const stressTests = useMemo(() => {
     const currentAvg = avgReturn;
     const currentVol = stdDev;
-    // Scale today's observed cross-sectional volatility by historical crisis multipliers
     return [
       { scenario: "2008 GFC (-56% SPX)", multiplier: 8.5, desc: "Lehman-scale systemic shock" },
       { scenario: "COVID-19 Crash (-34%)", multiplier: 5.0, desc: "Pandemic liquidity crisis" },
@@ -60,43 +55,22 @@ export default function RiskAnalytics({ allStockQuotes }) {
     }));
   }, [avgReturn, stdDev, var95]);
 
-  // Sector distribution from actual stock data
-  const sectorData = useMemo(() => {
-    if (!stocks.length) return [];
-    const sectors = {};
-    stocks.forEach((s) => {
-      const key = s.exchange || "Other";
-      sectors[key] = (sectors[key] || 0) + 1;
-    });
-    return Object.entries(sectors)
-      .map(([name, count]) => ({ name, value: Math.round((count / stocks.length) * 100) }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 6);
-  }, [stocks]);
-
-  // Top risk contributors — stocks with biggest absolute moves
   const topRiskContributors = useMemo(() => {
     if (!stocks.length) return [];
     return [...stocks]
       .filter((s) => s.changePercent != null)
       .sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent))
       .slice(0, 8)
-      .map((s) => ({
-        symbol: s.symbol,
-        name: s.name,
-        change: s.changePercent,
-        price: s.price,
-        volume: s.volume,
-        marketCap: s.marketCap,
-      }));
+      .map((s) => ({ symbol: s.symbol, name: s.name, change: s.changePercent, price: s.price, volume: s.volume, marketCap: s.marketCap }));
   }, [stocks]);
 
-  const riskColors = [COLORS.purple, COLORS.blue, COLORS.orange, COLORS.green, COLORS.gold, COLORS.cyan];
+  const metricsGrid = isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr";
+  const panelGrid = isMobile ? "1fr" : "1fr 1fr";
 
   return (
-    <div style={{ padding: 12 }}>
+    <div style={{ padding: isMobile ? 8 : 12 }}>
       {/* TOP METRICS */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: metricsGrid, gap: isMobile ? 6 : 10, marginBottom: 10 }}>
         {[
           { l: "VaR (95%)", v: fmt(Math.abs(var95)) + "%", c: COLORS.orange, s: "Cross-sectional" },
           { l: "VaR (99%)", v: fmt(Math.abs(var99)) + "%", c: COLORS.red, s: "Cross-sectional" },
@@ -104,16 +78,16 @@ export default function RiskAnalytics({ allStockQuotes }) {
           { l: "Avg Return", v: fmtPct(avgReturn), c: avgReturn >= 0 ? COLORS.green : COLORS.red, s: "Cross-sectional mean" },
         ].map((m) => (
           <Panel key={m.l}>
-            <div style={{ padding: 12, textAlign: "center" }}>
-              <div style={{ fontSize: 10, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>{m.l}</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: m.c, fontFamily: "'JetBrains Mono',monospace" }}>{m.v}</div>
+            <div style={{ padding: isMobile ? 8 : 12, textAlign: "center" }}>
+              <div style={{ fontSize: isMobile ? 9 : 10, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>{m.l}</div>
+              <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, color: m.c, fontFamily: "'JetBrains Mono',monospace" }}>{m.v}</div>
               <div style={{ fontSize: 9, color: COLORS.textDim }}>{m.s}</div>
             </div>
           </Panel>
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: panelGrid, gap: 10 }}>
         {/* RETURN DISTRIBUTION */}
         <Panel>
           <PanelHeader icon={<AlertTriangle size={14} color={COLORS.red} />} title="RETURN DISTRIBUTION" subtitle="Today's returns across holdings" right={<Badge color={COLORS.green}>LIVE</Badge>} />
@@ -121,7 +95,7 @@ export default function RiskAnalytics({ allStockQuotes }) {
             <ResponsiveContainer>
               <BarChart data={returnData}>
                 <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                <XAxis dataKey="name" tick={{ fontSize: 8, fill: COLORS.textMuted }} interval={Math.max(0, Math.floor(returnData.length / 15))} angle={-45} textAnchor="end" height={40} />
+                <XAxis dataKey="name" tick={{ fontSize: 8, fill: COLORS.textMuted }} interval={Math.max(0, Math.floor(returnData.length / (isMobile ? 8 : 15)))} angle={-45} textAnchor="end" height={40} />
                 <YAxis tick={{ fontSize: 9, fill: COLORS.textMuted }} />
                 <Tooltip contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11 }} />
                 <Bar dataKey="ret" barSize={8}>
@@ -137,18 +111,23 @@ export default function RiskAnalytics({ allStockQuotes }) {
         {/* STRESS TESTS */}
         <Panel>
           <PanelHeader icon={<Shield size={14} color={COLORS.orange} />} title="STRESS TEST SCENARIOS" subtitle="Based on today's portfolio volatility" />
-          <MiniTable
-            headers={["Scenario", "Est. Portfolio Impact", "Scaled VaR", "Severity"]}
-            rows={stressTests.map((s) => [
-              <div>
-                <span style={{ color: COLORS.text, fontWeight: 600, fontSize: 10 }}>{s.scenario}</span>
-                <div style={{ fontSize: 8, color: COLORS.textDim }}>{s.desc}</div>
-              </div>,
-              <span style={{ color: COLORS.red, fontFamily: "'JetBrains Mono',monospace" }}>{s.portfolioImpact}</span>,
-              <span style={{ color: COLORS.orange, fontFamily: "'JetBrains Mono',monospace" }}>{s.estimatedVaR}</span>,
-              <Badge color={s.severity === "EXTREME" ? COLORS.red : s.severity === "HIGH" ? COLORS.orange : COLORS.gold}>{s.severity}</Badge>,
-            ])}
-          />
+          <div style={{ overflowX: "auto" }}>
+            <MiniTable
+              headers={isMobile ? ["Scenario", "Impact", "Severity"] : ["Scenario", "Est. Portfolio Impact", "Scaled VaR", "Severity"]}
+              rows={stressTests.map((s) => {
+                const base = [
+                  <div>
+                    <span style={{ color: COLORS.text, fontWeight: 600, fontSize: 10 }}>{s.scenario}</span>
+                    {!isMobile && <div style={{ fontSize: 8, color: COLORS.textDim }}>{s.desc}</div>}
+                  </div>,
+                  <span style={{ color: COLORS.red, fontFamily: "'JetBrains Mono',monospace" }}>{s.portfolioImpact}</span>,
+                ];
+                if (!isMobile) base.push(<span style={{ color: COLORS.orange, fontFamily: "'JetBrains Mono',monospace" }}>{s.estimatedVaR}</span>);
+                base.push(<Badge color={s.severity === "EXTREME" ? COLORS.red : s.severity === "HIGH" ? COLORS.orange : COLORS.gold}>{s.severity}</Badge>);
+                return base;
+              })}
+            />
+          </div>
         </Panel>
 
         {/* TOP RISK CONTRIBUTORS */}
@@ -159,10 +138,10 @@ export default function RiskAnalytics({ allStockQuotes }) {
               <div key={s.symbol} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 4px", borderBottom: `1px solid ${COLORS.border}22` }}>
                 <div>
                   <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.text }}>{s.symbol}</span>
-                  <span style={{ fontSize: 9, color: COLORS.textMuted, marginLeft: 6 }}>{(s.name || "").slice(0, 16)}</span>
+                  {!isMobile && <span style={{ fontSize: 9, color: COLORS.textMuted, marginLeft: 6 }}>{(s.name || "").slice(0, 16)}</span>}
                 </div>
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  <span style={{ fontSize: 10, color: COLORS.textMuted, fontFamily: "'JetBrains Mono',monospace" }}>{fmtK(s.marketCap)}</span>
+                <div style={{ display: "flex", gap: isMobile ? 6 : 12, alignItems: "center" }}>
+                  {!isMobile && <span style={{ fontSize: 10, color: COLORS.textMuted, fontFamily: "'JetBrains Mono',monospace" }}>{fmtK(s.marketCap)}</span>}
                   <span style={{ fontSize: 11, fontWeight: 700, color: s.change >= 0 ? COLORS.green : COLORS.red, fontFamily: "'JetBrains Mono',monospace", minWidth: 50, textAlign: "right" }}>
                     {s.change >= 0 ? "+" : ""}{fmt(s.change)}%
                   </span>
@@ -172,7 +151,7 @@ export default function RiskAnalytics({ allStockQuotes }) {
           </div>
         </Panel>
 
-        {/* RISK METRICS + DISTRIBUTION */}
+        {/* RISK METRICS */}
         <Panel>
           <PanelHeader icon={<PieIcon size={14} color={COLORS.purple} />} title="RISK METRICS" right={<Badge color={COLORS.green}>LIVE</Badge>} />
           <div style={{ padding: 12 }}>

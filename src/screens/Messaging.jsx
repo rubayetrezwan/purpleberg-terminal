@@ -2,12 +2,15 @@ import { useState } from "react";
 import { MessageSquare, Send } from "lucide-react";
 import { ts } from "../config";
 import { useColors } from "../ThemeContext";
+import { useIsMobile } from "../hooks";
 import { Panel, PanelHeader } from "../shared";
 
 const CONTACTS = ["Trading Desk", "Research", "Risk", "PM", "Compliance", "Sales", "Quant Team", "Operations"];
 
 export default function Messaging() {
   const COLORS = useColors();
+  const isMobile = useIsMobile(768);
+  const [showContacts, setShowContacts] = useState(!isMobile);
   const [messages, setMessages] = useState([
     { from: "System", time: "\u2014", text: "Welcome to Purpleberg IB Chat. This is a local demo \u2014 messages are not sent externally.", color: "purple" },
   ]);
@@ -24,13 +27,14 @@ export default function Messaging() {
   };
 
   return (
-    <div style={{ padding: 12, display: "grid", gridTemplateColumns: "200px 1fr", gap: 10, height: "calc(100% - 24px)" }}>
+    <div style={{ padding: isMobile ? 8 : 12, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "200px 1fr", gap: 10, height: "calc(100% - 24px)" }}>
+      {(!isMobile || showContacts) && (
       <Panel>
         <PanelHeader icon={<MessageSquare size={14} color={COLORS.purple} />} title="CONTACTS" />
         {CONTACTS.map((c) => (
           <div
             key={c}
-            onClick={() => setActiveContact(c)}
+            onClick={() => { setActiveContact(c); if (isMobile) setShowContacts(false); }}
             style={{
               padding: "8px 12px",
               borderBottom: `1px solid ${COLORS.border}22`,
@@ -49,12 +53,15 @@ export default function Messaging() {
           </div>
         ))}
       </Panel>
+      )}
 
+      {(!isMobile || !showContacts) && (
       <Panel style={{ display: "flex", flexDirection: "column" }}>
         <PanelHeader
           icon={<MessageSquare size={14} color={COLORS.green} />}
           title={`CHAT — ${activeContact}`}
-          subtitle="Local demo messaging"
+          subtitle={isMobile ? undefined : "Local demo messaging"}
+          right={isMobile ? <span onClick={() => setShowContacts(true)} style={{ fontSize: 10, color: COLORS.purpleLight, cursor: "pointer" }}>Contacts</span> : undefined}
         />
         <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
           {messages.map((m, i) => (
@@ -99,6 +106,7 @@ export default function Messaging() {
           </button>
         </div>
       </Panel>
+      )}
     </div>
   );
 }

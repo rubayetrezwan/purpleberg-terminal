@@ -1,6 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "./api";
 
+// ── Responsive breakpoint hook ──────────────────────────
+export function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < breakpoint);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < breakpoint);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 // ── Fetch quotes with auto-refresh ──────────────────────
 export function useQuotes(symbols, intervalMs = 15000) {
   const [data, setData] = useState([]);

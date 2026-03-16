@@ -5,11 +5,13 @@ import {
 import { Activity, TrendingUp, Hash } from "lucide-react";
 import { fmt } from "../config";
 import { useColors } from "../ThemeContext";
+import { useIsMobile } from "../hooks";
 import { api } from "../api";
 import { Panel, PanelHeader, DataCell, MiniTable } from "../shared";
 
 export default function OptionsPricer() {
   const COLORS = useColors();
+  const isMobile = useIsMobile(768);
   const [spot, setSpot] = useState("");
   const [strike, setStrike] = useState("");
   const [vol, setVol] = useState("25");
@@ -130,7 +132,7 @@ export default function OptionsPricer() {
   );
 
   return (
-    <div style={{ padding: 12, display: "grid", gridTemplateColumns: "260px 1fr", gap: 10 }}>
+    <div style={{ padding: isMobile ? 8 : 12, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "260px 1fr", gap: 10 }}>
       <Panel>
         <PanelHeader icon={<Activity size={14} color={COLORS.orange} />} title="OPTION PRICER" subtitle="Black-Scholes Model" />
         <div style={{ padding: 12 }}>

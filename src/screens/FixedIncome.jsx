@@ -5,11 +5,12 @@ import {
 import { Landmark, Globe, Shield } from "lucide-react";
 import { BOND_SYMBOLS, fmt } from "../config";
 import { useColors } from "../ThemeContext";
-import { useQuotes } from "../hooks";
+import { useQuotes, useIsMobile } from "../hooks";
 import { Panel, PanelHeader, ChgVal, MiniTable, LoadingSpinner } from "../shared";
 
 export default function FixedIncome() {
   const COLORS = useColors();
+  const isMobile = useIsMobile(768);
   const bondSymbols = useMemo(() => BOND_SYMBOLS.map((b) => b.symbol), []);
   const { data: bondQuotes, loading } = useQuotes(bondSymbols, 30000);
 
@@ -37,9 +38,9 @@ export default function FixedIncome() {
   });
 
   return (
-    <div style={{ padding: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+    <div style={{ padding: isMobile ? 8 : 12, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}>
       {/* YIELD CURVE */}
-      <Panel style={{ gridColumn: "1/3" }}>
+      <Panel style={{ gridColumn: isMobile ? "1" : "1/3" }}>
         <PanelHeader
           icon={<Landmark size={14} color={COLORS.blue} />}
           title="US TREASURY YIELD CURVE"

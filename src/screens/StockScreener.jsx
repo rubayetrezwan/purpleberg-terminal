@@ -2,10 +2,12 @@ import { useState, useMemo } from "react";
 import { Filter } from "lucide-react";
 import { fmt, fmtK, fmtPct } from "../config";
 import { useColors } from "../ThemeContext";
+import { useIsMobile } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, LoadingSpinner } from "../shared";
 
 export default function StockScreener({ allStockQuotes }) {
   const COLORS = useColors();
+  const isMobile = useIsMobile(768);
   const stocks = allStockQuotes || [];
   const [sortCol, setSortCol] = useState("marketCap");
   const [sortDir, setSortDir] = useState(-1);
@@ -59,7 +61,7 @@ export default function StockScreener({ allStockQuotes }) {
   ];
 
   return (
-    <div style={{ padding: 12 }}>
+    <div style={{ padding: isMobile ? 8 : 12 }}>
       <Panel>
         <PanelHeader
           icon={<Filter size={14} color={COLORS.purple} />}
@@ -69,7 +71,7 @@ export default function StockScreener({ allStockQuotes }) {
         />
 
         {/* FILTERS */}
-        <div style={{ padding: "8px 12px", display: "flex", gap: 12, alignItems: "center", borderBottom: `1px solid ${COLORS.border}`, flexWrap: "wrap" }}>
+        <div style={{ padding: "8px 12px", display: "flex", gap: isMobile ? 8 : 12, alignItems: isMobile ? "stretch" : "center", borderBottom: `1px solid ${COLORS.border}`, flexWrap: "wrap", flexDirection: isMobile ? "column" : "row" }}>
           <div>
             <span style={{ fontSize: 10, color: COLORS.textMuted, marginRight: 6 }}>SEARCH:</span>
             <input
