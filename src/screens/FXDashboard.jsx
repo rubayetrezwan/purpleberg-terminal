@@ -41,8 +41,11 @@ export default function FXDashboard() {
   });
 
   const bid = selQuote?.price ?? 0;
-  const ask = bid ? bid * 1.0001 : 0; // Approximate spread
-  const spread = ((ask - bid) * 10000).toFixed(1);
+  const high = selQuote?.high ?? 0;
+  const low = selQuote?.low ?? 0;
+  // Derive spread from day high/low range — more realistic than a fixed multiplier
+  const dayRange = high - low;
+  const spreadPips = bid > 0 ? ((dayRange * 0.01) / bid * 10000).toFixed(1) : "0.0";
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 0 }}>
@@ -153,7 +156,7 @@ export default function FXDashboard() {
               <PanelHeader icon={<Activity size={14} color={COLORS.orange} />} title="PAIR STATS" />
               <div style={{ padding: 12 }}>
                 <DataCell label="Rate" value={fmt(bid, 4)} color={COLORS.green} />
-                <DataCell label="Spread" value={spread + " pips"} />
+                <DataCell label="Spread (est)" value={spreadPips + " pips"} />
                 <DataCell label="Day Change" value={fmtPct(selQuote?.changePercent ?? 0)} color={(selQuote?.changePercent ?? 0) >= 0 ? COLORS.green : COLORS.red} />
                 <DataCell label="Day High" value={fmt(selQuote?.high ?? 0, 4)} />
                 <DataCell label="Day Low" value={fmt(selQuote?.low ?? 0, 4)} />

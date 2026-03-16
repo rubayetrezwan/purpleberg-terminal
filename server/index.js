@@ -395,6 +395,73 @@ app.get("/api/news", async (req, res) => {
   }
 });
 
+// ── GET /api/econ-calendar ───────────────────────────────
+// Fetch real economic calendar events from Forex Factory
+app.get("/api/econ-calendar", async (req, res) => {
+  try {
+    const cacheKey = "econ:calendar";
+    const data = await cached(cacheKey, 600_000, async () => {
+      const url = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
+      const r = await fetch(url, {
+        headers: { "User-Agent": UA, "Accept": "application/json" },
+      });
+      if (!r.ok) throw new Error(`Calendar fetch error: ${r.status}`);
+      const events = await r.json();
+
+      // Filter to Medium/High impact events from major economies
+      const majorCurrencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "NZD", "CNY"];
+      return events
+        .filter((ev) => majorCurrencies.includes(ev.country) && (ev.impact === "High" || ev.impact === "Medium"))
+        .map((ev) => {
+          const d = ev.date ? new Date(ev.date) : null;
+          return {
+            date: d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", weekday: "short" }) : "—",
+            time: d ? d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/New_York" }) + " ET" : "—",
+            event: ev.title || "—",
+            country: ev.country || "—",
+            actual: ev.actual || "—",
+            forecast: ev.forecast || "—",
+            previous: ev.previous || "—",
+            impact: ev.impact === "High" ? "high" : "med",
+          };
+        });
+    });
+
+    res.json(data);
+  } catch (e) {
+    console.error("Economic calendar error:", e.message);
+    // Check if we have stale cached data to return
+    const stale = cache.get("econ:calendar");
+    if (stale) return res.json(stale.data);
+    res.json([]);
+  }
+});
+
+// ── GET /api/treasury-rates ─────────────────────────────
+// Fetch real treasury/central bank rates from Yahoo Finance
+app.get("/api/treasury-rates", async (req, res) => {
+  try {
+    const cacheKey = "treasury:rates";
+    const data = await cached(cacheKey, 300_000, async () => {
+      // Use Yahoo Finance to get real treasury yields
+      const symbols = ["^IRX", "^FVX", "^TNX", "^TYX"];
+      const results = await yahooQuote(symbols);
+
+      return {
+        us3m: results.find((r) => r.symbol === "^IRX")?.regularMarketPrice ?? 0,
+        us5y: results.find((r) => r.symbol === "^FVX")?.regularMarketPrice ?? 0,
+        us10y: results.find((r) => r.symbol === "^TNX")?.regularMarketPrice ?? 0,
+        us30y: results.find((r) => r.symbol === "^TYX")?.regularMarketPrice ?? 0,
+      };
+    });
+
+    res.json(data);
+  } catch (e) {
+    console.error("Treasury rates error:", e.message);
+    res.json({});
+  }
+});
+
 // ── GET /api/search ─────────────────────────────────────
 app.get("/api/search", async (req, res) => {
   try {

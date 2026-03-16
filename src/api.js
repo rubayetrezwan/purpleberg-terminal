@@ -22,6 +22,10 @@ export const api = {
   news: (symbols) =>
     get(`/news${symbols ? `?symbols=${symbols.join(",")}` : ""}`),
 
+  econCalendar: () => get("/econ-calendar"),
+
+  treasuryRates: () => get("/treasury-rates"),
+
   search: (query) =>
     get(`/search?q=${encodeURIComponent(query)}`),
 
