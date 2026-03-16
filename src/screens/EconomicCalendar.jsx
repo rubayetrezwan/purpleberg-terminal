@@ -34,8 +34,8 @@ export default function EconomicCalendar() {
   useEffect(() => {
     fetchData();
     fetchRates();
-    const iv = setInterval(fetchData, 600_000);
-    const iv2 = setInterval(fetchRates, 300_000);
+    const iv = setInterval(fetchData, 120_000);
+    const iv2 = setInterval(fetchRates, 60_000);
     return () => { clearInterval(iv); clearInterval(iv2); };
   }, []);
 

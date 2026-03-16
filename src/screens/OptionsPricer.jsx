@@ -5,8 +5,7 @@ import {
 import { Activity, TrendingUp, Hash } from "lucide-react";
 import { fmt } from "../config";
 import { useColors } from "../ThemeContext";
-import { useIsMobile } from "../hooks";
-import { api } from "../api";
+import { useIsMobile, useQuotes } from "../hooks";
 import { Panel, PanelHeader, DataCell, MiniTable } from "../shared";
 
 export default function OptionsPricer() {
@@ -19,19 +18,17 @@ export default function OptionsPricer() {
   const [time, setTime] = useState("30");
   const [optType, setOptType] = useState("call");
 
-  // Fetch live AAPL price on mount
+  // Live-updating AAPL price for default spot
+  const { data: liveQuote } = useQuotes(["AAPL"], 10000);
+  const [spotInitialized, setSpotInitialized] = useState(false);
+
   useEffect(() => {
-    api.quotes(["AAPL"]).then((data) => {
-      if (data?.[0]?.price) {
-        const p = data[0].price.toFixed(2);
-        setSpot(p);
-        setStrike(Math.round(data[0].price).toString());
-      }
-    }).catch(() => {
-      setSpot("250");
-      setStrike("255");
-    });
-  }, []);
+    if (liveQuote?.[0]?.price && !spotInitialized) {
+      setSpot(liveQuote[0].price.toFixed(2));
+      setStrike(Math.round(liveQuote[0].price).toString());
+      setSpotInitialized(true);
+    }
+  }, [liveQuote, spotInitialized]);
 
   // Black-Scholes pricing
   const bs = useMemo(() => {

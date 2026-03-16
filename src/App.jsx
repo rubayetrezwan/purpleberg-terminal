@@ -63,8 +63,8 @@ export default function App() {
   const isTablet = useIsMobile(1024);
 
   // ── Global data: fetch stock quotes, share across screens ──
-  const { data: allStockQuotes, loading: stocksLoading } = useQuotes(US_STOCKS, 20000);
-  const { data: newsData, loading: newsLoading } = useNews(null, 120000);
+  const { data: allStockQuotes, loading: stocksLoading } = useQuotes(US_STOCKS, 15000);
+  const { data: newsData, loading: newsLoading } = useNews(null, 45000);
 
   // ── Clock ──
   useEffect(() => {
@@ -365,7 +365,7 @@ export default function App() {
               })}
               <div style={{ padding: 16, borderTop: `1px solid ${COLORS.border}` }}>
                 <div style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 1, textAlign: "center" }}>
-                  PURPLEBERG v2.0.0
+                  PURPLEBERG v2.1.0
                   <div style={{ fontSize: 9, color: COLORS.purple, marginTop: 2, fontWeight: 600 }}>by Rubayet Rezwan</div>
                 </div>
               </div>
@@ -429,7 +429,7 @@ export default function App() {
             })}
             <div style={{ marginTop: "auto", padding: 8, borderTop: `1px solid ${COLORS.border}`, textAlign: "center" }}>
               <div style={{ fontSize: 8, color: COLORS.textMuted, letterSpacing: 1 }}>PURPLEBERG</div>
-              <div style={{ fontSize: 7, color: COLORS.textMuted }}>v2.0.0 | Live Data</div>
+              <div style={{ fontSize: 7, color: COLORS.textMuted }}>v2.1.0 | Live Data</div>
               <div style={{ fontSize: 8, color: COLORS.purple, marginTop: 2, fontWeight: 600, letterSpacing: 0.3 }}>
                 by Rubayet Rezwan
               </div>

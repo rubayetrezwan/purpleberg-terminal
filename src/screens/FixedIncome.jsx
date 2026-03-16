@@ -12,7 +12,7 @@ export default function FixedIncome() {
   const COLORS = useColors();
   const isMobile = useIsMobile(768);
   const bondSymbols = useMemo(() => BOND_SYMBOLS.map((b) => b.symbol), []);
-  const { data: bondQuotes, loading } = useQuotes(bondSymbols, 30000);
+  const { data: bondQuotes, loading } = useQuotes(bondSymbols, 15000);
 
   // Build yield curve data from real treasury yields
   const yieldCurve = useMemo(() => {
