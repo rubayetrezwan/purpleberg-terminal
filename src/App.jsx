@@ -5,7 +5,7 @@ import {
   Brain, Zap, Bell, Settings, User, Maximize2, Minimize2,
   Command, ChevronRight, Sun, Moon, Menu, X,
 } from "lucide-react";
-import { US_STOCKS, ts, fmt } from "./config";
+import { US_STOCKS, ts, fmt, fmtK } from "./config";
 import { useColors, useTheme } from "./ThemeContext";
 import { useQuotes, useNews, useIsMobile } from "./hooks";
 import { Badge, ChgVal } from "./shared";
@@ -598,10 +598,12 @@ export default function App() {
                         <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.purpleLight }}>{s.symbol}</div>
                         <div style={{ fontSize: 10, color: COLORS.textMuted }}>{(s.name || "").slice(0, 30)}</div>
                       </div>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.text, fontFamily: "'JetBrains Mono',monospace" }}>
-                        {fmt(s.price)}
-                      </span>
-                      <ChgVal val={s.changePercent} />
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: "'JetBrains Mono',monospace" }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.text }}>{fmt(s.price)}</span>
+                        <ChgVal val={s.changePercent} />
+                        <span style={{ fontSize: 10, color: COLORS.textDim }}>{fmtK(s.marketCap)}</span>
+                        <span style={{ fontSize: 10, color: COLORS.textMuted }}>{s.pe > 0 ? fmt(s.pe, 1) + "x" : "N/A"}</span>
+                      </div>
                     </div>
                   ))}
                 </>
