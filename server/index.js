@@ -17,15 +17,7 @@ const app = express();
 app.set("trust proxy", 1); // Render sits behind a proxy
 
 // CORS: allow same-origin in prod; open in dev for Vite proxy.
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:5173,http://localhost:3001")
-  .split(",").map((s) => s.trim()).filter(Boolean);
-app.use(cors({
-  origin: (origin, cb) => {
-    // Same-origin requests (no Origin header) and allow-listed origins pass.
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-    return cb(new Error("CORS blocked"), false);
-  },
-}));
+app.use(cors());
 app.use(express.json({ limit: "32kb" }));
 
 // ── Rate limiting ───────────────────────────────────────
