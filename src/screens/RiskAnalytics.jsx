@@ -21,21 +21,32 @@ export default function RiskAnalytics({ allStockQuotes }) {
       .map((s) => ({ ret: parseFloat((s.changePercent || 0).toFixed(2)), name: s.symbol }));
   }, [stocks]);
 
-  const { var95, var99, cvar95, avgReturn, maxLoss, maxGain, stdDev } = useMemo(() => {
-    if (!returnData.length) return { var95: 0, var99: 0, cvar95: 0, avgReturn: 0, maxLoss: 0, maxGain: 0, stdDev: 0 };
+  // NOTE: This is *cross-sectional* dispersion across today's returns of the watchlist,
+  // NOT a time-series Value-at-Risk on a real portfolio. Labels reflect that.
+  const { p5, p1, tailMean5, avgReturn, maxLoss, maxGain, stdDev } = useMemo(() => {
+    if (!returnData.length) return { p5: 0, p1: 0, tailMean5: 0, avgReturn: 0, maxLoss: 0, maxGain: 0, stdDev: 0 };
     const sorted = [...returnData].sort((a, b) => a.ret - b.ret);
-    const v95 = sorted[Math.floor(sorted.length * 0.05)]?.ret || 0;
-    const v99 = sorted[Math.floor(sorted.length * 0.01)]?.ret || 0;
-    const tail = sorted.slice(0, Math.max(1, Math.floor(sorted.length * 0.05)));
-    const cv95 = tail.reduce((a, v) => a + v.ret, 0) / tail.length;
-    const avg = returnData.reduce((a, v) => a + v.ret, 0) / returnData.length;
+    const n = sorted.length;
+    // 5th and 1st percentile — when n is small, 1st percentile collapses to the min,
+    // so we clamp to at least index 1 so the metric is distinguishable from "max loss".
+    const p5v = sorted[Math.max(0, Math.floor(n * 0.05))]?.ret || 0;
+    const p1v = sorted[Math.min(n - 1, Math.max(1, Math.floor(n * 0.01)))]?.ret || 0;
+    const tailCount = Math.max(1, Math.floor(n * 0.05));
+    const tail = sorted.slice(0, tailCount);
+    const tm5 = tail.reduce((a, v) => a + v.ret, 0) / tail.length;
+    const avg = returnData.reduce((a, v) => a + v.ret, 0) / n;
     const ml = sorted[0]?.ret || 0;
-    const mg = sorted[sorted.length - 1]?.ret || 0;
-    const variance = returnData.reduce((a, v) => a + Math.pow(v.ret - avg, 2), 0) / returnData.length;
+    const mg = sorted[n - 1]?.ret || 0;
+    // Sample variance (n-1) for an unbiased estimator.
+    const variance = n > 1
+      ? returnData.reduce((a, v) => a + Math.pow(v.ret - avg, 2), 0) / (n - 1)
+      : 0;
     const sd = Math.sqrt(variance);
-    return { var95: v95, var99: v99, cvar95: cv95, avgReturn: avg, maxLoss: ml, maxGain: mg, stdDev: sd };
+    return { p5: p5v, p1: p1v, tailMean5: tm5, avgReturn: avg, maxLoss: ml, maxGain: mg, stdDev: sd };
   }, [returnData]);
 
+  // Illustrative scenario table — NOT a real stress test. Just scales today's dispersion
+  // by the historical max-drawdown of each named event to give a rough order-of-magnitude.
   const stressTests = useMemo(() => {
     const currentAvg = avgReturn;
     const currentVol = stdDev;
@@ -50,10 +61,10 @@ export default function RiskAnalytics({ allStockQuotes }) {
       scenario: s.scenario,
       desc: s.desc,
       portfolioImpact: fmt(currentAvg * s.multiplier - currentVol * s.multiplier, 2) + "%",
-      estimatedVaR: fmt(Math.abs(var95) * s.multiplier, 2) + "%",
+      scaledTail: fmt(Math.abs(p5) * s.multiplier, 2) + "%",
       severity: s.multiplier >= 5 ? "EXTREME" : s.multiplier >= 3 ? "HIGH" : "MODERATE",
     }));
-  }, [avgReturn, stdDev, var95]);
+  }, [avgReturn, stdDev, p5]);
 
   const topRiskContributors = useMemo(() => {
     if (!stocks.length) return [];
@@ -69,12 +80,12 @@ export default function RiskAnalytics({ allStockQuotes }) {
 
   return (
     <div style={{ padding: isMobile ? 8 : 12 }}>
-      {/* TOP METRICS */}
+      {/* TOP METRICS — all labels reflect cross-sectional snapshot, NOT time-series VaR */}
       <div style={{ display: "grid", gridTemplateColumns: metricsGrid, gap: isMobile ? 6 : 10, marginBottom: 10 }}>
         {[
-          { l: "VaR (95%)", v: fmt(Math.abs(var95)) + "%", c: COLORS.orange, s: "Cross-sectional" },
-          { l: "VaR (99%)", v: fmt(Math.abs(var99)) + "%", c: COLORS.red, s: "Cross-sectional" },
-          { l: "CVaR (95%)", v: fmt(Math.abs(cvar95)) + "%", c: COLORS.red, s: "Expected Shortfall" },
+          { l: "5th %ile Return", v: fmt(Math.abs(p5)) + "%", c: COLORS.orange, s: "Cross-sectional today" },
+          { l: "1st %ile Return", v: fmt(Math.abs(p1)) + "%", c: COLORS.red, s: "Cross-sectional today" },
+          { l: "Tail Mean (≤5%)", v: fmt(Math.abs(tailMean5)) + "%", c: COLORS.red, s: "Avg of worst 5%" },
           { l: "Avg Return", v: fmtPct(avgReturn), c: avgReturn >= 0 ? COLORS.green : COLORS.red, s: "Cross-sectional mean" },
         ].map((m) => (
           <Panel key={m.l}>
@@ -90,7 +101,7 @@ export default function RiskAnalytics({ allStockQuotes }) {
       <div style={{ display: "grid", gridTemplateColumns: panelGrid, gap: 10 }}>
         {/* RETURN DISTRIBUTION */}
         <Panel>
-          <PanelHeader icon={<AlertTriangle size={14} color={COLORS.red} />} title="RETURN DISTRIBUTION" subtitle="Today's returns across holdings" right={<Badge color={COLORS.green}>LIVE</Badge>} />
+          <PanelHeader icon={<AlertTriangle size={14} color={COLORS.red} />} title="RETURN DISTRIBUTION" subtitle="Today's returns across watchlist" right={<Badge color={COLORS.green}>LIVE</Badge>} />
           <div style={{ padding: 8, height: 240 }}>
             <ResponsiveContainer>
               <BarChart data={returnData}>
@@ -100,7 +111,7 @@ export default function RiskAnalytics({ allStockQuotes }) {
                 <Tooltip contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11 }} />
                 <Bar dataKey="ret" barSize={8}>
                   {returnData.map((d, i) => (
-                    <Cell key={i} fill={d.ret < var95 ? COLORS.red : d.ret < 0 ? COLORS.orange + "88" : COLORS.green + "88"} />
+                    <Cell key={i} fill={d.ret < p5 ? COLORS.red : d.ret < 0 ? COLORS.orange + "88" : COLORS.green + "88"} />
                   ))}
                 </Bar>
               </BarChart>
@@ -110,10 +121,10 @@ export default function RiskAnalytics({ allStockQuotes }) {
 
         {/* STRESS TESTS */}
         <Panel>
-          <PanelHeader icon={<Shield size={14} color={COLORS.orange} />} title="STRESS TEST SCENARIOS" subtitle="Based on today's portfolio volatility" />
+          <PanelHeader icon={<Shield size={14} color={COLORS.orange} />} title="ILLUSTRATIVE SCENARIOS" subtitle="Today's dispersion scaled by past event drawdowns — not a real stress test" />
           <div style={{ overflowX: "auto" }}>
             <MiniTable
-              headers={isMobile ? ["Scenario", "Impact", "Severity"] : ["Scenario", "Est. Portfolio Impact", "Scaled VaR", "Severity"]}
+              headers={isMobile ? ["Scenario", "Impact", "Severity"] : ["Scenario", "Est. Impact", "Scaled Tail", "Severity"]}
               rows={stressTests.map((s) => {
                 const base = [
                   <div>
@@ -122,7 +133,7 @@ export default function RiskAnalytics({ allStockQuotes }) {
                   </div>,
                   <span style={{ color: COLORS.red, fontFamily: "'JetBrains Mono',monospace" }}>{s.portfolioImpact}</span>,
                 ];
-                if (!isMobile) base.push(<span style={{ color: COLORS.orange, fontFamily: "'JetBrains Mono',monospace" }}>{s.estimatedVaR}</span>);
+                if (!isMobile) base.push(<span style={{ color: COLORS.orange, fontFamily: "'JetBrains Mono',monospace" }}>{s.scaledTail}</span>);
                 base.push(<Badge color={s.severity === "EXTREME" ? COLORS.red : s.severity === "HIGH" ? COLORS.orange : COLORS.gold}>{s.severity}</Badge>);
                 return base;
               })}

@@ -2,17 +2,63 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { api } from "./api";
 
 // ── Responsive breakpoint hook ──────────────────────────
+// Every mounted screen calls this, so the naive `window.resize` listener
+// version spawns N listeners that all fire every pixel of a drag. We cache
+// one MediaQueryList per breakpoint so all hook instances share a single
+// browser-level observer, and matchMedia only fires when the breakpoint
+// actually crosses.
+const mqlCache = new Map();
+function getMQL(breakpoint) {
+  if (typeof window === "undefined" || !window.matchMedia) return null;
+  let mql = mqlCache.get(breakpoint);
+  if (!mql) {
+    mql = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
+    mqlCache.set(breakpoint, mql);
+  }
+  return mql;
+}
+
 export function useIsMobile(breakpoint = 768) {
-  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < breakpoint);
+  const [isMobile, setIsMobile] = useState(() => {
+    const mql = getMQL(breakpoint);
+    return mql ? mql.matches : false;
+  });
   useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < breakpoint);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
+    const mql = getMQL(breakpoint);
+    if (!mql) return;
+    const handler = (e) => setIsMobile(e.matches);
+    // Safari <14 uses addListener/removeListener; modern browsers use add/removeEventListener.
+    if (mql.addEventListener) mql.addEventListener("change", handler);
+    else mql.addListener(handler);
+    // Sync in case width changed between mount and effect.
+    setIsMobile(mql.matches);
+    return () => {
+      if (mql.removeEventListener) mql.removeEventListener("change", handler);
+      else mql.removeListener(handler);
+    };
   }, [breakpoint]);
   return isMobile;
 }
 
+// ── Page visibility ─────────────────────────────────────
+// Used by polling hooks to skip intervals when the tab is backgrounded.
+// Why: otherwise ~12 screens worth of quotes/news/historical keep hammering
+// Yahoo Finance while the user is doing something else, wasting the server's
+// rate-limit budget and burning the user's battery.
+export function usePageVisibility() {
+  const [visible, setVisible] = useState(
+    () => typeof document === "undefined" || document.visibilityState !== "hidden"
+  );
+  useEffect(() => {
+    const handler = () => setVisible(document.visibilityState !== "hidden");
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
+  }, []);
+  return visible;
+}
+
 // ── Fetch quotes with auto-refresh ──────────────────────
+// Polling pauses while the tab is hidden and resumes immediately on focus.
 export function useQuotes(symbols, intervalMs = 15000) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,12 +68,13 @@ export function useQuotes(symbols, intervalMs = 15000) {
   useEffect(() => {
     if (!symbols.length) return;
     let cancelled = false;
+    let iv = null;
 
     const fetchData = async () => {
       try {
         const result = await api.quotes(symbols);
-        if (!cancelled && result.length > 0) {
-          setData(result);
+        if (!cancelled) {
+          if (result.length > 0) setData(result);
           setLoading(false);
           setError(null);
         }
@@ -40,11 +87,27 @@ export function useQuotes(symbols, intervalMs = 15000) {
       }
     };
 
-    fetchData();
-    const iv = setInterval(fetchData, intervalMs);
+    const start = () => {
+      if (iv != null) return;
+      fetchData();
+      iv = setInterval(fetchData, intervalMs);
+    };
+    const stop = () => {
+      if (iv != null) { clearInterval(iv); iv = null; }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") stop();
+      else start();
+    };
+
+    if (document.visibilityState !== "hidden") start();
+    document.addEventListener("visibilitychange", onVisibility);
+
     return () => {
       cancelled = true;
-      clearInterval(iv);
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [symbolsKey, intervalMs]);
 
@@ -102,12 +165,14 @@ export function useFinancials(symbol) {
 }
 
 // ── Fetch news ──────────────────────────────────────────
+// Polling pauses while the tab is hidden and resumes immediately on focus.
 export function useNews(symbols, intervalMs = 120000) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
+    let iv = null;
 
     const fetchData = async () => {
       try {
@@ -121,9 +186,28 @@ export function useNews(symbols, intervalMs = 120000) {
       }
     };
 
-    fetchData();
-    const iv = setInterval(fetchData, intervalMs);
-    return () => { cancelled = true; clearInterval(iv); };
+    const start = () => {
+      if (iv != null) return;
+      fetchData();
+      iv = setInterval(fetchData, intervalMs);
+    };
+    const stop = () => {
+      if (iv != null) { clearInterval(iv); iv = null; }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") stop();
+      else start();
+    };
+
+    if (document.visibilityState !== "hidden") start();
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      cancelled = true;
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [symbols?.join(","), intervalMs]);
 
   return { data, loading };

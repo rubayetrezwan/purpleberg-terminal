@@ -68,7 +68,7 @@ export default function MarketDashboard({ allStockQuotes, news }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: mainGrid, gap: 10, padding: isMobile ? 8 : 10 }}>
       {/* INDICES */}
-      <Panel style={{ gridColumn: isMobile ? "1" : isTablet ? "1/3" : "1/4" }}>
+      <Panel style={{ gridColumn: isMobile ? "1" : isTablet ? "1/3" : "1/-1" }}>
         <PanelHeader
           icon={<Globe size={14} color={COLORS.purple} />}
           title="WORLD EQUITY INDICES"
@@ -91,7 +91,7 @@ export default function MarketDashboard({ allStockQuotes, news }) {
                 <div style={{ fontSize: 10, color: COLORS.textMuted, fontWeight: 600 }}>{idx.sym}</div>
                 <div style={{ fontSize: 9, color: COLORS.textDim, marginBottom: 2 }}>{idx.name}</div>
                 <div style={{ fontSize: isMobile ? 12 : 14, fontWeight: 700, color: COLORS.text, fontFamily: "'JetBrains Mono',monospace" }}>
-                  {idx.val > 10000 ? fmt(idx.val, 0) : fmt(idx.val, 2)}
+                  {idx.val === 0 ? "--" : idx.val > 10000 ? fmt(idx.val, 0) : fmt(idx.val, 2)}
                 </div>
                 <ChgVal val={idx.chg} />
               </div>
@@ -104,8 +104,10 @@ export default function MarketDashboard({ allStockQuotes, news }) {
       <Panel>
         <PanelHeader icon={<BarChart3 size={14} color={COLORS.orange} />} title="TOP MOVERS" subtitle="Biggest price changes today" />
         <div style={{ padding: 8 }}>
-          {topMovers.length === 0 ? (
+          {!allStockQuotes?.length ? (
             <LoadingSpinner text="Loading movers..." />
+          ) : topMovers.length === 0 ? (
+            <div style={{ padding: 16, textAlign: "center", color: COLORS.textMuted, fontSize: 11 }}>No significant movers today</div>
           ) : (
             topMovers.map((s) => (
               <div key={s.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 6px", borderBottom: `1px solid ${COLORS.border}22` }}>
@@ -171,7 +173,7 @@ export default function MarketDashboard({ allStockQuotes, news }) {
       </Panel>
 
       {/* COMMODITIES */}
-      <Panel style={{ gridColumn: isMobile ? "1" : "1/3" }}>
+      <Panel style={{ gridColumn: isMobile ? "1" : "1/-1" }}>
         <PanelHeader icon={<Hash size={14} color={COLORS.gold} />} title="COMMODITIES" subtitle="Real-time commodity prices" />
         <MiniTable
           headers={["Commodity", "Price", "Change", "Unit"]}

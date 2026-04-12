@@ -23,16 +23,17 @@ export const Badge = ({ children, color }) => {
 export const ChgVal = ({ val, suffix = "%" }) => {
   const COLORS = useColors();
   if (val == null || isNaN(val)) return <span style={{ color: COLORS.textMuted }}>--</span>;
+  const v = Object.is(val, -0) ? 0 : val;
   return (
     <span
       style={{
-        color: val >= 0 ? COLORS.green : COLORS.red,
+        color: v >= 0 ? COLORS.green : COLORS.red,
         fontWeight: 600,
         fontFamily: "'JetBrains Mono',monospace",
         fontSize: 12,
       }}
     >
-      {val >= 0 ? "\u25B2" : "\u25BC"} {Math.abs(val).toFixed(2)}
+      {v >= 0 ? "\u25B2" : "\u25BC"} {Math.abs(v).toFixed(2)}
       {suffix}
     </span>
   );

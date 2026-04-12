@@ -105,8 +105,8 @@ export default function FixedIncome() {
               { l: "5Y Treasury Yield", v: `${fmt(y5)}%` },
               { l: "10Y Treasury Yield", v: `${fmt(y10)}%` },
               { l: "30Y Treasury Yield", v: `${fmt(y30)}%` },
-              { l: "10Y-3M Spread", v: `${fmt(y10 - y3m)}%` },
-              { l: "30Y-10Y Spread", v: `${fmt(y30 - y10)}%` },
+              { l: "10Y-3M Spread", v: `${fmt((y10 - y3m) * 100, 0)} bps` },
+              { l: "30Y-10Y Spread", v: `${fmt((y30 - y10) * 100, 0)} bps` },
               { l: "Curve Shape", v: y10 > y3m ? "Normal" : "Inverted" },
             ];
             return items.map((item) => (
