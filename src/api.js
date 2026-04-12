@@ -28,13 +28,4 @@ export const api = {
 
   search: (query) =>
     get(`/search?q=${encodeURIComponent(query)}`),
-
-  chat: async (messages) => {
-    const res = await fetch(`${BASE}/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages }),
-    });
-    return res.json();
-  },
 };

@@ -21,41 +21,51 @@ export default function PortfolioManager() {
   const holdingSymbols = useMemo(() => holdings.map((h) => h.symbol), [holdings]);
   const { data: liveQuotes, loading } = useQuotes(holdingSymbols, 15000);
 
-  // Enrich holdings with live data
+  // Enrich holdings with live data.
+  // IMPORTANT: when a quote is missing we do NOT silently fall back to avg cost —
+  // that would show P&L as 0% and mask data-fetch failures. Instead mark `stale:true`
+  // and use cost basis only for aggregation so the total isn't distorted to N/A.
   const enriched = useMemo(() => {
     return holdings.map((h) => {
       const q = liveQuotes.find((d) => d.symbol === h.symbol);
-      const currentPrice = q?.price || h.avgCost;
-      const mktValue = currentPrice * h.shares;
+      const hasLive = q?.price != null && q.price > 0;
+      const currentPrice = hasLive ? q.price : null;
+      const mktValue = hasLive ? currentPrice * h.shares : h.avgCost * h.shares;
       const costBasis = h.avgCost * h.shares;
-      const pnl = mktValue - costBasis;
-      const pnlPct = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
+      const pnl = hasLive ? mktValue - costBasis : 0;
+      const pnlPct = hasLive && costBasis > 0 ? (pnl / costBasis) * 100 : 0;
       return {
         ...h,
         currentPrice,
+        hasLive,
         mktValue,
         costBasis,
         pnl,
         pnlPct,
         name: q?.name || h.name || h.symbol,
-        changePercent: q?.changePercent || 0,
+        changePercent: hasLive ? (q?.changePercent || 0) : null,
       };
     });
   }, [holdings, liveQuotes]);
 
-  const totalValue = enriched.reduce((a, h) => a + h.mktValue, 0);
-  const totalCost = enriched.reduce((a, h) => a + h.costBasis, 0);
+  // Aggregate only over rows that have live data so the header numbers don't
+  // misrepresent a partial fetch as "flat P&L".
+  const liveRows = enriched.filter((h) => h.hasLive);
+  const totalValue = liveRows.reduce((a, h) => a + h.mktValue, 0);
+  const totalCost = liveRows.reduce((a, h) => a + h.costBasis, 0);
   const totalPnL = totalValue - totalCost;
   const totalReturn = totalCost > 0 ? (totalPnL / totalCost) * 100 : 0;
+  const staleCount = enriched.length - liveRows.length;
 
-  // Sector allocation (group by symbol prefix for simplicity)
+  // Allocation only over holdings with live prices, to avoid giving stale rows
+  // a share of the pie based on their cost basis.
   const pieData = useMemo(() => {
-    if (!enriched.length) return [];
-    return enriched.map((h) => ({
+    if (!liveRows.length || totalValue <= 0) return [];
+    return liveRows.map((h) => ({
       name: h.symbol,
       value: parseFloat(((h.mktValue / totalValue) * 100).toFixed(1)),
     }));
-  }, [enriched, totalValue]);
+  }, [liveRows, totalValue]);
 
   const pieColors = [COLORS.purple, COLORS.green, COLORS.blue, COLORS.orange, COLORS.cyan, COLORS.gold, COLORS.red, COLORS.purpleLight];
 
@@ -96,7 +106,7 @@ export default function PortfolioManager() {
           <PanelHeader
             icon={<Briefcase size={14} color={COLORS.purple} />}
             title="HOLDINGS"
-            subtitle="Portfolio positions with live P&L"
+            subtitle={staleCount > 0 ? `${staleCount} stale — no live quote` : "Portfolio positions with live P&L"}
             right={
               <button
                 onClick={() => setShowAdd(!showAdd)}
@@ -115,33 +125,33 @@ export default function PortfolioManager() {
           {/* ADD FORM */}
           {showAdd && (
             <div style={{ padding: 10, borderBottom: `1px solid ${COLORS.border}`, display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
-              <div>
+              <div style={{ flex: isMobile ? "1 1 45%" : "0 0 auto" }}>
                 <div style={{ fontSize: 9, color: COLORS.textMuted, marginBottom: 2 }}>SYMBOL</div>
                 <input
                   value={newSymbol} onChange={(e) => setNewSymbol(e.target.value)}
                   placeholder="AAPL"
-                  style={{ width: 80, padding: "4px 6px", background: COLORS.bgInput, border: `1px solid ${COLORS.border}`, borderRadius: 3, color: COLORS.text, fontSize: 11, outline: "none" }}
+                  style={{ width: isMobile ? "100%" : 80, padding: "6px 8px", background: COLORS.bgInput, border: `1px solid ${COLORS.border}`, borderRadius: 3, color: COLORS.text, fontSize: 12, outline: "none", boxSizing: "border-box" }}
                 />
               </div>
-              <div>
+              <div style={{ flex: isMobile ? "1 1 45%" : "0 0 auto" }}>
                 <div style={{ fontSize: 9, color: COLORS.textMuted, marginBottom: 2 }}>SHARES</div>
                 <input
                   value={newShares} onChange={(e) => setNewShares(e.target.value)}
                   placeholder="100" type="number"
-                  style={{ width: 70, padding: "4px 6px", background: COLORS.bgInput, border: `1px solid ${COLORS.border}`, borderRadius: 3, color: COLORS.text, fontSize: 11, outline: "none" }}
+                  style={{ width: isMobile ? "100%" : 70, padding: "6px 8px", background: COLORS.bgInput, border: `1px solid ${COLORS.border}`, borderRadius: 3, color: COLORS.text, fontSize: 12, outline: "none", boxSizing: "border-box" }}
                 />
               </div>
-              <div>
+              <div style={{ flex: isMobile ? "1 1 45%" : "0 0 auto" }}>
                 <div style={{ fontSize: 9, color: COLORS.textMuted, marginBottom: 2 }}>AVG COST ($)</div>
                 <input
                   value={newCost} onChange={(e) => setNewCost(e.target.value)}
                   placeholder="150.00" type="number" step="0.01"
-                  style={{ width: 80, padding: "4px 6px", background: COLORS.bgInput, border: `1px solid ${COLORS.border}`, borderRadius: 3, color: COLORS.text, fontSize: 11, outline: "none" }}
+                  style={{ width: isMobile ? "100%" : 80, padding: "6px 8px", background: COLORS.bgInput, border: `1px solid ${COLORS.border}`, borderRadius: 3, color: COLORS.text, fontSize: 12, outline: "none", boxSizing: "border-box" }}
                 />
               </div>
               <button
                 onClick={handleAdd}
-                style={{ padding: "4px 12px", background: COLORS.green, color: COLORS.white, border: "none", borderRadius: 3, cursor: "pointer", fontSize: 11, fontWeight: 600 }}
+                style={{ padding: "6px 14px", background: COLORS.green, color: COLORS.white, border: "none", borderRadius: 3, cursor: "pointer", fontSize: 12, fontWeight: 600, minHeight: 36 }}
               >
                 Add
               </button>
@@ -162,9 +172,15 @@ export default function PortfolioManager() {
                 <span style={{ color: COLORS.textDim, fontSize: 10, textAlign: "left" }}>{(h.name || "").slice(0, 16)}</span>,
                 <span style={{ color: COLORS.text }}>{h.shares}</span>,
                 <span style={{ color: COLORS.textDim }}>{fmt(h.avgCost)}</span>,
-                <span style={{ color: COLORS.text, fontWeight: 600 }}>{fmt(h.currentPrice)}</span>,
-                <span style={{ color: COLORS.text }}>{fmtK(h.mktValue)}</span>,
-                <ChgVal val={h.pnlPct} />,
+                h.hasLive
+                  ? <span style={{ color: COLORS.text, fontWeight: 600 }}>{fmt(h.currentPrice)}</span>
+                  : <span title="No live quote" style={{ color: COLORS.textMuted, fontStyle: "italic" }}>—</span>,
+                h.hasLive
+                  ? <span style={{ color: COLORS.text }}>{fmtK(h.mktValue)}</span>
+                  : <span style={{ color: COLORS.textMuted }}>—</span>,
+                h.hasLive
+                  ? <ChgVal val={h.pnlPct} />
+                  : <span style={{ color: COLORS.textMuted }}>—</span>,
                 <Trash2
                   size={12}
                   color={COLORS.red}
@@ -213,7 +229,8 @@ export default function PortfolioManager() {
           <Panel>
             <PanelHeader icon={<TrendingUp size={14} color={COLORS.green} />} title="TODAY'S MOVERS" subtitle="Daily change by holding" />
             <div style={{ padding: 8 }}>
-              {enriched
+              {liveRows
+                .slice()
                 .sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent))
                 .slice(0, 8)
                 .map((h) => (

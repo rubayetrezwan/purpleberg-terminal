@@ -11,6 +11,7 @@ import { Panel, PanelHeader, Badge, ChgVal, DataCell, LoadingSpinner } from "../
 export default function FXDashboard() {
   const COLORS = useColors();
   const isMobile = useIsMobile(768);
+  const isTablet = useIsMobile(1024);
   const fxSymbols = useMemo(() => FX_SYMBOLS.map((f) => f.symbol), []);
   const { data: fxQuotes, loading } = useQuotes(fxSymbols, 10000);
   const [selPairSymbol, setSelPairSymbol] = useState(FX_SYMBOLS[0].symbol);
@@ -35,7 +36,12 @@ export default function FXDashboard() {
   const high = selQuote?.high ?? 0;
   const low = selQuote?.low ?? 0;
   const dayRange = high - low;
-  const spreadPips = bid > 0 ? ((dayRange * 0.01) / bid * 10000).toFixed(1) : "0.0";
+  // Yahoo's v7/quote does NOT expose real bid/ask for FX spot pairs, so we can't
+  // show an honest spread. Instead surface the day-range in pips, which IS real.
+  // JPY-quoted pairs use 0.01 per pip; everything else uses 0.0001.
+  const isJpyQuote = /JPY=X$/i.test(selPairSymbol);
+  const pipSize = isJpyQuote ? 0.01 : 0.0001;
+  const dayRangePips = dayRange > 0 ? (dayRange / pipSize).toFixed(0) : "0";
 
   if (isMobile) {
     return (
@@ -89,8 +95,8 @@ export default function FXDashboard() {
             <Panel>
               <PanelHeader icon={<Activity size={14} color={COLORS.orange} />} title="PAIR STATS" />
               <div style={{ padding: 10 }}>
-                <DataCell label="Rate" value={fmt(bid, 4)} color={COLORS.green} />
-                <DataCell label="Spread" value={spreadPips + " pips"} />
+                <DataCell label="Rate" value={fmt(bid, isJpyQuote ? 2 : 4)} color={COLORS.green} />
+                <DataCell label="Day Range" value={dayRangePips + " pips"} />
                 <DataCell label="Change" value={fmtPct(selQuote?.changePercent ?? 0)} color={(selQuote?.changePercent ?? 0) >= 0 ? COLORS.green : COLORS.red} />
               </div>
             </Panel>
@@ -113,7 +119,7 @@ export default function FXDashboard() {
 
   // Desktop layout
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 0 }}>
+    <div style={{ display: "grid", gridTemplateColumns: isTablet ? "220px 1fr" : "280px 1fr", gap: 0 }}>
       <div style={{ borderRight: `1px solid ${COLORS.border}`, background: COLORS.bgPanel, overflowY: "auto" }}>
         <PanelHeader icon={<DollarSign size={14} color={COLORS.green} />} title="FX RATES" subtitle="Real-time exchange rates" />
         {loading ? (
@@ -135,7 +141,7 @@ export default function FXDashboard() {
       </div>
 
       <div style={{ overflow: "auto" }}>
-        <div style={{ padding: 12, display: "grid", gridTemplateColumns: "1fr 300px", gap: 10 }}>
+        <div style={{ padding: 12, display: "grid", gridTemplateColumns: isTablet ? "1fr" : "1fr 300px", gap: 10 }}>
           <Panel>
             <PanelHeader icon={<TrendingUp size={14} color={COLORS.purple} />} title={`${selConfig.pair} — 90 DAY CHART`} subtitle="Historical exchange rate" />
             <div style={{ padding: 8, height: 300 }}>
@@ -173,11 +179,11 @@ export default function FXDashboard() {
             <Panel>
               <PanelHeader icon={<Activity size={14} color={COLORS.orange} />} title="PAIR STATS" />
               <div style={{ padding: 12 }}>
-                <DataCell label="Rate" value={fmt(bid, 4)} color={COLORS.green} />
-                <DataCell label="Spread (est)" value={spreadPips + " pips"} />
+                <DataCell label="Rate" value={fmt(bid, isJpyQuote ? 2 : 4)} color={COLORS.green} />
+                <DataCell label="Day Range" value={dayRangePips + " pips"} />
                 <DataCell label="Day Change" value={fmtPct(selQuote?.changePercent ?? 0)} color={(selQuote?.changePercent ?? 0) >= 0 ? COLORS.green : COLORS.red} />
-                <DataCell label="Day High" value={fmt(selQuote?.high ?? 0, 4)} />
-                <DataCell label="Day Low" value={fmt(selQuote?.low ?? 0, 4)} />
+                <DataCell label="Day High" value={fmt(selQuote?.high ?? 0, isJpyQuote ? 2 : 4)} />
+                <DataCell label="Day Low" value={fmt(selQuote?.low ?? 0, isJpyQuote ? 2 : 4)} />
               </div>
             </Panel>
           </div>

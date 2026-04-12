@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
+import rateLimit from "express-rate-limit";
+import { LRUCache } from "lru-cache";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -12,20 +14,53 @@ try {
 } catch {}
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+app.set("trust proxy", 1); // Render sits behind a proxy
 
-// ── Simple in-memory cache ──────────────────────────────
-const cache = new Map();
+// CORS: allow same-origin in prod; open in dev for Vite proxy.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:5173,http://localhost:3001")
+  .split(",").map((s) => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: (origin, cb) => {
+    // Same-origin requests (no Origin header) and allow-listed origins pass.
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error("CORS blocked"), false);
+  },
+}));
+app.use(express.json({ limit: "32kb" }));
+
+// ── Rate limiting ───────────────────────────────────────
+const apiLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 120,               // 120 reqs/min per IP for data endpoints
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Rate limit exceeded" },
+});
+
+// ── Input validation ────────────────────────────────────
+const TICKER_RE = /^[A-Z0-9^][A-Z0-9.\-^=]{0,14}$/i;
+const RANGE_ALLOW = new Set(["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]);
+const INTERVAL_ALLOW = new Set(["1m", "5m", "15m", "30m", "1h", "1d", "1wk", "1mo"]);
+const isTicker = (s) => typeof s === "string" && TICKER_RE.test(s);
+
+// ── Bounded LRU cache ───────────────────────────────────
+const cache = new LRUCache({
+  max: 2000,                // hard ceiling on keys
+  ttl: 15 * 60_000,         // 15-min default TTL (per-entry TTL wins via ttlMs)
+  allowStale: true,         // serve stale on upstream error
+  updateAgeOnGet: false,
+});
 
 function cached(key, ttlMs, fn) {
-  const entry = cache.get(key);
+  const entry = cache.get(key, { allowStale: false });
   if (entry && Date.now() - entry.ts < ttlMs) return Promise.resolve(entry.data);
   return fn().then((data) => {
-    cache.set(key, { data, ts: Date.now() });
+    cache.set(key, { data, ts: Date.now() }, { ttl: ttlMs });
     return data;
   }).catch((e) => {
-    if (entry) return entry.data;
+    // On upstream error, serve any stale entry we still have.
+    const stale = cache.get(key, { allowStale: true });
+    if (stale) return stale.data;
     throw e;
   });
 }
@@ -95,12 +130,12 @@ async function yahooAuthFetch(url) {
   return res.json();
 }
 
-// ── Beta cache (from quoteSummary, long TTL) ────────────
-const betaCache = new Map();
+// ── Beta cache (from quoteSummary, 24h TTL) ─────────────
+const betaCache = new LRUCache({ max: 500, ttl: 24 * 60 * 60_000 });
 
 async function fetchBeta(symbol) {
-  const entry = betaCache.get(symbol);
-  if (entry) return entry;
+  const hit = betaCache.get(symbol);
+  if (hit !== undefined) return hit;
   try {
     const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=defaultKeyStatistics`;
     const data = await yahooAuthFetch(url);
@@ -109,8 +144,25 @@ async function fetchBeta(symbol) {
     betaCache.set(symbol, beta);
     return beta;
   } catch {
+    // Cache the failure briefly so a flaky symbol doesn't DoS us.
+    betaCache.set(symbol, 0, { ttl: 60_000 });
     return 0;
   }
+}
+
+// Simple concurrency limiter so cold-start doesn't fan out 96 parallel Yahoo requests.
+async function mapWithConcurrency(items, limit, fn) {
+  const out = new Array(items.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const idx = i++;
+      if (idx >= items.length) return;
+      out[idx] = await fn(items[idx], idx);
+    }
+  });
+  await Promise.all(workers);
+  return out;
 }
 
 // ── v7 batch quotes (with crumb auth) ───────────────────
@@ -120,10 +172,10 @@ async function yahooQuoteBatch(symbols) {
   const data = await yahooAuthFetch(url);
   const results = data.quoteResponse?.result || [];
 
-  // Enrich equities with beta (fetched in parallel, cached permanently)
+  // Enrich equities with beta (throttled to 5 concurrent, 24h LRU cached).
   const equities = results.filter((q) => q.quoteType === "EQUITY");
   if (equities.length > 0) {
-    const betas = await Promise.all(equities.map((q) => fetchBeta(q.symbol)));
+    const betas = await mapWithConcurrency(equities, 5, (q) => fetchBeta(q.symbol));
     equities.forEach((q, i) => { q.beta = betas[i]; });
   }
 
@@ -219,9 +271,10 @@ const raw = (v) => {
 };
 
 // ── GET /api/quotes ─────────────────────────────────────
-app.get("/api/quotes", async (req, res) => {
+app.get("/api/quotes", apiLimiter, async (req, res) => {
   try {
-    const symbols = (req.query.symbols || "").split(",").filter(Boolean);
+    const raw = (req.query.symbols || "").split(",").filter(Boolean);
+    const symbols = raw.filter(isTicker).slice(0, 80); // hard cap per request
     if (!symbols.length) return res.json([]);
 
     const cacheKey = `quotes:${symbols.sort().join(",")}`;
@@ -268,11 +321,12 @@ app.get("/api/quotes", async (req, res) => {
 });
 
 // ── GET /api/historical/:symbol ─────────────────────────
-app.get("/api/historical/:symbol", async (req, res) => {
+app.get("/api/historical/:symbol", apiLimiter, async (req, res) => {
   try {
     const { symbol } = req.params;
-    const range = req.query.range || "3mo";
-    const interval = req.query.interval || "1d";
+    if (!isTicker(symbol)) return res.status(400).json({ error: "invalid symbol" });
+    const range = RANGE_ALLOW.has(req.query.range) ? req.query.range : "3mo";
+    const interval = INTERVAL_ALLOW.has(req.query.interval) ? req.query.interval : "1d";
 
     const cacheKey = `hist:${symbol}:${range}:${interval}`;
     const data = await cached(cacheKey, 300_000, () =>
@@ -281,14 +335,15 @@ app.get("/api/historical/:symbol", async (req, res) => {
     res.json(data);
   } catch (e) {
     console.error("Historical error:", e.message);
-    res.json([]);
+    res.status(500).json({ error: e.message });
   }
 });
 
 // ── GET /api/financials/:symbol ─────────────────────────
-app.get("/api/financials/:symbol", async (req, res) => {
+app.get("/api/financials/:symbol", apiLimiter, async (req, res) => {
   try {
     const { symbol } = req.params;
+    if (!isTicker(symbol)) return res.status(400).json({ error: "invalid symbol" });
     const cacheKey = `fin:${symbol}`;
 
     // Try to get fresh data, with retry on auth failure
@@ -301,7 +356,7 @@ app.get("/api/financials/:symbol", async (req, res) => {
       crumbExpiry = 0;
       try {
         data = await yahooSummary(symbol);
-        cache.set(cacheKey, { data, ts: Date.now() });
+        cache.set(cacheKey, { data, ts: Date.now() }, { ttl: 1800_000 });
       } catch (e2) {
         console.error(`Financials retry failed for ${symbol}:`, e2.message);
         data = {};
@@ -386,9 +441,11 @@ app.get("/api/financials/:symbol", async (req, res) => {
 });
 
 // ── GET /api/news ───────────────────────────────────────
-app.get("/api/news", async (req, res) => {
+app.get("/api/news", apiLimiter, async (req, res) => {
   try {
-    const symbols = (req.query.symbols || "AAPL,MSFT,GOOGL,TSLA,NVDA,JPM").split(",");
+    const raw = (req.query.symbols || "AAPL,MSFT,GOOGL,TSLA,NVDA,JPM").split(",");
+    const symbols = raw.filter(isTicker).slice(0, 10);
+    if (!symbols.length) return res.json([]);
     const cacheKey = `news:${symbols.sort().join(",")}`;
 
     const data = await cached(cacheKey, 120_000, async () => {
@@ -428,7 +485,7 @@ app.get("/api/news", async (req, res) => {
 
 // ── GET /api/econ-calendar ───────────────────────────────
 // Fetch real economic calendar events from Forex Factory
-app.get("/api/econ-calendar", async (req, res) => {
+app.get("/api/econ-calendar", apiLimiter, async (req, res) => {
   try {
     const cacheKey = "econ:calendar";
     const data = await cached(cacheKey, 600_000, async () => {
@@ -462,7 +519,7 @@ app.get("/api/econ-calendar", async (req, res) => {
   } catch (e) {
     console.error("Economic calendar error:", e.message);
     // Check if we have stale cached data to return
-    const stale = cache.get("econ:calendar");
+    const stale = cache.get("econ:calendar", { allowStale: true });
     if (stale) return res.json(stale.data);
     res.json([]);
   }
@@ -470,7 +527,7 @@ app.get("/api/econ-calendar", async (req, res) => {
 
 // ── GET /api/treasury-rates ─────────────────────────────
 // Fetch real treasury/central bank rates from Yahoo Finance
-app.get("/api/treasury-rates", async (req, res) => {
+app.get("/api/treasury-rates", apiLimiter, async (req, res) => {
   try {
     const cacheKey = "treasury:rates";
     const data = await cached(cacheKey, 300_000, async () => {
@@ -494,10 +551,10 @@ app.get("/api/treasury-rates", async (req, res) => {
 });
 
 // ── GET /api/search ─────────────────────────────────────
-app.get("/api/search", async (req, res) => {
+app.get("/api/search", apiLimiter, async (req, res) => {
   try {
-    const query = req.query.q || "";
-    if (!query) return res.json([]);
+    const query = String(req.query.q || "").slice(0, 40);
+    if (!query || !/^[\w\s.\-^=&]+$/i.test(query)) return res.json([]);
 
     const cacheKey = `search:${query}`;
     const data = await cached(cacheKey, 60_000, async () => {
@@ -518,44 +575,6 @@ app.get("/api/search", async (req, res) => {
   }
 });
 
-// ── POST /api/chat ──────────────────────────────────────
-app.post("/api/chat", async (req, res) => {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return res.status(400).json({
-      error: "ANTHROPIC_API_KEY not configured",
-      message: "To enable the AI assistant, add your Anthropic API key to the .env file.",
-    });
-  }
-
-  try {
-    const { messages } = req.body;
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1500,
-        system:
-          "You are ASKB, the AI research assistant inside Purpleberg Terminal (a Bloomberg Terminal alternative). You are an expert financial analyst. Provide concise, data-driven responses about markets, securities, economics, and financial analysis. Use specific numbers and metrics when possible. Keep responses focused and professional.",
-        messages,
-      }),
-    });
-
-    const data = await response.json();
-    if (data.error) return res.status(400).json({ error: data.error.message });
-    const text = data.content?.map((c) => c.text || "").join("\n") || "Unable to process request.";
-    res.json({ text });
-  } catch (e) {
-    console.error("Chat error:", e.message);
-    res.status(500).json({ error: "AI service temporarily unavailable." });
-  }
-});
-
 // ── Serve static files (built frontend) ─────────────────
 import fs from "fs";
 
@@ -573,10 +592,17 @@ if (fs.existsSync(distPath)) {
 const PORT = process.env.PORT || 3001;
 
 // Pre-fetch crumb at startup
-refreshCrumb().then(() => {
-  app.listen(PORT, () => {
-    console.log(`\n  ⚡ Purpleberg Terminal API running on http://localhost:${PORT}`);
-    console.log(`  📊 Data source: Yahoo Finance (v7 API with crumb auth)`);
-    console.log(`  🤖 AI Assistant: ${process.env.ANTHROPIC_API_KEY ? "Enabled" : "Not configured (set ANTHROPIC_API_KEY in .env)"}\n`);
+refreshCrumb()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`\n  Purpleberg Terminal API running on http://localhost:${PORT}`);
+      console.log(`  Data source: Yahoo Finance (v7 API with crumb auth)\n`);
+    });
+  })
+  .catch((e) => {
+    console.error("Failed to initialise Yahoo crumb:", e.message);
+    // Start anyway — crumb will be retried on first request
+    app.listen(PORT, () => {
+      console.log(`\n  Purpleberg Terminal API running on http://localhost:${PORT} (crumb pending)\n`);
+    });
   });
-});

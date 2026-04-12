@@ -11,9 +11,30 @@ import { useColors } from "../ThemeContext";
 import { useHistorical, useFinancialsWithRetry, useQuotes, useIsMobile } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, DataCell, TabBar, MiniTable, LoadingSpinner } from "../shared";
 
+const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function fmtAxisDate(iso, showYear) {
+  if (!iso || typeof iso !== "string") return "";
+  const parts = iso.split("-");
+  if (parts.length < 3) return iso;
+  const [y, m, d] = parts;
+  const mi = parseInt(m, 10) - 1;
+  const mon = MONTHS_SHORT[mi] || m;
+  return showYear ? `${mon} '${y.slice(-2)}` : `${mon} ${parseInt(d, 10)}`;
+}
+function fmtTooltipDate(iso) {
+  if (!iso || typeof iso !== "string") return "";
+  const parts = iso.split("-");
+  if (parts.length < 3) return iso;
+  const [y, m, d] = parts;
+  const mi = parseInt(m, 10) - 1;
+  const mon = MONTHS_SHORT[mi] || m;
+  return `${mon} ${parseInt(d, 10)}, ${y}`;
+}
+
 export default function EquityAnalysis({ allStockQuotes, initialSymbol, onSymbolConsumed }) {
   const COLORS = useColors();
   const isMobile = useIsMobile(768);
+  const isTablet = useIsMobile(1024);
   const stocks = allStockQuotes || [];
   const [selectedSymbol, setSelectedSymbol] = useState("AAPL");
   const [tab, setTab] = useState("CHART");
@@ -27,7 +48,7 @@ export default function EquityAnalysis({ allStockQuotes, initialSymbol, onSymbol
       setSelectedSymbol(initialSymbol);
       onSymbolConsumed?.();
     }
-  }, [initialSymbol]);
+  }, [initialSymbol, onSymbolConsumed]);
 
   // If selected symbol is not in the pre-loaded list, fetch it individually
   const isExternal = selectedSymbol && !stocks.find((s) => s.symbol === selectedSymbol);
@@ -47,9 +68,12 @@ export default function EquityAnalysis({ allStockQuotes, initialSymbol, onSymbol
   const { data: histData, loading: histLoading } = useHistorical(selected.symbol, chartRange);
   const { data: finData, loading: finLoading, error: finError } = useFinancialsWithRetry(selected.symbol);
 
+  const showYearOnAxis = chartRange === "1y" || chartRange === "5y";
+  const xAxisFmt = (iso) => fmtAxisDate(iso, showYearOnAxis);
+
   const chartData = useMemo(() => {
     return histData.map((d) => ({
-      date: d.date?.slice(5) || "",
+      date: d.date || "",
       price: d.close,
       open: d.open,
       high: d.high,
@@ -127,14 +151,14 @@ export default function EquityAnalysis({ allStockQuotes, initialSymbol, onSymbol
         </div>
 
         <TabBar tabs={["CHART", "FINANCIALS", "ESTIMATES", "RATIOS", "PROFILE"]} active={tab} onChange={setTab} />
-        <div style={{ padding: 8 }}>{renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finError, finData, selected, COLORS, isMobile: true })}</div>
+        <div style={{ padding: 8 }}>{renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finError, finData, selected, COLORS, isMobile: true, xAxisFmt })}</div>
       </div>
     );
   }
 
   // Desktop layout
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 0, height: "100%" }}>
+    <div style={{ display: "grid", gridTemplateColumns: isTablet ? "180px 1fr" : "220px 1fr", gap: 0, height: "100%" }}>
       {/* STOCK LIST */}
       <div style={{ borderRight: `1px solid ${COLORS.border}`, overflowY: "auto", background: COLORS.bgPanel }}>
         <div style={{ padding: 8, borderBottom: `1px solid ${COLORS.border}` }}>
@@ -195,13 +219,13 @@ export default function EquityAnalysis({ allStockQuotes, initialSymbol, onSymbol
         </div>
 
         <TabBar tabs={["CHART", "FINANCIALS", "ESTIMATES", "RATIOS", "PROFILE"]} active={tab} onChange={setTab} />
-        <div style={{ padding: 12 }}>{renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finError, finData, selected, COLORS, isMobile: false })}</div>
+        <div style={{ padding: 12 }}>{renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finError, finData, selected, COLORS, isMobile: false, xAxisFmt })}</div>
       </div>
     </div>
   );
 }
 
-function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finError, finData, selected, COLORS, isMobile }) {
+function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finError, finData, selected, COLORS, isMobile, xAxisFmt }) {
   if (tab === "CHART") {
     return (
       <Panel>
@@ -231,17 +255,17 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
                 <AreaChart data={chartData}>
                   <defs><linearGradient id="gp" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={COLORS.purple} stopOpacity={0.3} /><stop offset="95%" stopColor={COLORS.purple} stopOpacity={0} /></linearGradient></defs>
                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                  <XAxis dataKey="date" tick={{ fontSize: 9, fill: COLORS.textMuted }} interval={Math.max(1, Math.floor(chartData.length / (isMobile ? 6 : 12)))} />
+                  <XAxis dataKey="date" tickFormatter={xAxisFmt} tick={{ fontSize: 9, fill: COLORS.textMuted }} interval={Math.max(1, Math.floor(chartData.length / (isMobile ? 6 : 12)))} />
                   <YAxis tick={{ fontSize: 9, fill: COLORS.textMuted }} domain={["auto", "auto"]} />
-                  <Tooltip contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11, color: COLORS.text }} />
+                  <Tooltip labelFormatter={fmtTooltipDate} contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11, color: COLORS.text }} />
                   <Area type="monotone" dataKey="price" stroke={COLORS.purple} fill="url(#gp)" strokeWidth={2} />
                 </AreaChart>
               ) : chartType === "line" ? (
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                  <XAxis dataKey="date" tick={{ fontSize: 9, fill: COLORS.textMuted }} interval={Math.max(1, Math.floor(chartData.length / (isMobile ? 6 : 12)))} />
+                  <XAxis dataKey="date" tickFormatter={xAxisFmt} tick={{ fontSize: 9, fill: COLORS.textMuted }} interval={Math.max(1, Math.floor(chartData.length / (isMobile ? 6 : 12)))} />
                   <YAxis tick={{ fontSize: 9, fill: COLORS.textMuted }} domain={["auto", "auto"]} />
-                  <Tooltip contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11, color: COLORS.text }} />
+                  <Tooltip labelFormatter={fmtTooltipDate} contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11, color: COLORS.text }} />
                   <Line type="monotone" dataKey="price" stroke={COLORS.green} strokeWidth={2} dot={false} />
                   <Line type="monotone" dataKey="high" stroke={COLORS.purple + "66"} strokeWidth={1} dot={false} strokeDasharray="4 2" />
                   <Line type="monotone" dataKey="low" stroke={COLORS.red + "66"} strokeWidth={1} dot={false} strokeDasharray="4 2" />
@@ -249,10 +273,10 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
               ) : (
                 <ComposedChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                  <XAxis dataKey="date" tick={{ fontSize: 9, fill: COLORS.textMuted }} interval={Math.max(1, Math.floor(chartData.length / (isMobile ? 6 : 12)))} />
+                  <XAxis dataKey="date" tickFormatter={xAxisFmt} tick={{ fontSize: 9, fill: COLORS.textMuted }} interval={Math.max(1, Math.floor(chartData.length / (isMobile ? 6 : 12)))} />
                   <YAxis yAxisId="p" tick={{ fontSize: 9, fill: COLORS.textMuted }} domain={["auto", "auto"]} />
                   <YAxis yAxisId="v" orientation="right" tick={{ fontSize: 9, fill: COLORS.textMuted }} />
-                  <Tooltip contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11, color: COLORS.text }} />
+                  <Tooltip labelFormatter={fmtTooltipDate} contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11, color: COLORS.text }} />
                   <Bar yAxisId="v" dataKey="volume" fill={COLORS.purple + "33"} barSize={3} />
                   <Line yAxisId="p" type="monotone" dataKey="price" stroke={COLORS.green} strokeWidth={2} dot={false} />
                 </ComposedChart>

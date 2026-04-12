@@ -32,11 +32,28 @@ export default function EconomicCalendar() {
   };
 
   useEffect(() => {
-    fetchData();
-    fetchRates();
-    const iv = setInterval(fetchData, 120_000);
-    const iv2 = setInterval(fetchRates, 60_000);
-    return () => { clearInterval(iv); clearInterval(iv2); };
+    let iv = null, iv2 = null;
+    const start = () => {
+      if (iv != null) return;
+      fetchData();
+      fetchRates();
+      iv = setInterval(fetchData, 120_000);
+      iv2 = setInterval(fetchRates, 60_000);
+    };
+    const stop = () => {
+      if (iv != null) { clearInterval(iv); iv = null; }
+      if (iv2 != null) { clearInterval(iv2); iv2 = null; }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") stop();
+      else start();
+    };
+    if (document.visibilityState !== "hidden") start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   return (

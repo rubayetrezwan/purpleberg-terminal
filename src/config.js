@@ -1,32 +1,5 @@
-// ═══════════════════════════════════════════
-// COLORS & THEME
-// ═══════════════════════════════════════════
-
-export const COLORS = {
-  bg: "#0a0a0f",
-  bgPanel: "#111118",
-  bgCard: "#1a1a24",
-  bgInput: "#16161f",
-  border: "#2a2a3a",
-  borderLight: "#3a3a4a",
-  purple: "#8b5cf6",
-  purpleLight: "#a78bfa",
-  purpleDark: "#6d28d9",
-  purpleDim: "#4c1d95",
-  green: "#22c55e",
-  greenDim: "#166534",
-  red: "#ef4444",
-  redDim: "#991b1b",
-  orange: "#f59e0b",
-  orangeDim: "#92400e",
-  blue: "#3b82f6",
-  cyan: "#06b6d4",
-  text: "#e2e8f0",
-  textDim: "#94a3b8",
-  textMuted: "#64748b",
-  gold: "#fbbf24",
-  white: "#ffffff",
-};
+// Theme colours are the single source of truth in ./ThemeContext.jsx —
+// do not re-add them here. Screens pull palette via `useColors()`.
 
 // ═══════════════════════════════════════════
 // STOCK TICKERS
@@ -72,6 +45,10 @@ export const FX_SYMBOLS = [
   { symbol: "EURGBP=X", pair: "EUR/GBP" },
   { symbol: "USDSGD=X", pair: "USD/SGD" },
   { symbol: "NZDUSD=X", pair: "NZD/USD" },
+  { symbol: "USDBDT=X", pair: "USD/BDT" },
+  { symbol: "AUDBDT=X", pair: "AUD/BDT" },
+  { symbol: "GBPBDT=X", pair: "GBP/BDT" },
+  { symbol: "EURBDT=X", pair: "EUR/BDT" },
 ];
 
 export const COMMODITY_SYMBOLS = [
@@ -102,7 +79,8 @@ export const fmt = (n, d = 2) => {
 };
 
 export const fmtK = (n) => {
-  if (!n) return "—";
+  if (n == null || isNaN(n)) return "—";
+  if (n === 0) return "0";
   if (n >= 1e12) return (n / 1e12).toFixed(2) + "T";
   if (n >= 1e9) return (n / 1e9).toFixed(1) + "B";
   if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";

@@ -1,42 +1,41 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Search, Globe, TrendingUp, DollarSign, Landmark, Activity,
-  Filter, Briefcase, Shield, Calendar, FileText, MessageSquare,
-  Brain, Zap, Bell, Settings, User, Maximize2, Minimize2,
-  Command, ChevronRight, Sun, Moon, Menu, X,
+  Filter, Briefcase, Shield, Calendar, FileText,
+  Zap, User, Maximize2, Minimize2,
+  Command, ChevronRight, Sun, Moon, Menu, X, Gem,
 } from "lucide-react";
 import { US_STOCKS, ts, fmt, fmtK } from "./config";
 import { useColors, useTheme } from "./ThemeContext";
 import { useQuotes, useNews, useIsMobile, useSearch } from "./hooks";
 import { Badge, ChgVal } from "./shared";
+import ErrorBoundary from "./ErrorBoundary";
 
 // Screens
 import MarketDashboard from "./screens/MarketDashboard";
 import EquityAnalysis from "./screens/EquityAnalysis";
 import FXDashboard from "./screens/FXDashboard";
 import FixedIncome from "./screens/FixedIncome";
+import CommoditiesDashboard from "./screens/CommoditiesDashboard";
 import OptionsPricer from "./screens/OptionsPricer";
 import StockScreener from "./screens/StockScreener";
 import PortfolioManager from "./screens/PortfolioManager";
 import RiskAnalytics from "./screens/RiskAnalytics";
 import EconomicCalendar from "./screens/EconomicCalendar";
 import NewsCenter from "./screens/NewsCenter";
-import Messaging from "./screens/Messaging";
-import AIAssistant from "./screens/AIAssistant";
 
 const SCREENS = [
   { id: "DASHBOARD", label: "Dashboard", icon: Globe, mnemonic: "WEI", desc: "Market Overview" },
   { id: "EQUITY", label: "Equities", icon: TrendingUp, mnemonic: "DES", desc: "Equity Analysis" },
   { id: "FX", label: "FX", icon: DollarSign, mnemonic: "WFX", desc: "Foreign Exchange" },
   { id: "FIXED_INCOME", label: "Fixed Income", icon: Landmark, mnemonic: "YAS", desc: "Bonds & Rates" },
+  { id: "COMMODITIES", label: "Commodities", icon: Gem, mnemonic: "CMDT", desc: "Futures & Metals" },
   { id: "OPTIONS", label: "Options", icon: Activity, mnemonic: "OVME", desc: "Derivatives Pricing" },
   { id: "SCREENER", label: "Screener", icon: Filter, mnemonic: "EQS", desc: "Stock Screener" },
   { id: "PORTFOLIO", label: "Portfolio", icon: Briefcase, mnemonic: "PORT", desc: "Portfolio Manager" },
   { id: "RISK", label: "Risk", icon: Shield, mnemonic: "MARS", desc: "Risk Analytics" },
   { id: "ECONOMICS", label: "Economics", icon: Calendar, mnemonic: "ECO", desc: "Economic Calendar" },
   { id: "NEWS", label: "News", icon: FileText, mnemonic: "TOP", desc: "News Center" },
-  { id: "MESSAGING", label: "IB Chat", icon: MessageSquare, mnemonic: "MSG", desc: "Messaging" },
-  { id: "AI", label: "ASKB", icon: Brain, mnemonic: "ASKB", desc: "AI Assistant" },
 ];
 
 // Bottom tab screens for mobile quick access
@@ -45,7 +44,6 @@ const MOBILE_TABS = [
   { id: "EQUITY", label: "Equities", icon: TrendingUp },
   { id: "FX", label: "FX", icon: DollarSign },
   { id: "NEWS", label: "News", icon: FileText },
-  { id: "AI", label: "ASKB", icon: Brain },
 ];
 
 export default function App() {
@@ -158,6 +156,8 @@ export default function App() {
         return <FXDashboard />;
       case "FIXED_INCOME":
         return <FixedIncome />;
+      case "COMMODITIES":
+        return <CommoditiesDashboard />;
       case "OPTIONS":
         return <OptionsPricer />;
       case "SCREENER":
@@ -170,10 +170,6 @@ export default function App() {
         return <EconomicCalendar />;
       case "NEWS":
         return <NewsCenter news={newsData} loading={newsLoading} />;
-      case "MESSAGING":
-        return <Messaging />;
-      case "AI":
-        return <AIAssistant />;
       default:
         return <MarketDashboard allStockQuotes={allStockQuotes} news={newsData} />;
     }
@@ -223,7 +219,7 @@ export default function App() {
           {isMobile && (
             <div
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              style={{ padding: 4, cursor: "pointer" }}
+              style={{ padding: 10, cursor: "pointer", margin: -6 }}
             >
               {mobileMenuOpen ? <X size={20} color={COLORS.text} /> : <Menu size={20} color={COLORS.text} />}
             </div>
@@ -263,11 +259,11 @@ export default function App() {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div
               onClick={() => { setCmdOpen(true); setCmdQuery(""); }}
-              style={{ padding: 4, cursor: "pointer" }}
+              style={{ padding: 10, cursor: "pointer", margin: -6 }}
             >
               <Search size={18} color={COLORS.textMuted} />
             </div>
-            <div onClick={toggleTheme} style={{ padding: 4, cursor: "pointer" }}>
+            <div onClick={toggleTheme} style={{ padding: 10, cursor: "pointer", margin: -6 }}>
               {isDark ? <Sun size={16} color={COLORS.gold} /> : <Moon size={16} color={COLORS.purpleDark} />}
             </div>
             <Badge color={allStockQuotes.length > 0 ? COLORS.green : COLORS.orange}>
@@ -452,7 +448,11 @@ export default function App() {
 
         {/* MAIN CONTENT */}
         <div style={{ flex: 1, overflow: "auto", background: COLORS.bg }}>
-          {renderScreen()}
+          {/* key={screen} unmounts the boundary on navigation so a stale error
+              from one screen doesn't stick when the user opens another. */}
+          <ErrorBoundary key={screen} screen={screen}>
+            {renderScreen()}
+          </ErrorBoundary>
         </div>
       </div>
 
@@ -476,7 +476,8 @@ export default function App() {
                 onClick={() => setScreen(tab.id)}
                 style={{
                   display: "flex", flexDirection: "column", alignItems: "center",
-                  gap: 2, cursor: "pointer", padding: "4px 8px",
+                  gap: 2, cursor: "pointer", padding: "6px 12px", minHeight: 44,
+                  justifyContent: "center",
                   opacity: active ? 1 : 0.6,
                 }}
               >

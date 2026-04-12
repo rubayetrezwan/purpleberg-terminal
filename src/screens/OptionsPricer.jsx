@@ -30,6 +30,18 @@ export default function OptionsPricer() {
     }
   }, [liveQuote, spotInitialized]);
 
+  // Standard normal CDF via A&S 7.1.26 erf approximation (max err ~1.5e-7)
+  const normCdf = (x) => {
+    const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741,
+      a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+    const sign = x < 0 ? -1 : 1;
+    const ax = Math.abs(x) / Math.sqrt(2);
+    const t = 1 / (1 + p * ax);
+    const y = 1 - ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-ax * ax);
+    return 0.5 * (1 + sign * y);
+  };
+  const normPdf = (x) => Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
+
   // Black-Scholes pricing
   const bs = useMemo(() => {
     const S = parseFloat(spot || 0),
@@ -42,27 +54,29 @@ export default function OptionsPricer() {
     const d1 = (Math.log(S / K) + (r + (v * v) / 2) * T) / (v * Math.sqrt(T));
     const d2 = d1 - v * Math.sqrt(T);
 
-    const N = (x) => {
-      const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741,
-        a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
-      const sign = x < 0 ? -1 : 1;
-      x = Math.abs(x) / Math.sqrt(2);
-      const t = 1 / (1 + p * x);
-      const y = 1 - ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
-      return 0.5 * (1 + sign * y);
-    };
+    const Nd1 = normCdf(d1), Nd2 = normCdf(d2);
+    const Nmd1 = normCdf(-d1), Nmd2 = normCdf(-d2);
+    const nd1 = normPdf(d1); // pdf, used in gamma/theta/vega
+    const disc = Math.exp(-r * T);
 
-    const Nd1 = N(d1), Nd2 = N(d2), Nmd1 = N(-d1), Nmd2 = N(-d2);
-    const callP = S * Nd1 - K * Math.exp(-r * T) * Nd2;
-    const putP = K * Math.exp(-r * T) * Nmd2 - S * Nmd1;
+    const callP = S * Nd1 - K * disc * Nd2;
+    const putP = K * disc * Nmd2 - S * Nmd1;
     const price = optType === "call" ? callP : putP;
     const delta = optType === "call" ? Nd1 : Nd1 - 1;
-    const gamma = Math.exp((-d1 * d1) / 2) / Math.sqrt(2 * Math.PI) / (S * v * Math.sqrt(T));
-    const theta = (-(S * v * Math.exp((-d1 * d1) / 2)) / Math.sqrt(2 * Math.PI) / (2 * Math.sqrt(T))) / 365;
-    const vega = (S * Math.sqrt(T) * Math.exp((-d1 * d1) / 2)) / Math.sqrt(2 * Math.PI) / 100;
+    const gamma = nd1 / (S * v * Math.sqrt(T));
+
+    // Theta: full formula incl. the -rK e^(-rT) N(d2) (call) / +rK e^(-rT) N(-d2) (put) term.
+    // Annual theta converted to per-calendar-day.
+    const thetaFirst = -(S * nd1 * v) / (2 * Math.sqrt(T));
+    const thetaAnnual = optType === "call"
+      ? thetaFirst - r * K * disc * Nd2
+      : thetaFirst + r * K * disc * Nmd2;
+    const theta = thetaAnnual / 365;
+
+    const vega = (S * Math.sqrt(T) * nd1) / 100; // per 1% vol
     const rho = optType === "call"
-      ? K * T * Math.exp(-r * T) * Nd2 / 100
-      : -K * T * Math.exp(-r * T) * Nmd2 / 100;
+      ? (K * T * disc * Nd2) / 100
+      : -(K * T * disc * Nmd2) / 100; // per 1% rate
 
     return { price, delta, gamma, theta, vega, rho };
   }, [spot, strike, vol, rate, time, optType]);
@@ -78,7 +92,7 @@ export default function OptionsPricer() {
     });
   }, [bs, spot, strike, optType]);
 
-  // Option chain (calculated from BS for different strikes)
+  // Theoretical chain (Black-Scholes prices around the spot, NOT real market quotes)
   const chainData = useMemo(() => {
     const S = parseFloat(spot || 0),
       v = parseFloat(vol || 0) / 100,
@@ -86,24 +100,15 @@ export default function OptionsPricer() {
       T = parseFloat(time || 0) / 365;
     if (!S || !v || !T) return [];
 
-    const N = (x) => {
-      const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741,
-        a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
-      const sign = x < 0 ? -1 : 1;
-      x = Math.abs(x) / Math.sqrt(2);
-      const t = 1 / (1 + p * x);
-      const y = 1 - ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
-      return 0.5 * (1 + sign * y);
-    };
-
     return Array.from({ length: 9 }, (_, i) => {
       const K = Math.round(S * 0.9 + (S * 0.2 * i) / 8);
       const d1 = (Math.log(S / K) + (r + (v * v) / 2) * T) / (v * Math.sqrt(T));
       const d2 = d1 - v * Math.sqrt(T);
-      const callP = S * N(d1) - K * Math.exp(-r * T) * N(d2);
-      const putP = K * Math.exp(-r * T) * N(-d2) - S * N(-d1);
-      const callDelta = N(d1);
-      const putDelta = N(d1) - 1;
+      const disc = Math.exp(-r * T);
+      const callP = S * normCdf(d1) - K * disc * normCdf(d2);
+      const putP = K * disc * normCdf(-d2) - S * normCdf(-d1);
+      const callDelta = normCdf(d1);
+      const putDelta = normCdf(d1) - 1;
       return { strike: K, callPrice: callP, putPrice: putP, callDelta, putDelta };
     });
   }, [spot, vol, rate, time]);
@@ -198,7 +203,7 @@ export default function OptionsPricer() {
         </Panel>
 
         <Panel>
-          <PanelHeader icon={<Hash size={14} color={COLORS.cyan} />} title="OPTION CHAIN" subtitle="Calculated prices (Black-Scholes)" />
+          <PanelHeader icon={<Hash size={14} color={COLORS.cyan} />} title="THEORETICAL CHAIN" subtitle="Model prices — NOT live market quotes" />
           <MiniTable
             headers={["Strike", "Call $", "Call Δ", "Put $", "Put Δ"]}
             rows={chainData.map((c) => [
