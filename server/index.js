@@ -157,12 +157,98 @@ async function mapWithConcurrency(items, limit, fn) {
   return out;
 }
 
+// ── Synthetic (derived) FX cross rates ──────────────────
+// Yahoo Finance doesn't publish direct series for every currency pair.
+// AUDBDT=X in particular returns "No data found, symbol may be delisted",
+// so we synthesise it by multiplying two pairs Yahoo DOES publish:
+//   AUD/BDT = (AUD/USD) × (USD/BDT)
+// Spec format: { multiply: [symA, symB] } — the resulting price is the
+// product of the two legs' prices (and open/high/low/close for historical).
+const SYNTHETIC_FX = {
+  "AUDBDT=X": { multiply: ["AUDUSD=X", "USDBDT=X"], pair: "AUD/BDT", currency: "BDT" },
+};
+
+function isSyntheticFx(sym) {
+  return Object.prototype.hasOwnProperty.call(SYNTHETIC_FX, sym);
+}
+
+function buildSyntheticQuote(symbol, fetchedQuotes) {
+  const spec = SYNTHETIC_FX[symbol];
+  if (!spec) return null;
+  const a = fetchedQuotes.find((q) => q.symbol === spec.multiply[0]);
+  const b = fetchedQuotes.find((q) => q.symbol === spec.multiply[1]);
+  const pa = a?.regularMarketPrice;
+  const pb = b?.regularMarketPrice;
+  if (!(pa > 0) || !(pb > 0)) return null;
+
+  const price = pa * pb;
+  const prevA = a.regularMarketPreviousClose || pa;
+  const prevB = b.regularMarketPreviousClose || pb;
+  const prev = prevA * prevB;
+  const change = price - prev;
+  const changePct = prev > 0 ? (change / prev) * 100 : 0;
+  // Day high/low are only rough — multiplying the highs/lows overstates range,
+  // but it's the best we can do without intraday joins and still gives a sane
+  // order of magnitude for the "Day Range" pip display.
+  const highA = a.regularMarketDayHigh || pa;
+  const highB = b.regularMarketDayHigh || pb;
+  const lowA = a.regularMarketDayLow || pa;
+  const lowB = b.regularMarketDayLow || pb;
+  return {
+    symbol,
+    shortName: spec.pair,
+    longName: spec.pair,
+    regularMarketPrice: price,
+    regularMarketChange: change,
+    regularMarketChangePercent: changePct,
+    regularMarketOpen: (a.regularMarketOpen || pa) * (b.regularMarketOpen || pb),
+    regularMarketDayHigh: highA * highB,
+    regularMarketDayLow: lowA * lowB,
+    regularMarketPreviousClose: prev,
+    regularMarketVolume: 0,
+    fiftyTwoWeekHigh: 0,
+    fiftyTwoWeekLow: 0,
+    exchange: "CCY",
+    fullExchangeName: "CCY",
+    currency: spec.currency || "USD",
+    marketState: a.marketState || b.marketState || "REGULAR",
+    quoteType: "CURRENCY",
+  };
+}
+
 // ── v7 batch quotes (with crumb auth) ───────────────────
 async function yahooQuoteBatch(symbols) {
+  // Split synthetic FX crosses off the wire fetch and bring in their leg
+  // dependencies. We re-assemble at the end so the caller still sees the
+  // symbols they requested.
+  const syntheticSyms = symbols.filter(isSyntheticFx);
+  const realSyms = symbols.filter((s) => !isSyntheticFx(s));
+  const depSet = new Set();
+  for (const s of syntheticSyms) {
+    for (const d of SYNTHETIC_FX[s].multiply) depSet.add(d);
+  }
+  const fetchSet = new Set(realSyms);
+  for (const d of depSet) fetchSet.add(d);
+  const fetchList = Array.from(fetchSet);
+  if (fetchList.length === 0) return [];
+
   // v7 supports up to ~50 symbols per request
-  const url = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${symbols.map(encodeURIComponent).join(",")}`;
+  const url = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${fetchList.map(encodeURIComponent).join(",")}`;
   const data = await yahooAuthFetch(url);
-  const results = data.quoteResponse?.result || [];
+  const fetched = data.quoteResponse?.result || [];
+
+  // Build synthetic quotes from the fetched legs. Drop null ones (missing leg).
+  const synths = syntheticSyms
+    .map((s) => buildSyntheticQuote(s, fetched))
+    .filter(Boolean);
+
+  // Return only the symbols the caller asked for — but include synth results
+  // and also any fetched symbols that were in the original request list.
+  const wanted = new Set(symbols);
+  const results = [
+    ...fetched.filter((q) => q?.symbol && wanted.has(q.symbol)),
+    ...synths,
+  ];
 
   // Enrich equities with beta (throttled to 5 concurrent, 24h LRU cached).
   const equities = results.filter((q) => q.quoteType === "EQUITY");
@@ -211,21 +297,62 @@ async function yahooQuote(symbols) {
     console.error("v7 batch failed, falling back to v8 chart:", e.message);
   }
 
-  // Fallback: use v8 chart endpoint per symbol
-  const results = [];
-  const promises = symbols.map(async (sym) => {
+  // Fallback: use v8 chart endpoint per symbol. Synthetic FX crosses are
+  // resolved the same way as in yahooQuoteBatch — fetch both legs, then
+  // compute the product.
+  const syntheticSyms = symbols.filter(isSyntheticFx);
+  const realSyms = symbols.filter((s) => !isSyntheticFx(s));
+  const fetchSet = new Set(realSyms);
+  for (const s of syntheticSyms) {
+    for (const d of SYNTHETIC_FX[s].multiply) fetchSet.add(d);
+  }
+
+  const fetched = [];
+  await Promise.all(Array.from(fetchSet).map(async (sym) => {
     try {
       const q = await yahooChartQuote(sym);
-      if (q) results.push(q);
+      if (q) fetched.push(q);
     } catch (e) {
       console.error(`Chart fallback error for ${sym}:`, e.message);
     }
-  });
-  await Promise.all(promises);
-  return results;
+  }));
+
+  const synths = syntheticSyms
+    .map((s) => buildSyntheticQuote(s, fetched))
+    .filter(Boolean);
+
+  const wanted = new Set(symbols);
+  return [
+    ...fetched.filter((q) => q?.symbol && wanted.has(q.symbol)),
+    ...synths,
+  ];
 }
 
 async function yahooHistorical(symbol, range = "3mo", interval = "1d") {
+  // Derived FX crosses: fetch both legs, join by date, and multiply.
+  if (isSyntheticFx(symbol)) {
+    const spec = SYNTHETIC_FX[symbol];
+    const [legA, legB] = await Promise.all([
+      yahooHistorical(spec.multiply[0], range, interval),
+      yahooHistorical(spec.multiply[1], range, interval),
+    ]);
+    const mapB = new Map(legB.map((d) => [d.date, d]));
+    return legA
+      .map((dA) => {
+        const dB = mapB.get(dA.date);
+        if (!dB) return null;
+        return {
+          date: dA.date,
+          open: (dA.open || 0) * (dB.open || 0),
+          high: (dA.high || 0) * (dB.high || 0),
+          low: (dA.low || 0) * (dB.low || 0),
+          close: (dA.close || 0) * (dB.close || 0),
+          volume: 0,
+        };
+      })
+      .filter((d) => d && d.close > 0);
+  }
+
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`;
   const data = await yahooFetch(url);
   const result = data.chart?.result?.[0];

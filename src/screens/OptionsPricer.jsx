@@ -8,6 +8,32 @@ import { useColors } from "../ThemeContext";
 import { useIsMobile, useQuotes } from "../hooks";
 import { Panel, PanelHeader, DataCell, MiniTable } from "../shared";
 
+// Defined at module scope so its identity is stable across renders of OptionsPricer.
+// If this lived inside the component, every parent re-render would produce a fresh
+// function type, React would unmount the old <input>, and focus would be lost after
+// every keystroke — breaking the form.
+function InputField({ label, val, set, suffix, colors }) {
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ fontSize: 10, color: colors.textMuted, marginBottom: 3 }}>{label}</div>
+      <div style={{ display: "flex", alignItems: "center" }}>
+        <input
+          value={val}
+          onChange={(e) => set(e.target.value)}
+          style={{
+            width: "100%", padding: "6px 8px", background: colors.bgInput,
+            border: `1px solid ${colors.border}`, borderRadius: 3,
+            color: colors.text, fontSize: 12,
+            fontFamily: "'JetBrains Mono',monospace", outline: "none",
+            boxSizing: "border-box",
+          }}
+        />
+        {suffix && <span style={{ fontSize: 10, color: colors.textMuted, marginLeft: 4 }}>{suffix}</span>}
+      </div>
+    </div>
+  );
+}
+
 export default function OptionsPricer() {
   const COLORS = useColors();
   const isMobile = useIsMobile(768);
@@ -113,26 +139,6 @@ export default function OptionsPricer() {
     });
   }, [spot, vol, rate, time]);
 
-  const InputField = ({ label, val, set, suffix }) => (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 3 }}>{label}</div>
-      <div style={{ display: "flex", alignItems: "center" }}>
-        <input
-          value={val}
-          onChange={(e) => set(e.target.value)}
-          style={{
-            width: "100%", padding: "6px 8px", background: COLORS.bgInput,
-            border: `1px solid ${COLORS.border}`, borderRadius: 3,
-            color: COLORS.text, fontSize: 12,
-            fontFamily: "'JetBrains Mono',monospace", outline: "none",
-            boxSizing: "border-box",
-          }}
-        />
-        {suffix && <span style={{ fontSize: 10, color: COLORS.textMuted, marginLeft: 4 }}>{suffix}</span>}
-      </div>
-    </div>
-  );
-
   return (
     <div style={{ padding: isMobile ? 8 : 12, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "260px 1fr", gap: 10 }}>
       <Panel>
@@ -155,11 +161,11 @@ export default function OptionsPricer() {
               </button>
             ))}
           </div>
-          <InputField label="SPOT PRICE ($)" val={spot} set={setSpot} />
-          <InputField label="STRIKE PRICE ($)" val={strike} set={setStrike} />
-          <InputField label="VOLATILITY" val={vol} set={setVol} suffix="%" />
-          <InputField label="RISK-FREE RATE" val={rate} set={setRate} suffix="%" />
-          <InputField label="DAYS TO EXPIRY" val={time} set={setTime} suffix="D" />
+          <InputField label="SPOT PRICE ($)" val={spot} set={setSpot} colors={COLORS} />
+          <InputField label="STRIKE PRICE ($)" val={strike} set={setStrike} colors={COLORS} />
+          <InputField label="VOLATILITY" val={vol} set={setVol} suffix="%" colors={COLORS} />
+          <InputField label="RISK-FREE RATE" val={rate} set={setRate} suffix="%" colors={COLORS} />
+          <InputField label="DAYS TO EXPIRY" val={time} set={setTime} suffix="D" colors={COLORS} />
         </div>
         {bs && (
           <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: 12 }}>

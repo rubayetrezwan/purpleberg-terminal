@@ -57,7 +57,9 @@ export default function MarketDashboard({ allStockQuotes, news }) {
 
   const bonds = BOND_SYMBOLS.map((b) => {
     const q = bondQuotes.find((d) => d.symbol === b.symbol);
-    return { ...b, yield_val: q?.price ?? 0, chg: q?.change ?? 0, priceVal: q?.prevClose ?? 0 };
+    // Yahoo returns the raw yield change in percentage points (e.g. 0.02 = 2bp).
+    // Convert to basis points so the "bp" suffix in ChgVal is accurate.
+    return { ...b, yield_val: q?.price ?? 0, chgBps: (q?.change ?? 0) * 100, priceVal: q?.prevClose ?? 0 };
   });
 
   const newsItems = (news || []).slice(0, 10);
@@ -194,7 +196,7 @@ export default function MarketDashboard({ allStockQuotes, news }) {
           rows={bonds.map((b) => [
             <span style={{ color: COLORS.text, fontSize: 10 }}>{b.name}</span>,
             <span style={{ color: COLORS.gold, fontWeight: 600 }}>{fmt(b.yield_val)}%</span>,
-            <ChgVal val={b.chg} suffix="bp" />,
+            <ChgVal val={b.chgBps} suffix="bp" />,
           ])}
         />
       </Panel>

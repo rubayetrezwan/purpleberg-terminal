@@ -33,7 +33,9 @@ export default function FixedIncome() {
     return {
       ...b,
       yield_val: q?.price ?? 0,
-      chg: q?.change ?? 0,
+      // Yahoo returns the yield change in percentage points (e.g. 0.02 = 2bp).
+      // Scale up so the "bp" suffix in ChgVal renders correct basis points.
+      chgBps: (q?.change ?? 0) * 100,
     };
   });
 
@@ -81,7 +83,7 @@ export default function FixedIncome() {
           rows={bonds.map((b) => [
             <span style={{ color: COLORS.text }}>{b.name}</span>,
             <span style={{ color: COLORS.gold, fontWeight: 600 }}>{fmt(b.yield_val)}%</span>,
-            <ChgVal val={b.chg} suffix="bp" />,
+            <ChgVal val={b.chgBps} suffix="bp" />,
           ])}
         />
       </Panel>
