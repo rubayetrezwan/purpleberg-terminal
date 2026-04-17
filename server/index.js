@@ -691,22 +691,40 @@ const CRYPTO_RANGE_DAYS = {
 const CRYPTO_ID_RE = /^[a-z0-9][a-z0-9-]{0,60}$/;
 const isCryptoId = (s) => typeof s === "string" && CRYPTO_ID_RE.test(s);
 
-async function coingeckoFetch(url) {
-  const res = await fetch(url, {
-    headers: { "User-Agent": UA, "Accept": "application/json" },
-  });
-  if (!res.ok) throw new Error(`CoinGecko ${res.status}: ${res.statusText}`);
-  return res.json();
+// CoinGecko's public tier is ~5-15 req/min per IP and shared-cloud IPs (Render
+// free) get throttled aggressively, so transient 429s on a cold-cache start
+// were falling all the way through to the UI as "no crypto data". Retry twice
+// with exponential backoff, respecting Retry-After when the upstream sets it.
+// If COINGECKO_API_KEY is set we forward it as the Demo plan header, which
+// lifts the limit to ~30 req/min per key.
+const CG_API_KEY = process.env.COINGECKO_API_KEY || "";
+async function coingeckoFetch(url, { retries = 2 } = {}) {
+  const headers = { "User-Agent": UA, "Accept": "application/json" };
+  if (CG_API_KEY) headers["x-cg-demo-api-key"] = CG_API_KEY;
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch(url, { headers });
+    if (res.ok) return res.json();
+    const transient = res.status === 429 || res.status >= 500;
+    lastErr = new Error(`CoinGecko ${res.status}: ${res.statusText}`);
+    if (!transient || attempt === retries) throw lastErr;
+    // Respect Retry-After if provided (seconds), otherwise exponential backoff.
+    const ra = Number(res.headers.get("retry-after"));
+    const wait = Number.isFinite(ra) && ra > 0 ? Math.min(ra * 1000, 5_000) : 700 * (attempt + 1);
+    await new Promise((r) => setTimeout(r, wait));
+  }
+  throw lastErr;
 }
 
 // ── GET /api/crypto/markets ─────────────────────────────
-// Top 20 by market cap. 60s cache keeps us well under CoinGecko's ~30 req/min
-// public limit even with several clients. Stale-on-error falls back via the
-// shared `cached()` helper.
+// Top 20 by market cap. 120s cache halves upstream traffic vs the old 60s
+// window — top-20 rankings barely move inside two minutes, and on Render's
+// shared-IP free tier CoinGecko's public limit is the binding constraint, not
+// data freshness. Stale-on-error falls back via the shared `cached()` helper.
 app.get("/api/crypto/markets", apiLimiter, async (req, res) => {
   try {
     const cacheKey = "crypto:markets:top20";
-    const data = await cached(cacheKey, 60_000, async () => {
+    const data = await cached(cacheKey, 120_000, async () => {
       const url = `${COINGECKO_BASE}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=20&page=1&sparkline=false&price_change_percentage=24h`;
       const list = await coingeckoFetch(url);
       return list.map((c) => ({
@@ -831,7 +849,8 @@ refreshCrumb()
   .then(() => {
     app.listen(PORT, () => {
       console.log(`\n  Purpleberg Terminal API running on http://localhost:${PORT}`);
-      console.log(`  Data source: Yahoo Finance (v7 API with crumb auth)\n`);
+      console.log(`  Data source: Yahoo Finance (v7 API with crumb auth)`);
+      console.log(`  CoinGecko: ${CG_API_KEY ? "demo API key present" : "public tier (no key)"}\n`);
     });
   })
   .catch((e) => {
