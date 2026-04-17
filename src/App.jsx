@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
-  Search, Globe, TrendingUp, DollarSign, Landmark, Activity,
+  Search, Globe, TrendingUp, DollarSign, Landmark,
   Filter, Briefcase, Shield, Calendar, FileText,
   Zap, User, Maximize2, Minimize2,
-  Command, ChevronRight, Sun, Moon, Menu, X, Gem,
+  Command, ChevronRight, Sun, Moon, Menu, X, Gem, Bitcoin,
 } from "lucide-react";
 import { US_STOCKS, ts, fmt, fmtK } from "./config";
 import { useColors, useTheme } from "./ThemeContext";
@@ -17,7 +17,7 @@ import EquityAnalysis from "./screens/EquityAnalysis";
 import FXDashboard from "./screens/FXDashboard";
 import FixedIncome from "./screens/FixedIncome";
 import CommoditiesDashboard from "./screens/CommoditiesDashboard";
-import OptionsPricer from "./screens/OptionsPricer";
+import CryptoDashboard from "./screens/CryptoDashboard";
 import StockScreener from "./screens/StockScreener";
 import PortfolioManager from "./screens/PortfolioManager";
 import RiskAnalytics from "./screens/RiskAnalytics";
@@ -30,7 +30,7 @@ const SCREENS = [
   { id: "FX", label: "FX", icon: DollarSign, mnemonic: "WFX", desc: "Foreign Exchange" },
   { id: "FIXED_INCOME", label: "Fixed Income", icon: Landmark, mnemonic: "YAS", desc: "Bonds & Rates" },
   { id: "COMMODITIES", label: "Commodities", icon: Gem, mnemonic: "CMDT", desc: "Futures & Metals" },
-  { id: "OPTIONS", label: "Options", icon: Activity, mnemonic: "OVME", desc: "Derivatives Pricing" },
+  { id: "CRYPTO", label: "Crypto", icon: Bitcoin, mnemonic: "CRYP", desc: "Top 20 Cryptocurrencies" },
   { id: "SCREENER", label: "Screener", icon: Filter, mnemonic: "EQS", desc: "Stock Screener" },
   { id: "PORTFOLIO", label: "Portfolio", icon: Briefcase, mnemonic: "PORT", desc: "Portfolio Manager" },
   { id: "RISK", label: "Risk", icon: Shield, mnemonic: "MARS", desc: "Risk Analytics" },
@@ -158,8 +158,8 @@ export default function App() {
         return <FixedIncome />;
       case "COMMODITIES":
         return <CommoditiesDashboard />;
-      case "OPTIONS":
-        return <OptionsPricer />;
+      case "CRYPTO":
+        return <CryptoDashboard />;
       case "SCREENER":
         return <StockScreener allStockQuotes={allStockQuotes} />;
       case "PORTFOLIO":
