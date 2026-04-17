@@ -674,7 +674,9 @@ app.get("/api/treasury-rates", apiLimiter, async (req, res) => {
 // handful of tickers; CoinGecko returns a ranked top-N list with supply,
 // ATH/ATL, and rank fields that map onto the same "equities / commodities"
 // panel shape the other screens use.
-const COINGECKO_BASE = "https://api.coingecko.com/api/v3";
+// Base overridable via env so the Paprika fallback path is testable by
+// pointing at a dead endpoint (e.g. COINGECKO_BASE=http://127.0.0.1:1).
+const COINGECKO_BASE = process.env.COINGECKO_BASE || "https://api.coingecko.com/api/v3";
 
 // Map the same range tokens Yahoo uses onto CoinGecko's `days=` parameter.
 // CoinGecko returns ~hourly points for days<=90 and daily for longer; we
@@ -688,7 +690,9 @@ const CRYPTO_RANGE_DAYS = {
   "5y": "1825",
   "max": "max",
 };
-const CRYPTO_ID_RE = /^[a-z0-9][a-z0-9-]{0,60}$/;
+// The regex allows the `paprika:` prefix we use on CoinPaprika-sourced ids so
+// the chart endpoint can route them back to the fallback upstream.
+const CRYPTO_ID_RE = /^[a-z0-9][a-z0-9:-]{0,80}$/;
 const isCryptoId = (s) => typeof s === "string" && CRYPTO_ID_RE.test(s);
 
 // CoinGecko's public tier is ~5-15 req/min per IP and shared-cloud IPs (Render
@@ -696,7 +700,9 @@ const isCryptoId = (s) => typeof s === "string" && CRYPTO_ID_RE.test(s);
 // were falling all the way through to the UI as "no crypto data". Retry twice
 // with exponential backoff, respecting Retry-After when the upstream sets it.
 // If COINGECKO_API_KEY is set we forward it as the Demo plan header, which
-// lifts the limit to ~30 req/min per key.
+// lifts the limit to ~30 req/min per key. CoinPaprika acts as an independent
+// fallback upstream below (no key, different IP pool) when retries are
+// exhausted AND no stale cache is available.
 const CG_API_KEY = process.env.COINGECKO_API_KEY || "";
 async function coingeckoFetch(url, { retries = 2 } = {}) {
   const headers = { "User-Agent": UA, "Accept": "application/json" };
@@ -714,6 +720,74 @@ async function coingeckoFetch(url, { retries = 2 } = {}) {
     await new Promise((r) => setTimeout(r, wait));
   }
   throw lastErr;
+}
+
+// ── CoinPaprika fallback (no key, independent IP pool) ──
+// When CoinGecko 429s persistently on a shared-cloud IP and we have no stale
+// cache to serve, we'd rather degrade to Paprika than render "no data". The
+// schemas don't line up 1:1 — Paprika's /tickers doesn't ship 24h high/low,
+// ATL fields, or image URLs — so unknown fields come back as null and the
+// frontend's fmtPrice(null) path renders an em dash instead of "$0.00".
+const COINPAPRIKA_BASE = "https://api.coinpaprika.com/v1";
+async function coinpaprikaFetch(url, { retries = 1 } = {}) {
+  const headers = { "User-Agent": UA, "Accept": "application/json" };
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch(url, { headers });
+    if (res.ok) return res.json();
+    lastErr = new Error(`CoinPaprika ${res.status}: ${res.statusText}`);
+    const transient = res.status === 429 || res.status >= 500;
+    if (!transient || attempt === retries) throw lastErr;
+    await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+  }
+  throw lastErr;
+}
+
+async function coinpaprikaMarketsTop20() {
+  const list = await coinpaprikaFetch(`${COINPAPRIKA_BASE}/tickers?limit=20`);
+  return list.slice(0, 20).map((c) => {
+    const q = (c.quotes && c.quotes.USD) || {};
+    return {
+      // Prefixed so /api/crypto/:id/chart knows to route back to Paprika.
+      id: `paprika:${c.id}`,
+      symbol: (c.symbol || "").toUpperCase(),
+      name: c.name,
+      image: "",
+      price: q.price ?? 0,
+      marketCap: q.market_cap ?? 0,
+      marketCapRank: c.rank ?? 0,
+      volume24h: q.volume_24h ?? 0,
+      high24h: null,                    // not in this payload
+      low24h: null,
+      change24h: null,
+      changePercent24h: q.percent_change_24h ?? 0,
+      circulatingSupply: c.circulating_supply ?? 0,
+      totalSupply: c.total_supply ?? 0,
+      maxSupply: c.max_supply ?? null,
+      ath: q.ath_price ?? 0,
+      athChangePercent: q.percent_from_price_ath ?? 0,
+      athDate: q.ath_date || "",
+      atl: null,
+      atlChangePercent: null,
+      atlDate: "",
+      lastUpdated: c.last_updated || "",
+    };
+  });
+}
+
+async function coinpaprikaChart(realId, range) {
+  const days = parseInt(CRYPTO_RANGE_DAYS[range], 10);
+  const spanDays = Number.isFinite(days) ? days : 90;
+  const startDate = new Date(Date.now() - spanDays * 86_400_000).toISOString().split("T")[0];
+  const url = `${COINPAPRIKA_BASE}/tickers/${encodeURIComponent(realId)}/historical?start=${startDate}&interval=1d&limit=5000`;
+  const body = await coinpaprikaFetch(url);
+  return (Array.isArray(body) ? body : [])
+    .map((p) => ({
+      date: (p.timestamp || "").split("T")[0],
+      close: p.price ?? 0,
+      volume: p.volume_24h ?? 0,
+    }))
+    .filter((r) => r.date);
 }
 
 // ── GET /api/crypto/markets ─────────────────────────────
@@ -754,10 +828,19 @@ app.get("/api/crypto/markets", apiLimiter, async (req, res) => {
     });
     res.json(data);
   } catch (e) {
-    console.error("Crypto markets error:", e.message);
+    console.error("Crypto markets (CoinGecko) error:", e.message);
     const stale = cache.get("crypto:markets:top20", { allowStale: true });
     if (stale) return res.json(stale.data);
-    res.status(500).json({ error: e.message });
+    // Last resort: an independent upstream. Separate cache key so a warm
+    // Paprika response doesn't suppress the primary CoinGecko retry.
+    try {
+      const fallback = await cached("crypto:markets:paprika", 120_000, coinpaprikaMarketsTop20);
+      console.log("Crypto markets: serving CoinPaprika fallback");
+      return res.json(fallback);
+    } catch (e2) {
+      console.error("Crypto markets (CoinPaprika) error:", e2.message);
+      return res.status(500).json({ error: e.message });
+    }
   }
 });
 
@@ -771,6 +854,15 @@ app.get("/api/crypto/:id/chart", apiLimiter, async (req, res) => {
     if (!isCryptoId(id)) return res.status(400).json({ error: "invalid id" });
     const range = CRYPTO_RANGE_DAYS[req.query.range] ? req.query.range : "3mo";
     const days = CRYPTO_RANGE_DAYS[range];
+
+    // If the markets endpoint served from the Paprika fallback, the coin id
+    // comes back prefixed and we route the chart request to Paprika too.
+    if (id.startsWith("paprika:")) {
+      const realId = id.slice("paprika:".length);
+      const cacheKey = `crypto:chart:${id}:${range}`;
+      const data = await cached(cacheKey, 300_000, () => coinpaprikaChart(realId, range));
+      return res.json(data);
+    }
 
     const cacheKey = `crypto:chart:${id}:${range}`;
     const data = await cached(cacheKey, 300_000, async () => {
