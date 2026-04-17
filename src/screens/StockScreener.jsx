@@ -26,8 +26,11 @@ export default function StockScreener({ allStockQuotes }) {
   const filtered = useMemo(() => {
     let arr = [...stocks];
     if (filterExchange !== "All") arr = arr.filter((s) => s.exchange === filterExchange);
-    if (filterMinPE) arr = arr.filter((s) => s.pe >= parseFloat(filterMinPE));
-    if (filterMaxPE) arr = arr.filter((s) => s.pe <= parseFloat(filterMaxPE) && s.pe > 0);
+    // Both bounds drop negative / missing P/E so results stay meaningful for
+    // value investors. Without this, "Max 30" would quietly include loss-makers
+    // with negative trailing earnings and the Min filter would keep them.
+    if (filterMinPE) arr = arr.filter((s) => s.pe > 0 && s.pe >= parseFloat(filterMinPE));
+    if (filterMaxPE) arr = arr.filter((s) => s.pe > 0 && s.pe <= parseFloat(filterMaxPE));
     if (filterMinPrice) arr = arr.filter((s) => s.price >= parseFloat(filterMinPrice));
     if (filterMaxPrice) arr = arr.filter((s) => s.price <= parseFloat(filterMaxPrice));
     if (searchQuery) {

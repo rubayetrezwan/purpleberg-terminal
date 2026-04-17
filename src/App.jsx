@@ -29,7 +29,7 @@ const SCREENS = [
   { id: "EQUITY", label: "Equities", icon: TrendingUp, mnemonic: "DES", desc: "Equity Analysis" },
   { id: "FX", label: "FX", icon: DollarSign, mnemonic: "WFX", desc: "Foreign Exchange" },
   { id: "FIXED_INCOME", label: "Fixed Income", icon: Landmark, mnemonic: "YAS", desc: "Bonds & Rates" },
-  { id: "COMMODITIES", label: "Commodities", icon: Gem, mnemonic: "CMDT", desc: "Futures & Metals" },
+  { id: "COMMODITIES", label: "Commodities", icon: Gem, mnemonic: "CMDT", desc: "Energy, Metals & Grains" },
   { id: "CRYPTO", label: "Crypto", icon: Bitcoin, mnemonic: "CRYP", desc: "Top 20 Cryptocurrencies" },
   { id: "SCREENER", label: "Screener", icon: Filter, mnemonic: "EQS", desc: "Stock Screener" },
   { id: "PORTFOLIO", label: "Portfolio", icon: Briefcase, mnemonic: "PORT", desc: "Portfolio Manager" },

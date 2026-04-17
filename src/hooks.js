@@ -40,22 +40,11 @@ export function useIsMobile(breakpoint = 768) {
   return isMobile;
 }
 
-// ── Page visibility ─────────────────────────────────────
-// Used by polling hooks to skip intervals when the tab is backgrounded.
-// Why: otherwise ~12 screens worth of quotes/news/historical keep hammering
-// Yahoo Finance while the user is doing something else, wasting the server's
-// rate-limit budget and burning the user's battery.
-export function usePageVisibility() {
-  const [visible, setVisible] = useState(
-    () => typeof document === "undefined" || document.visibilityState !== "hidden"
-  );
-  useEffect(() => {
-    const handler = () => setVisible(document.visibilityState !== "hidden");
-    document.addEventListener("visibilitychange", handler);
-    return () => document.removeEventListener("visibilitychange", handler);
-  }, []);
-  return visible;
-}
+// Note on visibility pausing: each polling hook below inlines its own
+// visibilitychange listener so a backgrounded tab stops hammering Yahoo and
+// CoinGecko. We tried extracting a shared hook but the double state
+// transition (visibility -> interval restart) cost more than the duplication
+// saved, so each hook owns its own start/stop pair.
 
 // ── Fetch quotes with auto-refresh ──────────────────────
 // Polling pauses while the tab is hidden and resumes immediately on focus.

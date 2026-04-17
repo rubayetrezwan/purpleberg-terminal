@@ -3,6 +3,18 @@ import { FileText } from "lucide-react";
 import { useColors } from "../ThemeContext";
 import { Panel, PanelHeader, Badge, LoadingSpinner } from "../shared";
 
+// Short local-timezone abbreviation (e.g. "PST", "GMT+5") used in the
+// header so users know the timestamps below are in their own clock, not ET.
+const LOCAL_TZ = (() => {
+  try {
+    const parts = new Intl.DateTimeFormat(undefined, { timeZoneName: "short" })
+      .formatToParts(new Date());
+    return parts.find((p) => p.type === "timeZoneName")?.value || "local";
+  } catch {
+    return "local";
+  }
+})();
+
 export default function NewsCenter({ news, loading }) {
   const COLORS = useColors();
   const [searchFilter, setSearchFilter] = useState("");
@@ -23,7 +35,7 @@ export default function NewsCenter({ news, loading }) {
         <PanelHeader
           icon={<FileText size={14} color={COLORS.gold} />}
           title="NEWS CENTER"
-          subtitle="Real-time market news from Yahoo Finance"
+          subtitle={`Real-time market news from Yahoo Finance — times in ${LOCAL_TZ}`}
           right={<Badge>{filtered.length} stories</Badge>}
         />
 
