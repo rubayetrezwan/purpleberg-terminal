@@ -669,6 +669,122 @@ app.get("/api/treasury-rates", apiLimiter, async (req, res) => {
   }
 });
 
+// ── CoinGecko (public API, no key required) ────────────
+// Used for the Crypto dashboard. Yahoo only exposes price/volume for a
+// handful of tickers; CoinGecko returns a ranked top-N list with supply,
+// ATH/ATL, and rank fields that map onto the same "equities / commodities"
+// panel shape the other screens use.
+const COINGECKO_BASE = "https://api.coingecko.com/api/v3";
+
+// Map the same range tokens Yahoo uses onto CoinGecko's `days=` parameter.
+// CoinGecko returns ~hourly points for days<=90 and daily for longer; we
+// bucket to one point per UTC day on the server so the chart shape matches
+// the historical series used elsewhere.
+const CRYPTO_RANGE_DAYS = {
+  "1mo": "30",
+  "3mo": "90",
+  "6mo": "180",
+  "1y": "365",
+  "5y": "1825",
+  "max": "max",
+};
+const CRYPTO_ID_RE = /^[a-z0-9][a-z0-9-]{0,60}$/;
+const isCryptoId = (s) => typeof s === "string" && CRYPTO_ID_RE.test(s);
+
+async function coingeckoFetch(url) {
+  const res = await fetch(url, {
+    headers: { "User-Agent": UA, "Accept": "application/json" },
+  });
+  if (!res.ok) throw new Error(`CoinGecko ${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+// ── GET /api/crypto/markets ─────────────────────────────
+// Top 20 by market cap. 60s cache keeps us well under CoinGecko's ~30 req/min
+// public limit even with several clients. Stale-on-error falls back via the
+// shared `cached()` helper.
+app.get("/api/crypto/markets", apiLimiter, async (req, res) => {
+  try {
+    const cacheKey = "crypto:markets:top20";
+    const data = await cached(cacheKey, 60_000, async () => {
+      const url = `${COINGECKO_BASE}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=20&page=1&sparkline=false&price_change_percentage=24h`;
+      const list = await coingeckoFetch(url);
+      return list.map((c) => ({
+        id: c.id,
+        symbol: (c.symbol || "").toUpperCase(),
+        name: c.name,
+        image: c.image || "",
+        price: c.current_price ?? 0,
+        marketCap: c.market_cap ?? 0,
+        marketCapRank: c.market_cap_rank ?? 0,
+        volume24h: c.total_volume ?? 0,
+        high24h: c.high_24h ?? 0,
+        low24h: c.low_24h ?? 0,
+        change24h: c.price_change_24h ?? 0,
+        changePercent24h: c.price_change_percentage_24h ?? 0,
+        circulatingSupply: c.circulating_supply ?? 0,
+        totalSupply: c.total_supply ?? 0,
+        maxSupply: c.max_supply ?? null,
+        ath: c.ath ?? 0,
+        athChangePercent: c.ath_change_percentage ?? 0,
+        athDate: c.ath_date || "",
+        atl: c.atl ?? 0,
+        atlChangePercent: c.atl_change_percentage ?? 0,
+        atlDate: c.atl_date || "",
+        lastUpdated: c.last_updated || "",
+      }));
+    });
+    res.json(data);
+  } catch (e) {
+    console.error("Crypto markets error:", e.message);
+    const stale = cache.get("crypto:markets:top20", { allowStale: true });
+    if (stale) return res.json(stale.data);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/crypto/:id/chart ───────────────────────────
+// Daily close series for a coin. CoinGecko's market_chart returns [ms, price]
+// tuples; we keep the last price per UTC day so a 1mo range is ~30 points
+// instead of ~720 hourly samples (which Recharts struggles to render on mobile).
+app.get("/api/crypto/:id/chart", apiLimiter, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!isCryptoId(id)) return res.status(400).json({ error: "invalid id" });
+    const range = CRYPTO_RANGE_DAYS[req.query.range] ? req.query.range : "3mo";
+    const days = CRYPTO_RANGE_DAYS[range];
+
+    const cacheKey = `crypto:chart:${id}:${range}`;
+    const data = await cached(cacheKey, 300_000, async () => {
+      const url = `${COINGECKO_BASE}/coins/${encodeURIComponent(id)}/market_chart?vs_currency=usd&days=${days}`;
+      const body = await coingeckoFetch(url);
+      const prices = body.prices || [];
+      const volumes = body.total_volumes || [];
+      const volByDay = new Map();
+      for (const [t, v] of volumes) {
+        const k = new Date(t).toISOString().split("T")[0];
+        volByDay.set(k, v);
+      }
+      const priceByDay = new Map();
+      for (const [t, p] of prices) {
+        const k = new Date(t).toISOString().split("T")[0];
+        priceByDay.set(k, p);
+      }
+      return Array.from(priceByDay.keys())
+        .sort()
+        .map((date) => ({
+          date,
+          close: priceByDay.get(date),
+          volume: volByDay.get(date) || 0,
+        }));
+    });
+    res.json(data);
+  } catch (e) {
+    console.error("Crypto chart error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── GET /api/search ─────────────────────────────────────
 app.get("/api/search", apiLimiter, async (req, res) => {
   try {

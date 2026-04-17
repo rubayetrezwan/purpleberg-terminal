@@ -1,10 +1,10 @@
 # Purpleberg Terminal
 
 A Bloomberg-style market terminal built as a personal project: React + Vite
-frontend, a thin Express proxy to Yahoo Finance, and optional Claude-powered
-chat. Twelve screens cover equities, FX, fixed income, options pricing, a
-screener, portfolio tracking, risk analytics, economic calendar, news, IB chat,
-and an AI assistant.
+frontend, a thin Express proxy to Yahoo Finance and CoinGecko, and optional
+Claude-powered chat. Eleven screens cover equities, FX, fixed income,
+commodities, crypto (top 20 by market cap), a screener, portfolio tracking,
+risk analytics, economic calendar, and news.
 
 > **This is a hobby / learning project, not a licensed market-data product.**
 > Read the [Data source disclaimer](#data-source-disclaimer) before running it
@@ -41,7 +41,10 @@ Node 18+ is required (ESM + `fetch`).
 │  Vite dev / build   │──────▶  Express proxy (3001)   │──────▶ Yahoo Finance  │
 │  React 18 + Recharts│      │  LRU cache, rate-limit  │      │  (unofficial)  │
 │  Lucide icons       │      │  crumb/cookie auth      │      └────────────────┘
-└─────────────────────┘      │                         │──────▶ Anthropic API  │
+└─────────────────────┘      │                         │──────▶ CoinGecko API  │
+                             │                         │      │  (public, no key)│
+                             │                         │      └────────────────┘
+                             │                         │──────▶ Anthropic API  │
                              └─────────────────────────┘      │  (chat only)   │
                                                               └────────────────┘
 ```
@@ -114,11 +117,6 @@ What is still required before exposing this publicly:
 
 These are intentional, documented, and labelled in the UI:
 
-- **Options Pricer** uses Black-Scholes with the Abramowitz & Stegun 7.1.26
-  erf approximation for the normal CDF (max error ~1.5e-7). The theoretical
-  chain is flagged _"Model prices — NOT live market quotes"_ because Yahoo
-  Finance does not provide an IV surface through the endpoints we use.
-
 - **Risk Analytics** shows _cross-sectional dispersion_ across today's
   watchlist returns. It is **not** a time-series Value-at-Risk on a real
   portfolio. Metrics are labelled "5th %ile Return", "1st %ile Return", and
@@ -178,7 +176,7 @@ purpleberg-terminal/
 │   ├── api.js                # Thin fetch wrapper around the proxy
 │   ├── config.js             # Tickers and formatting helpers
 │   ├── shared.jsx            # Panel, Badge, MiniTable, DataCell, …
-│   └── screens/              # Twelve function screens
+│   └── screens/              # Eleven function screens
 ├── index.html
 ├── package.json
 └── vite.config.js

@@ -214,6 +214,89 @@ export function useNews(symbols, intervalMs = 120000) {
 }
 
 
+// ── Fetch top-N crypto markets ──────────────────────────
+// Polls the Crypto dashboard's ranked list from CoinGecko (via our proxy).
+// Same visibility-pause pattern as useQuotes so a backgrounded tab stops
+// spending the proxy's rate-limit budget.
+export function useCryptoMarkets(intervalMs = 30000) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let iv = null;
+
+    const fetchData = async () => {
+      try {
+        const result = await api.cryptoMarkets();
+        if (!cancelled) {
+          if (Array.isArray(result) && result.length > 0) setData(result);
+          setLoading(false);
+          setError(null);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e.message);
+          setLoading(false);
+          // Keep previous data on error so a transient CoinGecko 429 doesn't
+          // blank the dashboard while the cache refreshes.
+        }
+      }
+    };
+
+    const start = () => {
+      if (iv != null) return;
+      fetchData();
+      iv = setInterval(fetchData, intervalMs);
+    };
+    const stop = () => {
+      if (iv != null) { clearInterval(iv); iv = null; }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") stop();
+      else start();
+    };
+
+    if (document.visibilityState !== "hidden") start();
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      cancelled = true;
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [intervalMs]);
+
+  return { data, loading, error };
+}
+
+// ── Fetch crypto historical chart ───────────────────────
+export function useCryptoChart(id, range = "3mo") {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) { setLoading(false); setData([]); return; }
+    let cancelled = false;
+    setLoading(true);
+
+    api.cryptoChart(id, range).then((result) => {
+      if (!cancelled) {
+        setData(Array.isArray(result) ? result : []);
+        setLoading(false);
+      }
+    }).catch(() => {
+      if (!cancelled) setLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [id, range]);
+
+  return { data, loading };
+}
+
 // ── Live search with debounce ────────────────────────────
 export function useSearch(query, delayMs = 300) {
   const [results, setResults] = useState([]);

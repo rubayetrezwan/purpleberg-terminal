@@ -28,4 +28,9 @@ export const api = {
 
   search: (query) =>
     get(`/search?q=${encodeURIComponent(query)}`),
+
+  cryptoMarkets: () => get("/crypto/markets"),
+
+  cryptoChart: (id, range = "3mo") =>
+    get(`/crypto/${encodeURIComponent(id)}/chart?range=${range}`),
 };
