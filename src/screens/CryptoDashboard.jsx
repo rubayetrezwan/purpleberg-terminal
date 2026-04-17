@@ -84,7 +84,9 @@ export default function CryptoDashboard() {
     "Alt":        COLORS.textDim,
   }), [COLORS]);
 
-  const { data: coins, loading } = useCryptoMarkets(30000);
+  // Default 60s interval — override would just burn CoinGecko's rate limit,
+  // see the hook's comment for the full reasoning.
+  const { data: coins, loading } = useCryptoMarkets();
 
   const [selectedId, setSelectedId] = useState(null);
   const [tab, setTab] = useState("CHART");

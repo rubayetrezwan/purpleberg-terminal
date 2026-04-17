@@ -206,8 +206,11 @@ export function useNews(symbols, intervalMs = 120000) {
 // ── Fetch top-N crypto markets ──────────────────────────
 // Polls the Crypto dashboard's ranked list from CoinGecko (via our proxy).
 // Same visibility-pause pattern as useQuotes so a backgrounded tab stops
-// spending the proxy's rate-limit budget.
-export function useCryptoMarkets(intervalMs = 30000) {
+// spending the proxy's rate-limit budget. 60s default aligns with the proxy's
+// 120s cache TTL — any faster and we just burn CoinGecko's tight public-tier
+// limit without gaining freshness, especially on shared-IP deploys (Render
+// free) where 429s are trivially easy to trip.
+export function useCryptoMarkets(intervalMs = 60000) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
