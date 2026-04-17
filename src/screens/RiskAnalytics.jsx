@@ -47,7 +47,10 @@ export default function RiskAnalytics({ allStockQuotes }) {
 
   // Illustrative scenario table — NOT a real stress test. Just scales today's dispersion
   // by the historical max-drawdown of each named event to give a rough order-of-magnitude.
+  // When no live return data has arrived yet we render an em dash instead of "0.00%" so
+  // the user doesn't see six rows of spurious zeros before the first poll lands.
   const stressTests = useMemo(() => {
+    const hasData = returnData.length > 0;
     const currentAvg = avgReturn;
     const currentVol = stdDev;
     return [
@@ -60,11 +63,11 @@ export default function RiskAnalytics({ allStockQuotes }) {
     ].map((s) => ({
       scenario: s.scenario,
       desc: s.desc,
-      portfolioImpact: fmt(currentAvg * s.multiplier - currentVol * s.multiplier, 2) + "%",
-      scaledTail: fmt(Math.abs(p5) * s.multiplier, 2) + "%",
+      portfolioImpact: hasData ? fmt(currentAvg * s.multiplier - currentVol * s.multiplier, 2) + "%" : "\u2014",
+      scaledTail: hasData ? fmt(Math.abs(p5) * s.multiplier, 2) + "%" : "\u2014",
       severity: s.multiplier >= 5 ? "EXTREME" : s.multiplier >= 3 ? "HIGH" : "MODERATE",
     }));
-  }, [avgReturn, stdDev, p5]);
+  }, [returnData.length, avgReturn, stdDev, p5]);
 
   const topRiskContributors = useMemo(() => {
     if (!stocks.length) return [];

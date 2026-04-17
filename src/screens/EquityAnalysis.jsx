@@ -110,7 +110,7 @@ export default function EquityAnalysis({ allStockQuotes, initialSymbol, onSymbol
                   key={s.symbol}
                   onClick={() => { setSelectedSymbol(s.symbol); setShowStockList(false); }}
                   style={{
-                    padding: "8px 12px", cursor: "pointer",
+                    padding: "10px 12px", cursor: "pointer", minHeight: 48,
                     borderBottom: `1px solid ${COLORS.border}22`,
                     background: selectedSymbol === s.symbol ? COLORS.purpleDim + "44" : "transparent",
                   }}

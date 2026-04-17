@@ -1,9 +1,5 @@
 import { useMemo } from "react";
 import {
-  BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
-} from "recharts";
-import {
   Globe, BarChart3, Zap, Layers, Hash, Landmark,
 } from "lucide-react";
 import { INDEX_SYMBOLS, COMMODITY_SYMBOLS, BOND_SYMBOLS, fmt, fmtK, fmtPct } from "../config";

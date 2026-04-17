@@ -107,7 +107,7 @@ export default function FXDashboard() {
                 <input value={calcFrom} onChange={(e) => setCalcFrom(e.target.value)} style={{ width: "100%", padding: 6, background: COLORS.bgInput, border: `1px solid ${COLORS.border}`, borderRadius: 4, color: COLORS.text, fontSize: 13, fontFamily: "'JetBrains Mono',monospace", outline: "none", boxSizing: "border-box" }} />
                 <div style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 6 }}>{selConfig.pair.split("/")[1]}</div>
                 <div style={{ padding: 6, background: COLORS.purpleDim + "33", borderRadius: 4, fontSize: 16, fontWeight: 700, color: COLORS.gold, fontFamily: "'JetBrains Mono',monospace" }}>
-                  {fmt(parseFloat(calcFrom || 0) * bid, 4)}
+                  {bid > 0 ? fmt(parseFloat(calcFrom || 0) * bid, 4) : "\u2014"}
                 </div>
               </div>
             </Panel>
@@ -170,9 +170,9 @@ export default function FXDashboard() {
                 </div>
                 <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4 }}>Converted ({selConfig.pair.split("/")[1]})</div>
                 <div style={{ padding: 8, background: COLORS.purpleDim + "33", borderRadius: 4, fontSize: 18, fontWeight: 700, color: COLORS.gold, fontFamily: "'JetBrains Mono',monospace" }}>
-                  {fmt(parseFloat(calcFrom || 0) * bid, 4)}
+                  {bid > 0 ? fmt(parseFloat(calcFrom || 0) * bid, 4) : "\u2014"}
                 </div>
-                <div style={{ marginTop: 8, fontSize: 10, color: COLORS.textDim }}>Rate: 1 {selConfig.pair.split("/")[0]} = {fmt(bid, 4)} {selConfig.pair.split("/")[1]}</div>
+                <div style={{ marginTop: 8, fontSize: 10, color: COLORS.textDim }}>{bid > 0 ? `Rate: 1 ${selConfig.pair.split("/")[0]} = ${fmt(bid, 4)} ${selConfig.pair.split("/")[1]}` : "Rate loading\u2026"}</div>
               </div>
             </Panel>
 

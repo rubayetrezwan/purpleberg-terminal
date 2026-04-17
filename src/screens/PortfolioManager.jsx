@@ -83,12 +83,14 @@ export default function PortfolioManager() {
 
   return (
     <div style={{ padding: isMobile ? 8 : 12 }}>
-      {/* SUMMARY CARDS */}
+      {/* SUMMARY CARDS — When every holding is stale (no live quote), the P&L
+          and return aggregates mean nothing, so we show an em dash rather than
+          a misleading +0.00% green. */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: isMobile ? 6 : 10, marginBottom: 10 }}>
         {[
-          { l: "Portfolio Value", v: totalValue > 0 ? "$" + fmtK(totalValue) : "$0", c: COLORS.gold },
-          { l: "Total P&L", v: (totalPnL >= 0 ? "+$" : "-$") + fmtK(Math.abs(totalPnL)), c: totalPnL >= 0 ? COLORS.green : COLORS.red },
-          { l: "Return", v: fmtPct(totalReturn), c: totalReturn >= 0 ? COLORS.green : COLORS.red },
+          { l: "Portfolio Value", v: liveRows.length ? "$" + fmtK(totalValue) : "\u2014", c: COLORS.gold },
+          { l: "Total P&L", v: liveRows.length ? (totalPnL >= 0 ? "+$" : "-$") + fmtK(Math.abs(totalPnL)) : "\u2014", c: !liveRows.length ? COLORS.textMuted : totalPnL >= 0 ? COLORS.green : COLORS.red },
+          { l: "Return", v: liveRows.length ? fmtPct(totalReturn) : "\u2014", c: !liveRows.length ? COLORS.textMuted : totalReturn >= 0 ? COLORS.green : COLORS.red },
           { l: "# Holdings", v: holdings.length.toString(), c: COLORS.purple },
         ].map((m) => (
           <Panel key={m.l}>

@@ -62,7 +62,7 @@ export default function EconomicCalendar() {
         <PanelHeader
           icon={<Calendar size={14} color={COLORS.blue} />}
           title="ECONOMIC CALENDAR"
-          subtitle={isMobile ? "Upcoming releases" : "Upcoming economic releases & central bank decisions"}
+          subtitle={isMobile ? "Upcoming releases (ET)" : "Upcoming economic releases & central bank decisions — all times ET"}
           right={
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <Badge color={COLORS.green}>LIVE</Badge>
@@ -81,7 +81,7 @@ export default function EconomicCalendar() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <Badge color={COLORS.cyan}>{ev.country}</Badge>
-                      <Badge color={ev.impact === "high" ? COLORS.red : COLORS.orange}>{ev.impact.toUpperCase()}</Badge>
+                      <Badge color={ev.impact === "high" ? COLORS.red : COLORS.orange}>{(ev.impact || "med").toUpperCase()}</Badge>
                     </div>
                     <span style={{ fontSize: 9, color: COLORS.textMuted, fontFamily: "'JetBrains Mono',monospace" }}>{ev.date} {ev.time}</span>
                   </div>
@@ -115,7 +115,7 @@ export default function EconomicCalendar() {
                     <td style={{ padding: "6px 8px", fontFamily: "'JetBrains Mono',monospace", color: ev.actual !== "\u2014" ? COLORS.gold : COLORS.textDim, fontWeight: ev.actual !== "\u2014" ? 700 : 400 }}>{ev.actual}</td>
                     <td style={{ padding: "6px 8px", fontFamily: "'JetBrains Mono',monospace", color: COLORS.textDim }}>{ev.forecast}</td>
                     <td style={{ padding: "6px 8px", fontFamily: "'JetBrains Mono',monospace", color: COLORS.textDim }}>{ev.previous}</td>
-                    <td style={{ padding: "6px 8px" }}><Badge color={ev.impact === "high" ? COLORS.red : COLORS.orange}>{ev.impact.toUpperCase()}</Badge></td>
+                    <td style={{ padding: "6px 8px" }}><Badge color={ev.impact === "high" ? COLORS.red : COLORS.orange}>{(ev.impact || "med").toUpperCase()}</Badge></td>
                   </tr>
                 ))}
               </tbody>
@@ -132,30 +132,25 @@ export default function EconomicCalendar() {
             subtitle="Live from Yahoo Finance"
             right={ratesLoading ? <Badge color={COLORS.orange}>Loading</Badge> : <Badge color={COLORS.green}>LIVE</Badge>}
           />
+          {/* Only show LIVE when we actually have a yield; otherwise a muted
+              "No data" badge keeps the indicator honest if Yahoo's ^TNX feed
+              is flapping or the endpoint returns a partial set. */}
           <MiniTable
             headers={["Tenor", "Yield", "Status"]}
             rows={[
-              [
-                <span style={{ color: COLORS.text }}>{isMobile ? "3M T-Bill" : "US 3-Month T-Bill"}</span>,
-                <span style={{ color: COLORS.gold, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>{rates.us3m ? rates.us3m.toFixed(2) + "%" : "\u2014"}</span>,
-                <Badge color={COLORS.green}>LIVE</Badge>,
-              ],
-              [
-                <span style={{ color: COLORS.text }}>{isMobile ? "5Y Treasury" : "US 5-Year Treasury"}</span>,
-                <span style={{ color: COLORS.gold, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>{rates.us5y ? rates.us5y.toFixed(2) + "%" : "\u2014"}</span>,
-                <Badge color={COLORS.green}>LIVE</Badge>,
-              ],
-              [
-                <span style={{ color: COLORS.text }}>{isMobile ? "10Y Treasury" : "US 10-Year Treasury"}</span>,
-                <span style={{ color: COLORS.gold, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>{rates.us10y ? rates.us10y.toFixed(2) + "%" : "\u2014"}</span>,
-                <Badge color={COLORS.green}>LIVE</Badge>,
-              ],
-              [
-                <span style={{ color: COLORS.text }}>{isMobile ? "30Y Treasury" : "US 30-Year Treasury"}</span>,
-                <span style={{ color: COLORS.gold, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>{rates.us30y ? rates.us30y.toFixed(2) + "%" : "\u2014"}</span>,
-                <Badge color={COLORS.green}>LIVE</Badge>,
-              ],
-            ]}
+              ["us3m", isMobile ? "3M T-Bill" : "US 3-Month T-Bill"],
+              ["us5y", isMobile ? "5Y Treasury" : "US 5-Year Treasury"],
+              ["us10y", isMobile ? "10Y Treasury" : "US 10-Year Treasury"],
+              ["us30y", isMobile ? "30Y Treasury" : "US 30-Year Treasury"],
+            ].map(([key, label]) => {
+              const y = rates[key];
+              const hasValue = y != null && !Number.isNaN(y);
+              return [
+                <span style={{ color: COLORS.text }}>{label}</span>,
+                <span style={{ color: COLORS.gold, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>{hasValue ? y.toFixed(2) + "%" : "\u2014"}</span>,
+                hasValue ? <Badge color={COLORS.green}>LIVE</Badge> : <Badge color={COLORS.textMuted}>No data</Badge>,
+              ];
+            })}
           />
         </Panel>
 
