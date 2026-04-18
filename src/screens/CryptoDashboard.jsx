@@ -3,8 +3,8 @@ import {
   AreaChart, Area, LineChart, Line, Bar, ComposedChart,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Bitcoin, Activity, Info, BarChart3, ChevronDown } from "lucide-react";
-import { fmt, fmtK, fmtPct } from "../config";
+import { CircleDollarSign, Activity, Info, BarChart3, ChevronDown } from "lucide-react";
+import { fmtK, fmtPct } from "../config";
 import { useColors } from "../ThemeContext";
 import { useCryptoMarkets, useCryptoChart, useIsMobile } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, DataCell, TabBar, LoadingSpinner } from "../shared";
@@ -60,7 +60,11 @@ function priceDecimals(price) {
 }
 function fmtPrice(v) {
   if (v == null || isNaN(v)) return "\u2014";
-  return Number(v).toFixed(priceDecimals(v));
+  const n = Number(v);
+  const d = priceDecimals(n);
+  // Thousand separators via toLocaleString — BTC at $77,312.72 is easier to
+  // parse than 77312.72, and we keep SHIB-style 8dp precision for fractions.
+  return n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 function fmtSupply(n) {
   if (n == null || n === 0) return "\u2014";
@@ -89,18 +93,35 @@ export default function CryptoDashboard() {
   const { data: coins, loading } = useCryptoMarkets();
 
   const [selectedId, setSelectedId] = useState(null);
+  // Track symbol alongside id so selection survives a source flip. CoinGecko
+  // and CoinPaprika use different id schemes ("bitcoin" vs "paprika:btc-bitcoin"),
+  // so when the proxy fails over mid-session an id-only lookup would silently
+  // reset the user's pick back to the top coin on every poll.
+  const [selectedSymbol, setSelectedSymbol] = useState(null);
   const [tab, setTab] = useState("CHART");
   const [chartType, setChartType] = useState("area");
   const [chartRange, setChartRange] = useState("3mo");
   const [showList, setShowList] = useState(!isMobile);
 
+  const pickCoin = (coin) => {
+    if (!coin) return;
+    setSelectedId(coin.id);
+    setSelectedSymbol(coin.symbol);
+  };
+
   // Lock onto the top coin once the first payload arrives, then leave the
   // selection alone so the user's choice sticks across polls.
   useEffect(() => {
-    if (!selectedId && coins.length > 0) setSelectedId(coins[0].id);
+    if (!selectedId && coins.length > 0) pickCoin(coins[0]);
   }, [coins, selectedId]);
 
-  const selected = coins.find((c) => c.id === selectedId) || coins[0] || {};
+  // id match first (same source); fall back to symbol (source flipped under us);
+  // finally default to top coin so we never render a blank header.
+  const selected =
+    coins.find((c) => c.id === selectedId) ||
+    (selectedSymbol ? coins.find((c) => c.symbol === selectedSymbol) : null) ||
+    coins[0] ||
+    {};
   const selTier = tierFor(selected.marketCapRank);
   const selTierColor = tierColors[selTier] || COLORS.purple;
 
@@ -150,9 +171,15 @@ export default function CryptoDashboard() {
   }
 
   if (!selected.id) {
+    // Be honest about where "empty" can come from: our own proxy limiter, the
+    // upstream provider (CoinGecko or the CoinPaprika fallback), or a cold
+    // cache on first boot. Earlier copy blamed only CoinGecko, which was
+    // misleading when the real culprit was our own rate limit.
     return (
-      <div style={{ padding: 24, color: COLORS.textMuted, fontSize: 12 }}>
-        No crypto data available. The CoinGecko upstream may be rate-limiting; try again in a minute.
+      <div style={{ padding: 24, color: COLORS.textMuted, fontSize: 12, lineHeight: 1.5 }}>
+        No crypto markets loaded yet. The upstream (CoinGecko, with CoinPaprika fallback) or the
+        Purpleberg proxy may be rate-limited. The dashboard will retry automatically &mdash; refresh
+        in a minute if it doesn't populate.
       </div>
     );
   }
@@ -182,7 +209,7 @@ export default function CryptoDashboard() {
               {coins.map((c) => (
                 <div
                   key={c.id}
-                  onClick={() => { setSelectedId(c.id); setShowList(false); }}
+                  onClick={() => { pickCoin(c); setShowList(false); }}
                   style={{
                     padding: "8px 12px", cursor: "pointer",
                     borderBottom: `1px solid ${COLORS.border}22`,
@@ -243,7 +270,7 @@ export default function CryptoDashboard() {
           return (
             <div
               key={c.id}
-              onClick={() => setSelectedId(c.id)}
+              onClick={() => pickCoin(c)}
               style={{
                 padding: "8px 10px", cursor: "pointer",
                 borderBottom: `1px solid ${COLORS.border}22`,
@@ -275,7 +302,7 @@ export default function CryptoDashboard() {
         <div style={{ padding: "12px 16px", background: COLORS.bgPanel, borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <Bitcoin size={18} color={selTierColor} />
+              <CircleDollarSign size={18} color={selTierColor} />
               <span style={{ fontSize: 20, fontWeight: 800, color: COLORS.text }}>{selected.name}</span>
               <span style={{ fontSize: 13, color: COLORS.textDim, fontFamily: "'JetBrains Mono',monospace" }}>{selected.symbol}</span>
               <Badge color={selTierColor}>{selTier}</Badge>
@@ -528,7 +555,7 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
               DATA SOURCE
             </div>
             <div style={{ fontSize: 11, color: COLORS.textDim, lineHeight: 1.5 }}>
-              Prices, supply and all-time levels come from the CoinGecko public API through the Purpleberg proxy. Crypto markets trade 24/7, so the "24h" figures roll continuously rather than resetting at exchange close. ATH and ATL are peak and trough across CoinGecko's full history for the asset.
+              Prices, supply and all-time levels come from the CoinGecko public API through the Purpleberg proxy, with CoinPaprika as an automatic fallback when CoinGecko rate-limits the shared deploy IP. Crypto markets trade 24/7, so the "24h" figures roll continuously rather than resetting at exchange close. ATH and ATL are peak and trough across the provider's full history for the asset.
             </div>
           </div>
         </div>

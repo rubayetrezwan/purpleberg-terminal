@@ -21,9 +21,15 @@ app.use(cors());
 app.use(express.json({ limit: "32kb" }));
 
 // ── Rate limiting ───────────────────────────────────────
+// A full terminal session polls ~10 endpoints at 15-60s intervals, React
+// StrictMode double-mounts effects in dev, and tab-switching or visibility
+// resumes can burst several requests in one tick. 120/min was tripping our
+// own clients on normal use and cascading into "No data" empty states.
+// 600/min leaves plenty of room for sustained polling while still catching
+// runaway loops (a correct dashboard shouldn't see more than ~60/min/client).
 const apiLimiter = rateLimit({
   windowMs: 60_000,
-  max: 120,               // 120 reqs/min per IP for data endpoints
+  max: 600,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Rate limit exceeded" },

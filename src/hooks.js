@@ -219,7 +219,13 @@ export function useCryptoMarkets(intervalMs = 60000) {
     let cancelled = false;
     let iv = null;
 
-    const fetchData = async () => {
+    // First-load retry. When a user lands on the crypto screen and the
+    // initial fetch trips an empty stampede (our own rate limiter firing on
+    // page-load burst, or an upstream 429), we don't want the UI to hang on
+    // the empty state for a full 60s poll interval. Retry twice with short
+    // backoff before declaring the dashboard "empty".
+    let retryTimer = null;
+    const fetchData = async (attempt = 0) => {
       try {
         const result = await api.cryptoMarkets();
         if (!cancelled) {
@@ -228,11 +234,15 @@ export function useCryptoMarkets(intervalMs = 60000) {
           setError(null);
         }
       } catch (e) {
-        if (!cancelled) {
-          setError(e.message);
+        if (cancelled) return;
+        setError(e.message);
+        if (attempt < 2) {
+          // 1.2s, 2.4s — well inside the cache-window refresh on the server.
+          retryTimer = setTimeout(() => fetchData(attempt + 1), 1200 * (attempt + 1));
+        } else {
           setLoading(false);
-          // Keep previous data on error so a transient CoinGecko 429 doesn't
-          // blank the dashboard while the cache refreshes.
+          // Keep previous data on error so a transient 429 doesn't blank the
+          // dashboard while the next poll cycle refreshes the cache.
         }
       }
     };
@@ -244,6 +254,7 @@ export function useCryptoMarkets(intervalMs = 60000) {
     };
     const stop = () => {
       if (iv != null) { clearInterval(iv); iv = null; }
+      if (retryTimer != null) { clearTimeout(retryTimer); retryTimer = null; }
     };
 
     const onVisibility = () => {
