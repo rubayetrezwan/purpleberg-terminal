@@ -3,7 +3,7 @@ import {
   Search, Globe, TrendingUp, DollarSign, Landmark,
   Filter, Briefcase, Shield, Calendar, FileText,
   Zap, User, Maximize2, Minimize2,
-  Command, ChevronRight, Sun, Moon, Menu, X, Gem, Bitcoin,
+  Command, ChevronRight, Sun, Moon, Menu, X, Gem, Bitcoin, GitCompare,
 } from "lucide-react";
 import { US_STOCKS, ts, fmt, fmtK } from "./config";
 import { useColors, useTheme } from "./ThemeContext";
@@ -23,6 +23,7 @@ import PortfolioManager from "./screens/PortfolioManager";
 import RiskAnalytics from "./screens/RiskAnalytics";
 import EconomicCalendar from "./screens/EconomicCalendar";
 import NewsCenter from "./screens/NewsCenter";
+import CompareStocks from "./screens/CompareStocks";
 
 const SCREENS = [
   { id: "DASHBOARD", label: "Dashboard", icon: Globe, mnemonic: "WEI", desc: "Market Overview" },
@@ -33,6 +34,7 @@ const SCREENS = [
   { id: "CRYPTO", label: "Crypto", icon: Bitcoin, mnemonic: "CRYP", desc: "Top 20 Cryptocurrencies" },
   { id: "SCREENER", label: "Screener", icon: Filter, mnemonic: "EQS", desc: "Stock Screener" },
   { id: "PORTFOLIO", label: "Portfolio", icon: Briefcase, mnemonic: "PORT", desc: "Portfolio Manager" },
+  { id: "COMPARE", label: "Compare", icon: GitCompare, mnemonic: "COMP", desc: "Compare two stocks" },
   { id: "RISK", label: "Risk", icon: Shield, mnemonic: "MARS", desc: "Risk Analytics" },
   { id: "ECONOMICS", label: "Economics", icon: Calendar, mnemonic: "ECO", desc: "Economic Calendar" },
   { id: "NEWS", label: "News", icon: FileText, mnemonic: "TOP", desc: "News Center" },
@@ -168,6 +170,8 @@ export default function App() {
         return <RiskAnalytics allStockQuotes={allStockQuotes} />;
       case "ECONOMICS":
         return <EconomicCalendar />;
+      case "COMPARE":
+        return <CompareStocks allStockQuotes={allStockQuotes} news={newsData} />;
       case "NEWS":
         return <NewsCenter news={newsData} loading={newsLoading} />;
       default:
