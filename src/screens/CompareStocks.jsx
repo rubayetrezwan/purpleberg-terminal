@@ -1,8 +1,44 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { GitCompare, ArrowLeftRight, X } from "lucide-react";
 import { useColors } from "../ThemeContext";
-import { useIsMobile } from "../hooks";
-import { Panel, PanelHeader, Badge } from "../shared";
+import { useIsMobile, useQuotes } from "../hooks";
+import { Panel, PanelHeader, Badge, ChgVal, LoadingSpinner } from "../shared";
+import { fmt, fmtK } from "../config";
+
+function QuoteSide({ quote, label, COLORS }) {
+  if (!quote) return (
+    <div style={{ padding: 20, textAlign: "center", color: COLORS.textMuted, fontSize: 12 }}>
+      No data for {label}.
+    </div>
+  );
+  const rows = [
+    { l: "Price", v: <span style={{ fontWeight: 700, color: COLORS.text, fontFamily: "'JetBrains Mono',monospace" }}>{fmt(quote.price)}</span> },
+    { l: "Change", v: <ChgVal val={quote.change} /> },
+    { l: "Change %", v: <ChgVal val={quote.changePercent} /> },
+    { l: "Market Cap", v: <span style={{ fontFamily: "'JetBrains Mono',monospace", color: COLORS.text }}>{fmtK(quote.marketCap)}</span> },
+    { l: "P/E (TTM)", v: <span style={{ fontFamily: "'JetBrains Mono',monospace", color: COLORS.text }}>{quote.pe > 0 ? fmt(quote.pe, 1) : "—"}</span> },
+    { l: "Beta", v: <span style={{ fontFamily: "'JetBrains Mono',monospace", color: quote.beta > 1.5 ? COLORS.red : quote.beta < 0.8 ? COLORS.green : COLORS.text }}>{quote.beta ? fmt(quote.beta) : "—"}</span> },
+    { l: "Div Yield", v: <span style={{ fontFamily: "'JetBrains Mono',monospace", color: quote.dividendYield > 0 ? COLORS.green : COLORS.textMuted }}>{quote.dividendYield > 0 ? fmt(quote.dividendYield) + "%" : "—"}</span> },
+    { l: "Volume", v: <span style={{ fontFamily: "'JetBrains Mono',monospace", color: COLORS.textDim }}>{fmtK(quote.volume)}</span> },
+    { l: "52W Range", v: <span style={{ fontFamily: "'JetBrains Mono',monospace", color: COLORS.textDim, fontSize: 10 }}>{quote.week52Low && quote.week52High ? `${fmt(quote.week52Low)} – ${fmt(quote.week52High)}` : "—"}</span> },
+  ];
+  return (
+    <div style={{ padding: "8px 12px" }}>
+      <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.purpleLight, letterSpacing: 1, marginBottom: 2 }}>
+        {quote.symbol}
+      </div>
+      <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 10 }}>
+        {(quote.name || "").slice(0, 40)} · {quote.exchange || "—"}
+      </div>
+      {rows.map((r) => (
+        <div key={r.l} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: `1px solid ${COLORS.border}22`, fontSize: 11 }}>
+          <span style={{ color: COLORS.textMuted }}>{r.l}</span>
+          {r.v}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // COMPARE screen — side-by-side view of two tickers.
 // v1 design: two text inputs → "Compare" button applies them to `liveA`/`liveB`
@@ -38,6 +74,16 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
     setLiveA("");
     setLiveB("");
   };
+
+  const quoteSymbols = useMemo(() => {
+    const arr = [];
+    if (liveA) arr.push(liveA);
+    if (liveB) arr.push(liveB);
+    return arr;
+  }, [liveA, liveB]);
+  const { data: quotes, loading: quotesLoading } = useQuotes(quoteSymbols, 15000);
+  const quoteA = quotes.find((q) => q.symbol === liveA) || null;
+  const quoteB = quotes.find((q) => q.symbol === liveB) || null;
 
   const canCompare = inputA.trim() && inputB.trim() && inputA.trim().toUpperCase() !== inputB.trim().toUpperCase();
 
@@ -111,11 +157,20 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
           </div>
         )}
         {liveA && liveB && (
-          <div style={{ padding: 12, color: COLORS.textMuted, fontSize: 12 }}>
-            {/* Task 4+ will populate these panels */}
-            Comparing <strong style={{ color: COLORS.purpleLight }}>{liveA}</strong> vs{" "}
-            <strong style={{ color: COLORS.purpleLight }}>{liveB}</strong> — panels coming online.
-          </div>
+          <>
+            {quotesLoading && !quoteA && !quoteB ? (
+              <LoadingSpinner text={`Loading quotes for ${liveA} and ${liveB}...`} />
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 0 }}>
+                <div style={{ borderRight: isMobile ? "none" : `1px solid ${COLORS.border}`, borderBottom: isMobile ? `1px solid ${COLORS.border}` : "none" }}>
+                  <QuoteSide quote={quoteA} label={liveA} COLORS={COLORS} />
+                </div>
+                <div>
+                  <QuoteSide quote={quoteB} label={liveB} COLORS={COLORS} />
+                </div>
+              </div>
+            )}
+          </>
         )}
       </Panel>
     </div>
