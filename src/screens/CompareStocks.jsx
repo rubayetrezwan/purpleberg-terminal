@@ -15,11 +15,11 @@ function QuoteSide({ quote, label, COLORS }) {
     { l: "Price", v: <span style={{ fontWeight: 700, color: COLORS.text, fontFamily: "'JetBrains Mono',monospace" }}>{fmt(quote.price)}</span> },
     { l: "Change", v: <ChgVal val={quote.change} /> },
     { l: "Change %", v: <ChgVal val={quote.changePercent} /> },
-    { l: "Market Cap", v: <span style={{ fontFamily: "'JetBrains Mono',monospace", color: COLORS.text }}>{fmtK(quote.marketCap)}</span> },
+    { l: "Market Cap", v: <span style={{ fontFamily: "'JetBrains Mono',monospace", color: COLORS.text }}>{quote.marketCap > 0 ? fmtK(quote.marketCap) : "—"}</span> },
     { l: "P/E (TTM)", v: <span style={{ fontFamily: "'JetBrains Mono',monospace", color: COLORS.text }}>{quote.pe > 0 ? fmt(quote.pe, 1) : "—"}</span> },
     { l: "Beta", v: <span style={{ fontFamily: "'JetBrains Mono',monospace", color: quote.beta > 1.5 ? COLORS.red : quote.beta < 0.8 ? COLORS.green : COLORS.text }}>{quote.beta ? fmt(quote.beta) : "—"}</span> },
     { l: "Div Yield", v: <span style={{ fontFamily: "'JetBrains Mono',monospace", color: quote.dividendYield > 0 ? COLORS.green : COLORS.textMuted }}>{quote.dividendYield > 0 ? fmt(quote.dividendYield) + "%" : "—"}</span> },
-    { l: "Volume", v: <span style={{ fontFamily: "'JetBrains Mono',monospace", color: COLORS.textDim }}>{fmtK(quote.volume)}</span> },
+    { l: "Volume", v: <span style={{ fontFamily: "'JetBrains Mono',monospace", color: COLORS.textDim }}>{quote.volume > 0 ? fmtK(quote.volume) : "—"}</span> },
     { l: "52W Range", v: <span style={{ fontFamily: "'JetBrains Mono',monospace", color: COLORS.textDim, fontSize: 10 }}>{quote.week52Low && quote.week52High ? `${fmt(quote.week52Low)} – ${fmt(quote.week52High)}` : "—"}</span> },
   ];
   return (
