@@ -125,6 +125,7 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
     background: COLORS.bgInput, border: `1px solid ${COLORS.border}`,
     color: COLORS.text, borderRadius: 3,
     padding: "6px 8px", fontSize: 12, outline: "none",
+    transition: "border-color 100ms",
     fontFamily: "'JetBrains Mono',monospace", letterSpacing: 1,
     textTransform: "uppercase",
   };
@@ -159,6 +160,8 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
             value={inputA} onChange={(e) => setInputA(e.target.value)}
             placeholder="AAPL"
             onKeyDown={(e) => { if (e.key === "Enter" && canCompare) apply(); }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = COLORS.purple; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = COLORS.border; }}
             style={inputStyle}
           />
           <span style={{ fontSize: 10, color: COLORS.textMuted, fontWeight: 600 }}>vs</span>
@@ -168,6 +171,8 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
             value={inputB} onChange={(e) => setInputB(e.target.value)}
             placeholder="MSFT"
             onKeyDown={(e) => { if (e.key === "Enter" && canCompare) apply(); }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = COLORS.purple; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = COLORS.border; }}
             style={inputStyle}
           />
           <button onClick={apply} disabled={!canCompare} style={btnStyle(!canCompare)}>
@@ -194,16 +199,16 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
             {quotesLoading && !quoteA && !quoteB ? (
               <LoadingSpinner text={`Loading quotes for ${liveA} and ${liveB}...`} />
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 0 }}>
+              <section aria-label="Side-by-side quotes" style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 0 }}>
                 <div style={{ borderRight: isMobile ? "none" : `1px solid ${COLORS.border}`, borderBottom: isMobile ? `1px solid ${COLORS.border}` : "none" }}>
                   <QuoteSide quote={quoteA} label={liveA} COLORS={COLORS} />
                 </div>
                 <div>
                   <QuoteSide quote={quoteB} label={liveB} COLORS={COLORS} />
                 </div>
-              </div>
+              </section>
             )}
-            <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: "8px 12px" }}>
+            <section aria-label={`Normalized price chart: ${liveA} versus ${liveB}`} style={{ borderTop: `1px solid ${COLORS.border}`, padding: "8px 12px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.textMuted, letterSpacing: 1 }}>
                   NORMALIZED PRICE (% FROM START)
@@ -246,8 +251,8 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
                   </ResponsiveContainer>
                 )}
               </div>
-            </div>
-            <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: "10px 12px" }}>
+            </section>
+            <section aria-label="Fundamentals comparison" style={{ borderTop: `1px solid ${COLORS.border}`, padding: "10px 12px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.textMuted, letterSpacing: 1, marginBottom: 8, textAlign: "center" }}>
                 FUNDAMENTALS — {liveA} vs {liveB}
               </div>
@@ -269,8 +274,8 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
                   <CompareRow label="EPS (TTM)" aVal={quoteA?.eps} bVal={quoteB?.eps} format={(v) => fmt(v, 2)} higherIsBetter={true} COLORS={COLORS} />
                 </>
               )}
-            </div>
-            <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: "10px 12px" }}>
+            </section>
+            <section aria-label="Ratios comparison" style={{ borderTop: `1px solid ${COLORS.border}`, padding: "10px 12px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.textMuted, letterSpacing: 1, marginBottom: 8, textAlign: "center" }}>
                 RATIOS — {liveA} vs {liveB}
               </div>
@@ -286,8 +291,8 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
                   <CompareRow label="Debt / Equity" aVal={finA?.ratios?.debtToEquity} bVal={finB?.ratios?.debtToEquity} format={(v) => v.toFixed(2)} higherIsBetter={false} COLORS={COLORS} />
                 </>
               )}
-            </div>
-            <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: "10px 12px" }}>
+            </section>
+            <section aria-label="Recent news" style={{ borderTop: `1px solid ${COLORS.border}`, padding: "10px 12px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.textMuted, letterSpacing: 1, marginBottom: 8, textAlign: "center" }}>
                 RECENT NEWS
               </div>
@@ -323,7 +328,7 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
                   );
                 })}
               </div>
-            </div>
+            </section>
           </>
         )}
       </Panel>
