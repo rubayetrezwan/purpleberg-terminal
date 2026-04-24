@@ -270,6 +270,23 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
                 </>
               )}
             </div>
+            <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: "10px 12px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.textMuted, letterSpacing: 1, marginBottom: 8, textAlign: "center" }}>
+                RATIOS — {liveA} vs {liveB}
+              </div>
+              {(finLoadA || finLoadB) && !finA && !finB ? (
+                <LoadingSpinner text="Loading ratios..." />
+              ) : (
+                <>
+                  <CompareRow label="P/E (TTM)" aVal={finA?.ratios?.pe || quoteA?.pe} bVal={finB?.ratios?.pe || quoteB?.pe} format={(v) => v.toFixed(1)} suffix="x" higherIsBetter={false} COLORS={COLORS} />
+                  <CompareRow label="P/S" aVal={finA?.ratios?.ps} bVal={finB?.ratios?.ps} format={(v) => v.toFixed(2)} suffix="x" higherIsBetter={false} COLORS={COLORS} />
+                  <CompareRow label="P/B" aVal={finA?.ratios?.pb} bVal={finB?.ratios?.pb} format={(v) => v.toFixed(2)} suffix="x" higherIsBetter={false} COLORS={COLORS} />
+                  <CompareRow label="EV/EBITDA" aVal={finA?.ratios?.evEbitda} bVal={finB?.ratios?.evEbitda} format={(v) => v.toFixed(1)} suffix="x" higherIsBetter={false} COLORS={COLORS} />
+                  <CompareRow label="ROE" aVal={parseFloat(finA?.ratios?.roe)} bVal={parseFloat(finB?.ratios?.roe)} format={(v) => v.toFixed(1)} suffix="%" higherIsBetter={true} COLORS={COLORS} />
+                  <CompareRow label="Debt / Equity" aVal={finA?.ratios?.debtToEquity} bVal={finB?.ratios?.debtToEquity} format={(v) => v.toFixed(2)} higherIsBetter={false} COLORS={COLORS} />
+                </>
+              )}
+            </div>
           </>
         )}
       </Panel>
