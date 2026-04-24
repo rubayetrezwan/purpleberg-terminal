@@ -2,9 +2,10 @@
 
 A Bloomberg-style market terminal built as a personal project: React + Vite
 frontend, a thin Express proxy to Yahoo Finance and CoinGecko, and optional
-Claude-powered chat. Eleven screens cover equities, FX, fixed income,
+Claude-powered chat. Twelve screens cover equities, FX, fixed income,
 commodities, crypto (top 20 by market cap), a screener, portfolio tracking,
-risk analytics, economic calendar, and news.
+risk analytics, economic calendar, news, and a side-by-side stock compare
+view.
 
 > **This is a hobby / learning project, not a licensed market-data product.**
 > Read the [Data source disclaimer](#data-source-disclaimer) before running it
@@ -176,7 +177,7 @@ purpleberg-terminal/
 │   ├── api.js                # Thin fetch wrapper around the proxy
 │   ├── config.js             # Tickers and formatting helpers
 │   ├── shared.jsx            # Panel, Badge, MiniTable, DataCell, …
-│   └── screens/              # Eleven function screens
+│   └── screens/              # Twelve function screens (incl. CompareStocks)
 ├── index.html
 ├── package.json
 └── vite.config.js
