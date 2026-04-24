@@ -1,9 +1,11 @@
 import { useState, useMemo } from "react";
 import { GitCompare, ArrowLeftRight, X } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useColors } from "../ThemeContext";
-import { useIsMobile, useQuotes } from "../hooks";
+import { useIsMobile, useQuotes, useHistorical } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, LoadingSpinner } from "../shared";
 import { fmt, fmtK } from "../config";
+import { normalizeToPct, alignTimelines } from "../compareUtils";
 
 function QuoteSide({ quote, label, COLORS }) {
   if (!quote) return (
@@ -84,6 +86,14 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
   const { data: quotes, loading: quotesLoading } = useQuotes(quoteSymbols, 15000);
   const quoteA = quotes.find((q) => q.symbol === liveA) || null;
   const quoteB = quotes.find((q) => q.symbol === liveB) || null;
+
+  const [range, setRange] = useState("3mo");
+  const { data: histA, loading: loadA } = useHistorical(liveA, range);
+  const { data: histB, loading: loadB } = useHistorical(liveB, range);
+
+  const chartData = useMemo(() => {
+    return alignTimelines(normalizeToPct(histA), normalizeToPct(histB));
+  }, [histA, histB]);
 
   const canCompare = inputA.trim() && inputB.trim() && inputA.trim().toUpperCase() !== inputB.trim().toUpperCase();
 
@@ -170,6 +180,50 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
                 </div>
               </div>
             )}
+            <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: "8px 12px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.textMuted, letterSpacing: 1 }}>
+                  NORMALIZED PRICE (% FROM START)
+                </div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {["1mo", "3mo", "6mo", "1y", "ytd"].map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setRange(r)}
+                      style={{
+                        background: range === r ? COLORS.purple : COLORS.bgInput,
+                        color: range === r ? COLORS.white : COLORS.textMuted,
+                        border: `1px solid ${COLORS.border}`, borderRadius: 3,
+                        padding: "3px 8px", fontSize: 10, fontWeight: 700,
+                        cursor: "pointer", textTransform: "uppercase",
+                      }}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ height: 280 }}>
+                {(loadA || loadB) && chartData.length === 0 ? (
+                  <LoadingSpinner text="Loading price history..." />
+                ) : (
+                  <ResponsiveContainer>
+                    <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: COLORS.textMuted }} minTickGap={40} />
+                      <YAxis tick={{ fontSize: 10, fill: COLORS.textMuted }} tickFormatter={(v) => v.toFixed(0) + "%"} />
+                      <Tooltip
+                        contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11 }}
+                        formatter={(v) => (v == null ? "—" : v.toFixed(2) + "%")}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Line type="monotone" dataKey="a" name={liveA} stroke={COLORS.purple} strokeWidth={2} dot={false} connectNulls={false} />
+                      <Line type="monotone" dataKey="b" name={liveB} stroke={COLORS.cyan} strokeWidth={2} dot={false} connectNulls={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
           </>
         )}
       </Panel>
