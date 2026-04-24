@@ -2,10 +2,30 @@ import { useState, useMemo } from "react";
 import { GitCompare, ArrowLeftRight, X } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useColors } from "../ThemeContext";
-import { useIsMobile, useQuotes, useHistorical } from "../hooks";
+import { useIsMobile, useQuotes, useHistorical, useFinancialsWithRetry } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, LoadingSpinner } from "../shared";
 import { fmt, fmtK } from "../config";
-import { normalizeToPct, alignTimelines } from "../compareUtils";
+import { normalizeToPct, alignTimelines, winnerOf } from "../compareUtils";
+
+function CompareRow({ label, aVal, bVal, format, higherIsBetter, suffix = "", COLORS }) {
+  const winner = winnerOf(aVal, bVal, higherIsBetter);
+  const cell = (val, highlighted) => (
+    <span style={{
+      fontFamily: "'JetBrains Mono',monospace",
+      color: highlighted ? COLORS.green : COLORS.text,
+      fontWeight: highlighted ? 700 : 500,
+    }}>
+      {val == null || val === 0 || Number.isNaN(val) ? "—" : format(val) + suffix}
+    </span>
+  );
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 12, alignItems: "center", padding: "4px 0", borderBottom: `1px solid ${COLORS.border}22`, fontSize: 11 }}>
+      <div style={{ textAlign: "right" }}>{cell(aVal, winner === "a")}</div>
+      <div style={{ color: COLORS.textMuted, fontSize: 10, whiteSpace: "nowrap" }}>{label}</div>
+      <div style={{ textAlign: "left" }}>{cell(bVal, winner === "b")}</div>
+    </div>
+  );
+}
 
 function QuoteSide({ quote, label, COLORS }) {
   if (!quote) return (
@@ -94,6 +114,9 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
   const chartData = useMemo(() => {
     return alignTimelines(normalizeToPct(histA), normalizeToPct(histB));
   }, [histA, histB]);
+
+  const { data: finA, loading: finLoadA } = useFinancialsWithRetry(liveA);
+  const { data: finB, loading: finLoadB } = useFinancialsWithRetry(liveB);
 
   const canCompare = inputA.trim() && inputB.trim() && inputA.trim().toUpperCase() !== inputB.trim().toUpperCase();
 
@@ -223,6 +246,29 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
                   </ResponsiveContainer>
                 )}
               </div>
+            </div>
+            <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: "10px 12px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.textMuted, letterSpacing: 1, marginBottom: 8, textAlign: "center" }}>
+                FUNDAMENTALS — {liveA} vs {liveB}
+              </div>
+              {(finLoadA || finLoadB) && !finA && !finB ? (
+                <LoadingSpinner text="Loading fundamentals..." />
+              ) : (
+                <>
+                  <CompareRow label="Gross Margin" aVal={parseFloat(finA?.margins?.gross)} bVal={parseFloat(finB?.margins?.gross)} format={(v) => v.toFixed(1)} suffix="%" higherIsBetter={true} COLORS={COLORS} />
+                  <CompareRow label="Operating Margin" aVal={parseFloat(finA?.margins?.operating)} bVal={parseFloat(finB?.margins?.operating)} format={(v) => v.toFixed(1)} suffix="%" higherIsBetter={true} COLORS={COLORS} />
+                  <CompareRow label="Profit Margin" aVal={parseFloat(finA?.margins?.profit)} bVal={parseFloat(finB?.margins?.profit)} format={(v) => v.toFixed(1)} suffix="%" higherIsBetter={true} COLORS={COLORS} />
+                  <CompareRow
+                    label="Latest Q Revenue"
+                    aVal={finA?.quarterlyRevenue?.[finA.quarterlyRevenue.length - 1]?.revenue}
+                    bVal={finB?.quarterlyRevenue?.[finB.quarterlyRevenue.length - 1]?.revenue}
+                    format={(v) => fmtK(v)}
+                    higherIsBetter={true}
+                    COLORS={COLORS}
+                  />
+                  <CompareRow label="EPS (TTM)" aVal={quoteA?.eps} bVal={quoteB?.eps} format={(v) => fmt(v, 2)} higherIsBetter={true} COLORS={COLORS} />
+                </>
+              )}
             </div>
           </>
         )}
