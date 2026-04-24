@@ -287,6 +287,43 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
                 </>
               )}
             </div>
+            <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: "10px 12px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.textMuted, letterSpacing: 1, marginBottom: 8, textAlign: "center" }}>
+                RECENT NEWS
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
+                {[liveA, liveB].map((tkr) => {
+                  const items = (news || [])
+                    .filter((n) => (n.relatedSymbol || "").toUpperCase() === tkr)
+                    .slice(0, 3);
+                  return (
+                    <div key={tkr}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.purpleLight, marginBottom: 6, letterSpacing: 1 }}>
+                        {tkr}
+                      </div>
+                      {items.length === 0 ? (
+                        <div style={{ fontSize: 11, color: COLORS.textMuted, fontStyle: "italic" }}>
+                          No matching headlines in the current news feed.
+                        </div>
+                      ) : (
+                        items.map((n) => (
+                          <a key={n.uuid || n.link} href={n.link} target="_blank" rel="noopener noreferrer"
+                            style={{ display: "block", padding: "4px 0", borderBottom: `1px solid ${COLORS.border}22`, textDecoration: "none" }}>
+                            <div style={{ fontSize: 11, color: COLORS.text, lineHeight: 1.3, marginBottom: 2 }}>
+                              {(n.title || "").slice(0, 120)}
+                            </div>
+                            <div style={{ fontSize: 9, color: COLORS.textMuted }}>
+                              {n.publisher || "—"}
+                              {n.publishedAt ? ` · ${new Date(n.publishedAt * 1000).toLocaleDateString()}` : ""}
+                            </div>
+                          </a>
+                        ))
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </>
         )}
       </Panel>
