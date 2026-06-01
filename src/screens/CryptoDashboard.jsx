@@ -4,7 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { CircleDollarSign, Activity, Info, BarChart3, ChevronDown } from "lucide-react";
-import { fmtK, fmtPct } from "../config";
+import { fmtK, fmtPct, MONTHS_SHORT, fmtAxisDate, fmtTooltipDate } from "../config";
 import { useColors } from "../ThemeContext";
 import { useCryptoMarkets, useCryptoChart, useIsMobile } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, DataCell, TabBar, LoadingSpinner } from "../shared";
@@ -22,28 +22,6 @@ function tierFor(rank) {
   if (rank <= 2) return "Major";
   if (rank <= 10) return "Large-Cap";
   return "Mid-Cap";
-}
-
-// Re-used from the commodities screen. Kept local to avoid a cross-screen
-// import just for two tiny formatters.
-const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-function fmtAxisDate(iso, showYear) {
-  if (!iso || typeof iso !== "string") return "";
-  const parts = iso.split("-");
-  if (parts.length < 3) return iso;
-  const [y, m, d] = parts;
-  const mi = parseInt(m, 10) - 1;
-  const mon = MONTHS_SHORT[mi] || m;
-  return showYear ? `${mon} '${y.slice(-2)}` : `${mon} ${parseInt(d, 10)}`;
-}
-function fmtTooltipDate(iso) {
-  if (!iso || typeof iso !== "string") return "";
-  const parts = iso.split("-");
-  if (parts.length < 3) return iso;
-  const [y, m, d] = parts;
-  const mi = parseInt(m, 10) - 1;
-  const mon = MONTHS_SHORT[mi] || m;
-  return `${mon} ${parseInt(d, 10)}, ${y}`;
 }
 
 // CoinGecko prices span ten orders of magnitude (BTC ~$100k, SHIB ~$0.00001).

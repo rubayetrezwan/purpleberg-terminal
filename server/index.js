@@ -16,8 +16,30 @@ try {
 const app = express();
 app.set("trust proxy", 1); // Render sits behind a proxy
 
-// CORS: allow same-origin in prod; open in dev for Vite proxy.
-app.use(cors());
+// CORS allowlist. Comma-separated origins via ALLOWED_ORIGINS; defaults cover
+// local dev. Requests with no Origin header (curl, same-origin server-to-server
+// such as the Vite dev proxy, health checks) are allowed; browser requests from
+// non-listed origins are rejected.
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ||
+  "http://localhost:5173,http://localhost:3001")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+// On Render the public URL is assigned at deploy time and isn't known when
+// render.yaml is written. Render injects it as RENDER_EXTERNAL_URL, so fold it
+// into the allowlist automatically — otherwise a browser that sends an Origin
+// header for the deployed site would be rejected by the CORS check.
+if (process.env.RENDER_EXTERNAL_URL) {
+  ALLOWED_ORIGINS.push(process.env.RENDER_EXTERNAL_URL.replace(/\/$/, ""));
+}
+app.use(
+  cors({
+    origin(origin, cb) {
+      if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+      cb(new Error("Not allowed by CORS"));
+    },
+  })
+);
 app.use(express.json({ limit: "32kb" }));
 
 // ── Rate limiting ───────────────────────────────────────
@@ -66,6 +88,20 @@ function cached(key, ttlMs, fn) {
 // ── Yahoo Finance API with crumb-based auth ─────────────
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
+// Wrap fetch with an AbortController timeout so a hung upstream (Yahoo,
+// CoinGecko, CoinPaprika, ForexFactory) can't tie up a request indefinitely.
+// On timeout the AbortError propagates to the caller's catch, which then serves
+// stale cache (via cached()) or a graceful empty payload.
+async function fetchWithTimeout(url, options = {}, timeoutMs = 10_000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 let yahooCrumb = null;
 let yahooCookie = null;
 let crumbExpiry = 0;
@@ -74,7 +110,7 @@ async function refreshCrumb() {
   if (yahooCrumb && Date.now() < crumbExpiry) return;
   try {
     // Step 1: Get cookie from Yahoo
-    const cookieRes = await fetch("https://fc.yahoo.com", {
+    const cookieRes = await fetchWithTimeout("https://fc.yahoo.com", {
       headers: { "User-Agent": UA },
       redirect: "manual",
     });
@@ -85,7 +121,7 @@ async function refreshCrumb() {
     }
 
     // Step 2: Get crumb
-    const crumbRes = await fetch("https://query2.finance.yahoo.com/v1/test/getcrumb", {
+    const crumbRes = await fetchWithTimeout("https://query2.finance.yahoo.com/v1/test/getcrumb", {
       headers: { "User-Agent": UA, Cookie: yahooCookie },
     });
     if (crumbRes.ok) {
@@ -99,7 +135,7 @@ async function refreshCrumb() {
 }
 
 async function yahooFetch(url) {
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     headers: { "User-Agent": UA, "Accept": "application/json" },
   });
   if (!res.ok) throw new Error(`Yahoo API ${res.status}: ${res.statusText}`);
@@ -110,7 +146,7 @@ async function yahooAuthFetch(url) {
   await refreshCrumb();
   const sep = url.includes("?") ? "&" : "?";
   const fullUrl = `${url}${sep}crumb=${encodeURIComponent(yahooCrumb)}`;
-  const res = await fetch(fullUrl, {
+  const res = await fetchWithTimeout(fullUrl, {
     headers: { "User-Agent": UA, "Accept": "application/json", Cookie: yahooCookie },
   });
   if (res.status === 401) {
@@ -118,7 +154,7 @@ async function yahooAuthFetch(url) {
     crumbExpiry = 0;
     await refreshCrumb();
     const retryUrl = `${url}${sep}crumb=${encodeURIComponent(yahooCrumb)}`;
-    const retry = await fetch(retryUrl, {
+    const retry = await fetchWithTimeout(retryUrl, {
       headers: { "User-Agent": UA, "Accept": "application/json", Cookie: yahooCookie },
     });
     if (!retry.ok) throw new Error(`Yahoo API ${retry.status} (retry)`);
@@ -172,6 +208,8 @@ async function mapWithConcurrency(items, limit, fn) {
 // product of the two legs' prices (and open/high/low/close for historical).
 const SYNTHETIC_FX = {
   "AUDBDT=X": { multiply: ["AUDUSD=X", "USDBDT=X"], pair: "AUD/BDT", currency: "BDT" },
+  "GBPBDT=X": { multiply: ["GBPUSD=X", "USDBDT=X"], pair: "GBP/BDT", currency: "BDT" },
+  "EURBDT=X": { multiply: ["EURUSD=X", "USDBDT=X"], pair: "EUR/BDT", currency: "BDT" },
 };
 
 function isSyntheticFx(sym) {
@@ -398,8 +436,8 @@ const raw = (v) => {
 // ── GET /api/quotes ─────────────────────────────────────
 app.get("/api/quotes", apiLimiter, async (req, res) => {
   try {
-    const raw = (req.query.symbols || "").split(",").filter(Boolean);
-    const symbols = raw.filter(isTicker).slice(0, 80); // hard cap per request
+    const rawSymbols = (req.query.symbols || "").split(",").filter(Boolean);
+    const symbols = rawSymbols.filter(isTicker).slice(0, 80); // hard cap per request
     if (!symbols.length) return res.json([]);
 
     const cacheKey = `quotes:${symbols.sort().join(",")}`;
@@ -568,8 +606,8 @@ app.get("/api/financials/:symbol", apiLimiter, async (req, res) => {
 // ── GET /api/news ───────────────────────────────────────
 app.get("/api/news", apiLimiter, async (req, res) => {
   try {
-    const raw = (req.query.symbols || "AAPL,MSFT,GOOGL,TSLA,NVDA,JPM").split(",");
-    const symbols = raw.filter(isTicker).slice(0, 10);
+    const rawSymbols = (req.query.symbols || "AAPL,MSFT,GOOGL,TSLA,NVDA,JPM").split(",");
+    const symbols = rawSymbols.filter(isTicker).slice(0, 10);
     if (!symbols.length) return res.json([]);
     const cacheKey = `news:${symbols.sort().join(",")}`;
 
@@ -595,9 +633,12 @@ app.get("/api/news", apiLimiter, async (req, res) => {
         }
         await new Promise((r) => setTimeout(r, 100));
       }
+      // Dedupe on link (falling back to title) so two publishers running the
+      // same headline under different URLs both survive, while true duplicates
+      // (same article surfaced for multiple tickers) are collapsed.
       const seen = new Set();
       return results
-        .filter((n) => { if (seen.has(n.title)) return false; seen.add(n.title); return true; })
+        .filter((n) => { const k = n.link || n.title; if (seen.has(k)) return false; seen.add(k); return true; })
         .sort((a, b) => (b.publishedAt || 0) - (a.publishedAt || 0));
     });
 
@@ -615,7 +656,7 @@ app.get("/api/econ-calendar", apiLimiter, async (req, res) => {
     const cacheKey = "econ:calendar";
     const data = await cached(cacheKey, 600_000, async () => {
       const url = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
-      const r = await fetch(url, {
+      const r = await fetchWithTimeout(url, {
         headers: { "User-Agent": UA, "Accept": "application/json" },
       });
       if (!r.ok) throw new Error(`Calendar fetch error: ${r.status}`);
@@ -715,7 +756,7 @@ async function coingeckoFetch(url, { retries = 2 } = {}) {
   if (CG_API_KEY) headers["x-cg-demo-api-key"] = CG_API_KEY;
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const res = await fetch(url, { headers });
+    const res = await fetchWithTimeout(url, { headers });
     if (res.ok) return res.json();
     const transient = res.status === 429 || res.status >= 500;
     lastErr = new Error(`CoinGecko ${res.status}: ${res.statusText}`);
@@ -739,7 +780,7 @@ async function coinpaprikaFetch(url, { retries = 1 } = {}) {
   const headers = { "User-Agent": UA, "Accept": "application/json" };
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const res = await fetch(url, { headers });
+    const res = await fetchWithTimeout(url, { headers });
     if (res.ok) return res.json();
     lastErr = new Error(`CoinPaprika ${res.status}: ${res.statusText}`);
     const transient = res.status === 429 || res.status >= 500;

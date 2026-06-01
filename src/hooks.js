@@ -55,7 +55,9 @@ export function useQuotes(symbols, intervalMs = 15000) {
   const symbolsKey = symbols.join(",");
 
   useEffect(() => {
-    if (!symbols.length) return;
+    // No symbols to fetch: clear the loading flag so a caller that starts with
+    // an empty list (e.g. an empty portfolio) doesn't hang on "loading" forever.
+    if (!symbols.length) { setLoading(false); return; }
     let cancelled = false;
     let iv = null;
 
@@ -404,7 +406,14 @@ export function usePortfolio() {
   });
 
   useEffect(() => {
-    localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(holdings));
+    // Guard the write: localStorage.setItem throws on quota-exceeded or in
+    // private-mode browsers. The read side is already guarded; without this the
+    // throw would bubble out of the effect and crash the screen.
+    try {
+      localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(holdings));
+    } catch {
+      /* storage unavailable / full — keep in-memory state, skip persistence */
+    }
   }, [holdings]);
 
   const addHolding = useCallback((symbol, name, shares, avgCost) => {

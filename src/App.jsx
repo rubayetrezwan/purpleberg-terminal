@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from "react";
 import {
   Search, Globe, TrendingUp, DollarSign, Landmark,
   Filter, Briefcase, Shield, Calendar, FileText,
@@ -8,22 +8,25 @@ import {
 import { US_STOCKS, ts, fmt, fmtK } from "./config";
 import { useColors, useTheme } from "./ThemeContext";
 import { useQuotes, useNews, useIsMobile, useSearch } from "./hooks";
-import { Badge, ChgVal } from "./shared";
+import { Badge, ChgVal, LoadingSpinner } from "./shared";
 import ErrorBoundary from "./ErrorBoundary";
 
-// Screens
-import MarketDashboard from "./screens/MarketDashboard";
-import EquityAnalysis from "./screens/EquityAnalysis";
-import FXDashboard from "./screens/FXDashboard";
-import FixedIncome from "./screens/FixedIncome";
-import CommoditiesDashboard from "./screens/CommoditiesDashboard";
-import CryptoDashboard from "./screens/CryptoDashboard";
-import StockScreener from "./screens/StockScreener";
-import PortfolioManager from "./screens/PortfolioManager";
-import RiskAnalytics from "./screens/RiskAnalytics";
-import EconomicCalendar from "./screens/EconomicCalendar";
-import NewsCenter from "./screens/NewsCenter";
-import CompareStocks from "./screens/CompareStocks";
+// Screens are code-split: each is its own chunk loaded on first navigation.
+// Keeps the initial bundle small (Recharts only ships once a chart screen is
+// opened). The <Suspense> boundary in the router shows LoadingSpinner during
+// the brief fetch; the per-screen ErrorBoundary still wraps the loaded screen.
+const MarketDashboard = lazy(() => import("./screens/MarketDashboard"));
+const EquityAnalysis = lazy(() => import("./screens/EquityAnalysis"));
+const FXDashboard = lazy(() => import("./screens/FXDashboard"));
+const FixedIncome = lazy(() => import("./screens/FixedIncome"));
+const CommoditiesDashboard = lazy(() => import("./screens/CommoditiesDashboard"));
+const CryptoDashboard = lazy(() => import("./screens/CryptoDashboard"));
+const StockScreener = lazy(() => import("./screens/StockScreener"));
+const PortfolioManager = lazy(() => import("./screens/PortfolioManager"));
+const RiskAnalytics = lazy(() => import("./screens/RiskAnalytics"));
+const EconomicCalendar = lazy(() => import("./screens/EconomicCalendar"));
+const NewsCenter = lazy(() => import("./screens/NewsCenter"));
+const CompareStocks = lazy(() => import("./screens/CompareStocks"));
 
 const SCREENS = [
   { id: "DASHBOARD", label: "Dashboard", icon: Globe, mnemonic: "WEI", desc: "Market Overview" },
@@ -48,13 +51,27 @@ const MOBILE_TABS = [
   { id: "NEWS", label: "News", icon: FileText },
 ];
 
+// Isolated clock so the 1s tick only re-renders this span — not the whole
+// terminal (sidebar, scrolling ticker, and the active screen's Recharts charts).
+function Clock({ color }) {
+  const [time, setTime] = useState(ts);
+  useEffect(() => {
+    const iv = setInterval(() => setTime(ts()), 1000);
+    return () => clearInterval(iv);
+  }, []);
+  return (
+    <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono',monospace", color }}>
+      {time}
+    </span>
+  );
+}
+
 export default function App() {
   const COLORS = useColors();
   const { isDark, toggle: toggleTheme } = useTheme();
   const [screen, setScreen] = useState("DASHBOARD");
   const [cmdOpen, setCmdOpen] = useState(false);
   const [cmdQuery, setCmdQuery] = useState("");
-  const [time, setTime] = useState(ts());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const cmdRef = useRef(null);
@@ -65,12 +82,6 @@ export default function App() {
   // ── Global data: fetch stock quotes, share across screens ──
   const { data: allStockQuotes, loading: stocksLoading } = useQuotes(US_STOCKS, 15000);
   const { data: newsData, loading: newsLoading } = useNews(null, 45000);
-
-  // ── Clock ──
-  useEffect(() => {
-    const iv = setInterval(() => setTime(ts()), 1000);
-    return () => clearInterval(iv);
-  }, []);
 
   // Close mobile menu on screen change
   useEffect(() => {
@@ -96,6 +107,8 @@ export default function App() {
   }, [cmdOpen]);
 
   const [initialSymbol, setInitialSymbol] = useState(null);
+  // Stable identity so EquityAnalysis's effect doesn't re-run on every render.
+  const handleSymbolConsumed = useCallback(() => setInitialSymbol(null), []);
 
   // Live Yahoo Finance search for any stock
   const { results: searchResults, loading: searchLoading } = useSearch(cmdQuery, 400);
@@ -153,7 +166,7 @@ export default function App() {
       case "DASHBOARD":
         return <MarketDashboard allStockQuotes={allStockQuotes} news={newsData} />;
       case "EQUITY":
-        return <EquityAnalysis allStockQuotes={allStockQuotes} initialSymbol={initialSymbol} onSymbolConsumed={() => setInitialSymbol(null)} />;
+        return <EquityAnalysis allStockQuotes={allStockQuotes} initialSymbol={initialSymbol} onSymbolConsumed={handleSymbolConsumed} />;
       case "FX":
         return <FXDashboard />;
       case "FIXED_INCOME":
@@ -308,9 +321,7 @@ export default function App() {
               >
                 {isDark ? <Sun size={14} color={COLORS.gold} /> : <Moon size={14} color={COLORS.purpleDark} />}
               </div>
-              <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono',monospace", color: COLORS.green }}>
-                {time}
-              </span>
+              <Clock color={COLORS.green} />
               <div style={{ width: 1, height: 20, background: COLORS.border }} />
               <Badge color={allStockQuotes.length > 0 ? COLORS.green : COLORS.orange}>
                 {allStockQuotes.length} LIVE
@@ -455,7 +466,9 @@ export default function App() {
           {/* key={screen} unmounts the boundary on navigation so a stale error
               from one screen doesn't stick when the user opens another. */}
           <ErrorBoundary key={screen} screen={screen}>
-            {renderScreen()}
+            <Suspense fallback={<LoadingSpinner text="Loading screen..." />}>
+              {renderScreen()}
+            </Suspense>
           </ErrorBoundary>
         </div>
       </div>

@@ -6,30 +6,10 @@ import {
 import {
   TrendingUp, Activity, Calculator, Building, PieChart as PieIcon, ChevronDown,
 } from "lucide-react";
-import { fmt, fmtK, fmtPct } from "../config";
+import { fmt, fmtK, fmtPct, fmtAxisDate, fmtTooltipDate } from "../config";
 import { useColors } from "../ThemeContext";
 import { useHistorical, useFinancialsWithRetry, useQuotes, useIsMobile } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, DataCell, TabBar, MiniTable, LoadingSpinner } from "../shared";
-
-const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-function fmtAxisDate(iso, showYear) {
-  if (!iso || typeof iso !== "string") return "";
-  const parts = iso.split("-");
-  if (parts.length < 3) return iso;
-  const [y, m, d] = parts;
-  const mi = parseInt(m, 10) - 1;
-  const mon = MONTHS_SHORT[mi] || m;
-  return showYear ? `${mon} '${y.slice(-2)}` : `${mon} ${parseInt(d, 10)}`;
-}
-function fmtTooltipDate(iso) {
-  if (!iso || typeof iso !== "string") return "";
-  const parts = iso.split("-");
-  if (parts.length < 3) return iso;
-  const [y, m, d] = parts;
-  const mi = parseInt(m, 10) - 1;
-  const mon = MONTHS_SHORT[mi] || m;
-  return `${mon} ${parseInt(d, 10)}, ${y}`;
-}
 
 export default function EquityAnalysis({ allStockQuotes, initialSymbol, onSymbolConsumed }) {
   const COLORS = useColors();
