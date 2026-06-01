@@ -143,11 +143,15 @@ export default function EconomicCalendar() {
               ["us10y", isMobile ? "10Y Treasury" : "US 10-Year Treasury"],
               ["us30y", isMobile ? "30Y Treasury" : "US 30-Year Treasury"],
             ].map(([key, label]) => {
-              const y = rates[key];
-              const hasValue = y != null && !Number.isNaN(y);
+              // Coerce before testing: Number.isNaN(y) is false for a string
+              // like "4.2", so a stringified yield would slip past a raw
+              // !Number.isNaN guard and crash on y.toFixed(). Number.isFinite
+              // on the coerced value is the correct, type-safe check.
+              const yNum = Number(rates[key]);
+              const hasValue = rates[key] != null && rates[key] !== "" && Number.isFinite(yNum);
               return [
                 <span style={{ color: COLORS.text }}>{label}</span>,
-                <span style={{ color: COLORS.gold, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>{hasValue ? y.toFixed(2) + "%" : "\u2014"}</span>,
+                <span style={{ color: COLORS.gold, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>{hasValue ? yNum.toFixed(2) + "%" : "\u2014"}</span>,
                 hasValue ? <Badge color={COLORS.green}>LIVE</Badge> : <Badge color={COLORS.textMuted}>No data</Badge>,
               ];
             })}

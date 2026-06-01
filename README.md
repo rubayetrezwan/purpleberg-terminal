@@ -1,11 +1,10 @@
 # Purpleberg Terminal
 
 A Bloomberg-style market terminal built as a personal project: React + Vite
-frontend, a thin Express proxy to Yahoo Finance and CoinGecko, and optional
-Claude-powered chat. Twelve screens cover equities, FX, fixed income,
-commodities, crypto (top 20 by market cap), a screener, portfolio tracking,
-risk analytics, economic calendar, news, and a side-by-side stock compare
-view.
+frontend and a thin Express proxy to Yahoo Finance and CoinGecko. Twelve screens
+cover equities, FX, fixed income, commodities, crypto (top 20 by market cap), a
+screener, portfolio tracking, risk analytics, economic calendar, news, and a
+side-by-side stock compare view.
 
 > **This is a hobby / learning project, not a licensed market-data product.**
 > Read the [Data source disclaimer](#data-source-disclaimer) before running it
@@ -45,12 +44,12 @@ Node 18+ is required (ESM + `fetch`).
 └─────────────────────┘      │                         │──────▶ CoinGecko API  │
                              │                         │      │  (public, no key)│
                              │                         │      └────────────────┘
-                             │                         │──────▶ Anthropic API  │
-                             └─────────────────────────┘      │  (chat only)   │
+                             │                         │──────▶ CoinPaprika    │
+                             └─────────────────────────┘      │  (crypto fallback)│
                                                               └────────────────┘
 ```
 
-- `src/` — React app. Screens are lazy-free, live under `src/screens/`.
+- `src/` — React app. Screens live under `src/screens/`.
 - `src/hooks.js` — data-fetching and polling hooks. Polls automatically pause
   while the tab is hidden.
 - `src/ThemeContext.jsx` — single source of truth for dark/light palette;
@@ -58,8 +57,8 @@ Node 18+ is required (ESM + `fetch`).
 - `src/ErrorBoundary.jsx` — class-based boundary wrapped around the screen
   router so one broken panel cannot take down the terminal.
 - `server/index.js` — Express proxy. Handles the Yahoo crumb dance, caches
-  responses in a bounded LRU, rate-limits clients, and optionally forwards
-  `/api/chat` to Anthropic.
+  responses in a bounded LRU, rate-limits clients, and proxies CoinGecko with an
+  automatic CoinPaprika fallback when CoinGecko rate-limits the deploy IP.
 
 ### Data flow
 
@@ -75,17 +74,13 @@ Node 18+ is required (ESM + `fetch`).
 
 ## Environment variables
 
-Create `.env` at the repo root:
+Create `.env` at the repo root (all are optional — defaults cover local dev):
 
-| Variable            | Default                                             | Meaning                                                |
-| ------------------- | --------------------------------------------------- | ------------------------------------------------------ |
-| `PORT`              | `3001`                                              | Backend HTTP port.                                     |
-| `ALLOWED_ORIGINS`   | `http://localhost:5173,http://localhost:3001`       | CORS allowlist (comma-separated).                      |
-| `ANTHROPIC_API_KEY` | _unset_                                             | Optional. Enables the AI Assistant (ASKB) screen.      |
-| `CHAT_DAILY_MAX`    | `500`                                               | Max `/api/chat` requests per UTC day (spend guard).    |
-
-If `ANTHROPIC_API_KEY` is missing, the AI screen degrades gracefully and
-returns a friendly error instead of 500.
+| Variable             | Default                                       | Meaning                                                     |
+| -------------------- | --------------------------------------------- | ---------------------------------------------------------- |
+| `PORT`               | `3001`                                        | Backend HTTP port.                                         |
+| `ALLOWED_ORIGINS`    | `http://localhost:5173,http://localhost:3001` | CORS allowlist (comma-separated).                          |
+| `COINGECKO_API_KEY`  | _unset_                                       | Optional CoinGecko Demo key; lifts the public rate limit.  |
 
 ---
 
@@ -94,16 +89,14 @@ returns a friendly error instead of 500.
 The proxy is hardened for **local / single-user** use. It is not ready to be
 exposed on the public internet. What is already in place:
 
-- CORS **allowlist** (not `*`). Non-matching origins are rejected.
-- `express-rate-limit`: 120 req/min on `/api/*`, 10 req/min on `/api/chat`.
+- CORS **allowlist** (not `*`) via `ALLOWED_ORIGINS`. Browser requests from a
+  non-matching origin are rejected; requests with no `Origin` header (curl,
+  same-origin server-to-server such as the Vite dev proxy) are allowed.
+- `express-rate-limit`: 600 req/min on `/api/*`.
 - JSON body limit of 32 KB.
 - Strict ticker regex validation on every user-supplied symbol.
 - Allow-lists for `range` / `interval` on `/api/historical`.
 - Bounded LRU cache (`max: 2000`, 15-min default TTL) — no unbounded Map.
-- Daily budget cap on `/api/chat` so a leaked deployment cannot burn an
-  Anthropic key unchecked.
-- `/api/chat` validates the `messages` array length (≤20) and truncates each
-  message body to 4 000 chars.
 
 What is still required before exposing this publicly:
 
@@ -158,8 +151,9 @@ B-PIPE, Nasdaq Data Link.
 | `npm run dev`        | Run backend + frontend concurrently.  |
 | `npm run dev:server` | Run only the Express proxy.           |
 | `npm run dev:client` | Run only Vite (frontend).             |
-| `npm run build`      | Production build of the frontend.    |
-| `npm start`          | Run the Express server only (prod).  |
+| `npm run build`      | Production build of the frontend.     |
+| `npm start`          | Run the Express server only (prod).   |
+| `npm test`           | Run the unit tests (node:test).       |
 
 ---
 
@@ -168,7 +162,7 @@ B-PIPE, Nasdaq Data Link.
 ```
 purpleberg-terminal/
 ├── server/
-│   └── index.js              # Express proxy (Yahoo + Anthropic)
+│   └── index.js              # Express proxy (Yahoo + CoinGecko/CoinPaprika)
 ├── src/
 │   ├── App.jsx               # Screen router, top bar, command palette
 │   ├── ErrorBoundary.jsx     # Per-screen error isolation
@@ -176,6 +170,7 @@ purpleberg-terminal/
 │   ├── hooks.js              # useQuotes/useNews/useHistorical/useIsMobile
 │   ├── api.js                # Thin fetch wrapper around the proxy
 │   ├── config.js             # Tickers and formatting helpers
+│   ├── compareUtils.js       # Pure helpers for the Compare screen (unit-tested)
 │   ├── shared.jsx            # Panel, Badge, MiniTable, DataCell, …
 │   └── screens/              # Twelve function screens (incl. CompareStocks)
 ├── index.html

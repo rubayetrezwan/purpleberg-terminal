@@ -8,21 +8,36 @@ import { fmt, fmtK } from "../config";
 import { normalizeToPct, alignTimelines, winnerOf } from "../compareUtils";
 
 function CompareRow({ label, aVal, bVal, format, higherIsBetter, suffix = "", COLORS }) {
-  const winner = winnerOf(aVal, bVal, higherIsBetter);
+  // Coerce to a finite Number up front. Callers pass a grab-bag of shapes:
+  // plain numbers, numeric strings ("46.8"), Yahoo's {raw, fmt} objects, and
+  // null/"N/A". The format() helpers call .toFixed(), which throws on anything
+  // non-numeric — so normalise once here and let every cell/winner comparison
+  // work on real numbers. Anything that can't become a finite number → NaN,
+  // and the cell guard renders an em dash instead of crashing the screen.
+  const toNum = (v) => {
+    if (v == null) return NaN;
+    if (typeof v === "number") return v;
+    if (typeof v === "string") return parseFloat(v);
+    if (typeof v === "object" && "raw" in v) return Number(v.raw);
+    return Number(v);
+  };
+  const a = toNum(aVal);
+  const b = toNum(bVal);
+  const winner = winnerOf(a, b, higherIsBetter);
   const cell = (val, highlighted) => (
     <span style={{
       fontFamily: "'JetBrains Mono',monospace",
       color: highlighted ? COLORS.green : COLORS.text,
       fontWeight: highlighted ? 700 : 500,
     }}>
-      {val == null || val === 0 || Number.isNaN(val) ? "—" : format(val) + suffix}
+      {!Number.isFinite(val) || val === 0 ? "—" : format(val) + suffix}
     </span>
   );
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 12, alignItems: "center", padding: "4px 0", borderBottom: `1px solid ${COLORS.border}22`, fontSize: 11 }}>
-      <div style={{ textAlign: "right" }}>{cell(aVal, winner === "a")}</div>
+      <div style={{ textAlign: "right" }}>{cell(a, winner === "a")}</div>
       <div style={{ color: COLORS.textMuted, fontSize: 10, whiteSpace: "nowrap" }}>{label}</div>
-      <div style={{ textAlign: "left" }}>{cell(bVal, winner === "b")}</div>
+      <div style={{ textAlign: "left" }}>{cell(b, winner === "b")}</div>
     </div>
   );
 }
@@ -239,10 +254,10 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
                     <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
                       <XAxis dataKey="date" tick={{ fontSize: 10, fill: COLORS.textMuted }} minTickGap={40} />
-                      <YAxis tick={{ fontSize: 10, fill: COLORS.textMuted }} tickFormatter={(v) => v.toFixed(0) + "%"} />
+                      <YAxis tick={{ fontSize: 10, fill: COLORS.textMuted }} tickFormatter={(v) => Number.isFinite(v) ? v.toFixed(0) + "%" : ""} />
                       <Tooltip
                         contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11 }}
-                        formatter={(v) => (v == null ? "—" : v.toFixed(2) + "%")}
+                        formatter={(v) => (Number.isFinite(v) ? v.toFixed(2) + "%" : "—")}
                       />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
                       <Line type="monotone" dataKey="a" name={liveA} stroke={COLORS.purple} strokeWidth={2} dot={false} connectNulls={false} />

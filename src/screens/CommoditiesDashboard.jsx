@@ -4,7 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { Gem, Activity, Info, BarChart3, ChevronDown } from "lucide-react";
-import { COMMODITY_SYMBOLS, fmt, fmtK, fmtPct } from "../config";
+import { COMMODITY_SYMBOLS, fmt, fmtK, fmtPct, fmtAxisDate, fmtTooltipDate } from "../config";
 import { useColors } from "../ThemeContext";
 import { useQuotes, useHistorical, useIsMobile } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, DataCell, TabBar, LoadingSpinner } from "../shared";
@@ -21,30 +21,6 @@ function extractContractMonth(longName) {
   const mon = m[1].slice(0, 3).toUpperCase();
   const yr = m[2].length === 4 ? m[2].slice(-2) : m[2];
   return `${mon} '${yr}`;
-}
-
-// Format an ISO "YYYY-MM-DD" for chart XAxis ticks. On a short range we can
-// show just MM-DD (one year is implied); on >1y ranges we prepend the year so
-// 5Y charts are not ambiguous. Recharts passes raw string values through
-// untouched unless we format them, so the helper is called from tickFormatter.
-const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-function fmtAxisDate(iso, showYear) {
-  if (!iso || typeof iso !== "string") return "";
-  const parts = iso.split("-");
-  if (parts.length < 3) return iso;
-  const [y, m, d] = parts;
-  const mi = parseInt(m, 10) - 1;
-  const mon = MONTHS_SHORT[mi] || m;
-  return showYear ? `${mon} '${y.slice(-2)}` : `${mon} ${parseInt(d, 10)}`;
-}
-function fmtTooltipDate(iso) {
-  if (!iso || typeof iso !== "string") return "";
-  const parts = iso.split("-");
-  if (parts.length < 3) return iso;
-  const [y, m, d] = parts;
-  const mi = parseInt(m, 10) - 1;
-  const mon = MONTHS_SHORT[mi] || m;
-  return `${mon} ${parseInt(d, 10)}, ${y}`;
 }
 
 // Yahoo's quote endpoint does not expose futures contract specs (exchange,
