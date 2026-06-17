@@ -66,13 +66,12 @@ export default function NewsCenter({ news, loading }) {
               href={n.link}
               target="_blank"
               rel="noopener noreferrer"
+              className="pb-link-row"
               style={{
                 display: "block", padding: "10px 14px",
                 borderBottom: `1px solid ${COLORS.border}22`,
                 cursor: "pointer", textDecoration: "none",
               }}
-              onMouseOver={(e) => (e.currentTarget.style.background = COLORS.bgPanel)}
-              onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
             >
               <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4, flexWrap: "wrap" }}>
                 {n.publishedAt && (

@@ -130,10 +130,7 @@ export default function MarketDashboard({ allStockQuotes, news }) {
             <LoadingSpinner text="Fetching news..." />
           ) : (
             newsItems.map((n, i) => (
-              <a key={i} href={n.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", display: "block", padding: "6px 10px", borderBottom: `1px solid ${COLORS.border}22`, cursor: "pointer" }}
-                onMouseOver={(e) => (e.currentTarget.style.background = COLORS.bgPanel)}
-                onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
-              >
+              <a key={i} href={n.link} target="_blank" rel="noopener noreferrer" className="pb-link-row" style={{ textDecoration: "none", display: "block", padding: "6px 10px", borderBottom: `1px solid ${COLORS.border}22`, cursor: "pointer" }}>
                 <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 2 }}>
                   <Badge color={COLORS.blue}>{n.publisher?.slice(0, 12) || "News"}</Badge>
                   {n.relatedSymbol && <Badge color={COLORS.green}>{n.relatedSymbol}</Badge>}

@@ -1,0 +1,316 @@
+/* ============================================================
+   Purpleberg Terminal — design system
+   Single source of truth for tokens, base styles, and the
+   reusable classes the React components build on. The palette
+   mirrors ThemeContext (useColors() still works); switching
+   `data-theme` on <html> flips every var below.
+   ============================================================ */
+
+:root {
+  /* type scale */
+  --fs-2xs: 9px;
+  --fs-xs: 10px;
+  --fs-sm: 11px;
+  --fs-base: 12px;
+  --fs-md: 13px;
+  --fs-lg: 14px;
+  --fs-xl: 16px;
+  --fs-2xl: 18px;
+  --fs-3xl: 20px;
+  --fs-4xl: 22px;
+
+  /* spacing scale */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+
+  /* radii */
+  --r-sm: 3px;
+  --r-md: 4px;
+  --r-lg: 6px;
+  --r-xl: 8px;
+
+  /* fonts */
+  --font-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* effects */
+  --shadow-pop: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --t-fast: 0.15s ease;
+}
+
+/* ---- Dark theme (default) ---- */
+:root,
+:root[data-theme="dark"] {
+  --c-bg: #0a0a0f;
+  --c-panel: #111118;
+  --c-card: #1a1a24;
+  --c-input: #16161f;
+  --c-border: #2a2a3a;
+  --c-border-light: #3a3a4a;
+  --c-purple: #8b5cf6;
+  --c-purple-light: #a78bfa;
+  --c-purple-dark: #6d28d9;
+  --c-purple-dim: #4c1d95;
+  --c-green: #22c55e;
+  --c-red: #ef4444;
+  --c-orange: #f59e0b;
+  --c-blue: #3b82f6;
+  --c-cyan: #06b6d4;
+  --c-text: #e2e8f0;
+  --c-text-dim: #94a3b8;
+  --c-text-muted: #64748b;
+  --c-gold: #fbbf24;
+  --c-white: #ffffff;
+}
+
+/* ---- Light theme ---- */
+:root[data-theme="light"] {
+  --c-bg: #f1f5f9;
+  --c-panel: #ffffff;
+  --c-card: #f8fafc;
+  --c-input: #e2e8f0;
+  --c-border: #cbd5e1;
+  --c-border-light: #e2e8f0;
+  --c-purple: #7c3aed;
+  --c-purple-light: #6d28d9;
+  --c-purple-dark: #5b21b6;
+  --c-purple-dim: #ede9fe;
+  --c-green: #16a34a;
+  --c-red: #dc2626;
+  --c-orange: #d97706;
+  --c-blue: #2563eb;
+  --c-cyan: #0891b2;
+  --c-text: #0f172a;
+  --c-text-dim: #475569;
+  --c-text-muted: #64748b;
+  --c-gold: #b45309;
+  --c-white: #ffffff;
+}
+
+/* ============================================================
+   Base
+   ============================================================ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root { height: 100%; }
+
+body {
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Inherit fonts on form/interactive elements (was relying on inline styles). */
+button, input, select, textarea { font: inherit; color: inherit; }
+
+/* Reset for our many icon/nav "buttons" that used to be <div onClick>. */
+.pb-reset {
+  appearance: none;
+  background: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+/* Keyboard-only focus ring — the app had none. */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--c-purple);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+* { -webkit-tap-highlight-color: transparent; }
+input::placeholder { color: var(--c-text-muted); }
+
+/* ---- Scrollbars (moved out of App's inline <style>) ---- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--c-bg); }
+::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: var(--r-sm); }
+::-webkit-scrollbar-thumb:hover { background: var(--c-purple); }
+
+/* ---- Keyframes ---- */
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+@keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@keyframes tickerScroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+
+/* ---- Responsive helpers ---- */
+@media (max-width: 768px) { .hide-mobile { display: none !important; } }
+@media (max-width: 1024px) { .hide-tablet { display: none !important; } }
+
+/* ============================================================
+   Utilities
+   ============================================================ */
+.pb-mono { font-family: var(--font-mono); }
+.pb-pos { color: var(--c-green); }
+.pb-neg { color: var(--c-red); }
+.pb-muted { color: var(--c-text-muted); }
+.pb-dim { color: var(--c-text-dim); }
+
+/* ============================================================
+   Components
+   ============================================================ */
+
+/* Panel / card */
+.pb-panel {
+  background: var(--c-card);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.pb-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px var(--sp-3) 10px 14px;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-panel);
+}
+.pb-panel-header__title { font-size: var(--fs-md); font-weight: 700; color: var(--c-text); letter-spacing: 0.5px; }
+.pb-panel-header__sub { font-size: var(--fs-xs); color: var(--c-text-muted); }
+
+/* Badge */
+.pb-badge {
+  display: inline-block;
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-md);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+/* Generic small button (chips, range/type toggles) */
+.pb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) 10px;
+  font-size: var(--fs-xs);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--c-text-muted);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+.pb-btn:hover { border-color: var(--c-purple); color: var(--c-text); }
+.pb-btn--active {
+  border-color: var(--c-purple);
+  background: color-mix(in srgb, var(--c-purple-dim) 40%, transparent);
+  color: var(--c-purple-light);
+}
+
+/* Square icon button (theme toggle, hamburger, search) */
+.pb-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-lg);
+  background: var(--c-input);
+  border: 1px solid var(--c-border);
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+.pb-icon-btn:hover { border-color: var(--c-purple); }
+
+/* Generic hover-row (sidebar items, palette rows) — replaces JS onMouseOver */
+.pb-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  cursor: pointer;
+  transition: background var(--t-fast);
+}
+.pb-row:hover { background: var(--c-panel); }
+
+/* Hoverable link/list row (news items, etc.) — replaces JS onMouseOver */
+.pb-link-row { transition: background var(--t-fast); }
+.pb-link-row:hover { background: var(--c-panel); }
+
+/* Tab bar */
+.pb-tabbar { display: flex; border-bottom: 1px solid var(--c-border); background: var(--c-panel); }
+.pb-tab {
+  padding: var(--sp-2) var(--sp-4);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  background: transparent;
+  color: var(--c-text-muted);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.pb-tab:hover { color: var(--c-text-dim); }
+.pb-tab--active {
+  background: color-mix(in srgb, var(--c-purple-dim) 66%, transparent);
+  color: var(--c-purple-light);
+  border-bottom-color: var(--c-purple);
+}
+
+/* Sidebar / menu nav item */
+.pb-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  text-align: left;
+  transition: background var(--t-fast);
+}
+.pb-nav-item:hover { background: var(--c-card); }
+.pb-nav-item--active {
+  background: color-mix(in srgb, var(--c-purple-dim) 27%, transparent);
+  border-left-color: var(--c-purple);
+}
+
+/* Data cell (label over value) */
+.pb-datacell__label {
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+.pb-datacell__value { font-size: var(--fs-lg); font-weight: 700; font-family: var(--font-mono); }
+.pb-datacell__sub { font-size: var(--fs-xs); color: var(--c-text-dim); }
+
+/* Tables */
+.pb-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.pb-table th {
+  padding: var(--sp-1) var(--sp-2);
+  color: var(--c-text-muted);
+  border-bottom: 1px solid var(--c-border);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-align: right;
+}
+.pb-table th:first-child { text-align: left; }
+.pb-table td {
+  padding: 5px var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  text-align: right;
+}
+.pb-table td:first-child { text-align: left; }
+.pb-table tbody tr { border-bottom: 1px solid color-mix(in srgb, var(--c-border) 22%, transparent); }
+.pb-table tbody tr:last-child { border-bottom: 0; }
+.pb-table--hover tbody tr { transition: background var(--t-fast); }
+.pb-table--hover tbody tr:hover { background: color-mix(in srgb, var(--c-panel) 60%, transparent); }

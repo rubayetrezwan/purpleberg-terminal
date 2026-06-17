@@ -69,6 +69,9 @@ export function ThemeProvider({ children }) {
     try {
       localStorage.setItem(THEME_KEY, isDark ? "dark" : "light");
     } catch {}
+    // Drive the CSS custom properties in index.css. useColors() still returns
+    // the JS palette for components that read colours inline.
+    document.documentElement.dataset.theme = isDark ? "dark" : "light";
   }, [isDark]);
 
   const toggle = () => setIsDark((v) => !v);

@@ -1,233 +1,113 @@
 import { useColors } from "./ThemeContext";
 
+// Primitives shared across every screen. Styling lives in index.css (token
+// classes); only genuinely per-instance colours stay inline.
+
 export const Badge = ({ children, color }) => {
   const COLORS = useColors();
   const c = color || COLORS.purple;
   return (
-    <span
-      style={{
-        background: c + "22",
-        color: c,
-        padding: "2px 8px",
-        borderRadius: 4,
-        fontSize: 10,
-        fontWeight: 600,
-        letterSpacing: 0.5,
-      }}
-    >
+    <span className="pb-badge" style={{ background: c + "22", color: c }}>
       {children}
     </span>
   );
 };
 
 export const ChgVal = ({ val, suffix = "%" }) => {
-  const COLORS = useColors();
-  if (val == null || isNaN(val)) return <span style={{ color: COLORS.textMuted }}>--</span>;
+  if (val == null || isNaN(val)) return <span className="pb-muted">--</span>;
   const v = Object.is(val, -0) ? 0 : val;
   return (
     <span
-      style={{
-        color: v >= 0 ? COLORS.green : COLORS.red,
-        fontWeight: 600,
-        fontFamily: "'JetBrains Mono',monospace",
-        fontSize: 12,
-      }}
+      className={`pb-mono ${v >= 0 ? "pb-pos" : "pb-neg"}`}
+      style={{ fontWeight: 600, fontSize: "var(--fs-base)" }}
     >
-      {v >= 0 ? "\u25B2" : "\u25BC"} {Math.abs(v).toFixed(2)}
+      {v >= 0 ? "▲" : "▼"} {Math.abs(v).toFixed(2)}
       {suffix}
     </span>
   );
 };
 
-export const DataCell = ({ label, value, sub, color }) => {
-  const COLORS = useColors();
-  return (
-    <div style={{ padding: "6px 0" }}>
-      <div
-        style={{
-          fontSize: 10,
-          color: COLORS.textMuted,
-          textTransform: "uppercase",
-          letterSpacing: 0.8,
-        }}
+export const DataCell = ({ label, value, sub, color }) => (
+  <div style={{ padding: "6px 0" }}>
+    <div className="pb-datacell__label">{label}</div>
+    <div className="pb-datacell__value" style={{ color: color || "var(--c-text)" }}>
+      {value}
+    </div>
+    {sub && <div className="pb-datacell__sub">{sub}</div>}
+  </div>
+);
+
+export const PanelHeader = ({ icon, title, subtitle, right }) => (
+  <div className="pb-panel-header">
+    <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+      {icon}
+      <div>
+        <div className="pb-panel-header__title">{title}</div>
+        {subtitle && <div className="pb-panel-header__sub">{subtitle}</div>}
+      </div>
+    </div>
+    {right}
+  </div>
+);
+
+export const Panel = ({ children, style = {} }) => (
+  <div className="pb-panel" style={style}>
+    {children}
+  </div>
+);
+
+export const TabBar = ({ tabs, active, onChange }) => (
+  <div className="pb-tabbar" role="tablist">
+    {tabs.map((t) => (
+      <button
+        key={t}
+        type="button"
+        role="tab"
+        aria-selected={active === t}
+        className={`pb-tab${active === t ? " pb-tab--active" : ""}`}
+        onClick={() => onChange(t)}
       >
-        {label}
-      </div>
-      <div
-        style={{
-          fontSize: 15,
-          fontWeight: 700,
-          color: color || COLORS.text,
-          fontFamily: "'JetBrains Mono',monospace",
-        }}
-      >
-        {value}
-      </div>
-      {sub && (
-        <div style={{ fontSize: 10, color: COLORS.textDim }}>{sub}</div>
-      )}
-    </div>
-  );
-};
+        {t}
+      </button>
+    ))}
+  </div>
+);
 
-export const PanelHeader = ({ icon, title, subtitle, right }) => {
-  const COLORS = useColors();
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "10px 14px",
-        borderBottom: `1px solid ${COLORS.border}`,
-        background: COLORS.bgPanel,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        {icon}
-        <div>
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 700,
-              color: COLORS.text,
-              letterSpacing: 0.5,
-            }}
-          >
-            {title}
-          </div>
-          {subtitle && (
-            <div style={{ fontSize: 10, color: COLORS.textMuted }}>
-              {subtitle}
-            </div>
-          )}
-        </div>
-      </div>
-      {right}
-    </div>
-  );
-};
-
-export const Panel = ({ children, style = {} }) => {
-  const COLORS = useColors();
-  return (
-    <div
-      style={{
-        background: COLORS.bgCard,
-        border: `1px solid ${COLORS.border}`,
-        borderRadius: 6,
-        overflow: "hidden",
-        ...style,
-      }}
-    >
-      {children}
-    </div>
-  );
-};
-
-export const TabBar = ({ tabs, active, onChange }) => {
-  const COLORS = useColors();
-  return (
-    <div
-      style={{
-        display: "flex",
-        borderBottom: `1px solid ${COLORS.border}`,
-        background: COLORS.bgPanel,
-      }}
-    >
-      {tabs.map((t) => (
-        <button
-          key={t}
-          onClick={() => onChange(t)}
-          style={{
-            padding: "8px 16px",
-            fontSize: 11,
-            fontWeight: 600,
-            letterSpacing: 0.5,
-            cursor: "pointer",
-            border: "none",
-            background:
-              active === t ? COLORS.purpleDim + "66" : "transparent",
-            color: active === t ? COLORS.purpleLight : COLORS.textMuted,
-            borderBottom:
-              active === t
-                ? `2px solid ${COLORS.purple}`
-                : "2px solid transparent",
-            textTransform: "uppercase",
-          }}
-        >
-          {t}
-        </button>
-      ))}
-    </div>
-  );
-};
-
-export const MiniTable = ({ headers, rows }) => {
-  const COLORS = useColors();
-  return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
-        <thead>
-          <tr>
-            {headers.map((h, i) => (
-              <th
-                key={i}
-                style={{
-                  padding: "6px 8px",
-                  textAlign: i === 0 ? "left" : "right",
-                  color: COLORS.textMuted,
-                  borderBottom: `1px solid ${COLORS.border}`,
-                  fontSize: 10,
-                  fontWeight: 600,
-                  letterSpacing: 0.5,
-                  textTransform: "uppercase",
-                }}
-              >
-                {h}
-              </th>
+export const MiniTable = ({ headers, rows }) => (
+  <div style={{ overflowX: "auto" }}>
+    <table className="pb-table">
+      <thead>
+        <tr>
+          {headers.map((h, i) => (
+            <th key={i}>{h}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, ri) => (
+          <tr key={ri}>
+            {row.map((cell, ci) => (
+              <td key={ci}>{cell}</td>
             ))}
           </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, ri) => (
-            <tr key={ri} style={{ borderBottom: `1px solid ${COLORS.border}22` }}>
-              {row.map((cell, ci) => (
-                <td
-                  key={ci}
-                  style={{
-                    padding: "5px 8px",
-                    textAlign: ci === 0 ? "left" : "right",
-                    fontFamily: "'JetBrains Mono',monospace",
-                    fontSize: 11,
-                  }}
-                >
-                  {cell}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-};
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
 
-export const LoadingSpinner = ({ text = "Loading..." }) => {
-  const COLORS = useColors();
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 40,
-        color: COLORS.textMuted,
-        fontSize: 12,
-        gap: 8,
-      }}
-    >
-      <span style={{ animation: "pulse 1.5s infinite" }}>{"\u25CE"}</span> {text}
-    </div>
-  );
-};
+export const LoadingSpinner = ({ text = "Loading..." }) => (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 40,
+      color: "var(--c-text-muted)",
+      fontSize: "var(--fs-base)",
+      gap: "var(--sp-2)",
+    }}
+  >
+    <span style={{ animation: "pulse 1.5s infinite" }}>{"◎"}</span> {text}
+  </div>
+);
