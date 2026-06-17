@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import rateLimit from "express-rate-limit";
 import { LRUCache } from "lru-cache";
+import { raw, normalizeFinnhubIpo, crossRate } from "./format.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -199,6 +200,22 @@ async function mapWithConcurrency(items, limit, fn) {
   return out;
 }
 
+// Warm the beta cache for the given symbols in the background. Quote responses
+// read whatever beta is already cached and never block on these per-symbol
+// quoteSummary calls — they land in the 24h LRU and surface on the next poll.
+// The in-flight set stops overlapping quote polls from stampeding Yahoo with
+// duplicate requests for the same ticker.
+const betaInFlight = new Set();
+function warmBetas(symbols) {
+  const todo = symbols.filter((s) => !betaInFlight.has(s) && betaCache.get(s) === undefined);
+  if (!todo.length) return;
+  for (const s of todo) betaInFlight.add(s);
+  // fetchBeta caches both success (24h) and failure (60s) itself; fire-and-forget.
+  mapWithConcurrency(todo, 5, (s) => fetchBeta(s))
+    .catch(() => {})
+    .finally(() => { for (const s of todo) betaInFlight.delete(s); });
+}
+
 // ── Synthetic (derived) FX cross rates ──────────────────
 // Yahoo Finance doesn't publish direct series for every currency pair.
 // AUDBDT=X in particular returns "No data found, symbol may be delisted",
@@ -294,12 +311,19 @@ async function yahooQuoteBatch(symbols) {
     ...synths,
   ];
 
-  // Enrich equities with beta (throttled to 5 concurrent, 24h LRU cached).
+  // Attach beta from the 24h cache without blocking the quote response. The
+  // per-symbol quoteSummary calls that populate it are slow and only two screens
+  // (Screener, Compare) consume beta, so a cold-cache Dashboard poll of ~99
+  // symbols no longer stalls several seconds on the fan-out. Misses come back as
+  // 0 and are warmed in the background, appearing on the next poll (~15s later).
   const equities = results.filter((q) => q.quoteType === "EQUITY");
-  if (equities.length > 0) {
-    const betas = await mapWithConcurrency(equities, 5, (q) => fetchBeta(q.symbol));
-    equities.forEach((q, i) => { q.beta = betas[i]; });
+  const missing = [];
+  for (const q of equities) {
+    const b = betaCache.get(q.symbol);
+    if (typeof b === "number") q.beta = b;
+    else { q.beta = 0; missing.push(q.symbol); }
   }
+  if (missing.length) warmBetas(missing);
 
   return results;
 }
@@ -421,27 +445,74 @@ async function yahooSearch(query) {
 }
 
 async function yahooSummary(symbol) {
-  const modules = "summaryProfile,financialData,defaultKeyStatistics,earnings,recommendationTrend,earningsTrend";
+  // summaryDetail carries trailingPE / forwardPE / priceToSalesTrailing12Months —
+  // defaultKeyStatistics does NOT expose trailing P/E or P/S, so the Ratios tab
+  // showed "N/A" / "[object Object]" without this module.
+  const modules = "summaryProfile,summaryDetail,financialData,defaultKeyStatistics,earnings,recommendationTrend,earningsTrend";
   const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${modules}`;
   return yahooAuthFetch(url).then((d) => d.quoteSummary?.result?.[0] || {});
 }
 
-// ── Helper: extract raw value from Yahoo's {raw, fmt} ───
-const raw = (v) => {
-  if (v == null) return 0;
-  if (typeof v === "object" && "raw" in v) return v.raw;
-  return v;
-};
+// ── Keyless FX fallback (open.er-api.com) ───────────────
+// The FX dashboard and the synthetic BDT crosses are otherwise 100% dependent
+// on Yahoo's unofficial endpoint — a single point of failure. open.er-api.com
+// is keyless, covers ~160 currencies (incl. BDT), and updates daily, so when
+// Yahoo returns nothing for a "=X" pair we can still serve a last-known rate
+// instead of a blank cell. Rates are USD-based ("units per 1 USD") and cached
+// for an hour; crossRate() derives any requested pair (incl. crosses) from them.
+const ERAPI_BASE = process.env.ERAPI_BASE || "https://open.er-api.com/v6";
+
+async function fxUsdRates() {
+  return cached("fx:usd-rates", 3600_000, async () => {
+    const r = await fetchWithTimeout(`${ERAPI_BASE}/latest/USD`, {
+      headers: { "User-Agent": UA, "Accept": "application/json" },
+    });
+    if (!r.ok) throw new Error(`er-api ${r.status}: ${r.statusText}`);
+    const body = await r.json();
+    const rates = body && body.rates;
+    if (!rates || typeof rates !== "object") throw new Error("er-api: no rates");
+    return rates;
+  });
+}
+
+// Build a v7-quote-shaped object for an FX pair from daily USD rates. Change is
+// 0 because we only have a daily snapshot — clearly a fallback, not intraday.
+function buildFxFallbackQuote(pairSymbol, rates) {
+  const price = crossRate(pairSymbol, rates);
+  if (!(price > 0)) return null;
+  const m = pairSymbol.replace(/=X$/i, "").toUpperCase();
+  const pair = `${m.slice(0, 3)}/${m.slice(3, 6)}`;
+  return {
+    symbol: pairSymbol,
+    shortName: pair,
+    longName: pair,
+    regularMarketPrice: price,
+    regularMarketChange: 0,
+    regularMarketChangePercent: 0,
+    regularMarketOpen: price,
+    regularMarketDayHigh: price,
+    regularMarketDayLow: price,
+    regularMarketPreviousClose: price,
+    regularMarketVolume: 0,
+    fiftyTwoWeekHigh: 0,
+    fiftyTwoWeekLow: 0,
+    exchange: "FX",
+    fullExchangeName: "FX (daily, fallback)",
+    currency: m.slice(3, 6),
+    marketState: "CLOSED",
+    quoteType: "CURRENCY",
+  };
+}
 
 // ── GET /api/quotes ─────────────────────────────────────
 app.get("/api/quotes", apiLimiter, async (req, res) => {
   try {
     const rawSymbols = (req.query.symbols || "").split(",").filter(Boolean);
-    const symbols = rawSymbols.filter(isTicker).slice(0, 80); // hard cap per request
+    const symbols = rawSymbols.filter(isTicker).slice(0, 300); // hard cap per request (Dashboard fetches ~250)
     if (!symbols.length) return res.json([]);
 
     const cacheKey = `quotes:${symbols.sort().join(",")}`;
-    const data = await cached(cacheKey, 12_000, async () => {
+    let data = await cached(cacheKey, 12_000, async () => {
       const results = [];
       // Batch in groups of 40 (v7 supports larger batches)
       for (let i = 0; i < symbols.length; i += 40) {
@@ -452,6 +523,21 @@ app.get("/api/quotes", apiLimiter, async (req, res) => {
       }
       return results;
     });
+
+    // FX fallback: any requested "=X" pair that Yahoo didn't return gets a
+    // last-known daily rate from open.er-api.com so the FX screen never blanks.
+    // No-op in the happy path (nothing missing → no fetch). Fully guarded.
+    const have = new Set(data.map((q) => q && q.symbol));
+    const missingFx = symbols.filter((s) => /=X$/i.test(s) && !have.has(s));
+    if (missingFx.length) {
+      try {
+        const rates = await fxUsdRates();
+        const fills = missingFx.map((s) => buildFxFallbackQuote(s, rates)).filter(Boolean);
+        if (fills.length) data = [...data, ...fills];
+      } catch (e) {
+        console.error("FX fallback error:", e.message);
+      }
+    }
 
     const mapped = data.map((q) => ({
       symbol: q.symbol,
@@ -528,6 +614,7 @@ app.get("/api/financials/:symbol", apiLimiter, async (req, res) => {
 
     const fd = data.financialData || {};
     const ks = data.defaultKeyStatistics || {};
+    const sd = data.summaryDetail || {};
     const profile = data.summaryProfile || {};
     const earnings = data.earnings || {};
     const recTrend = data.recommendationTrend?.trend?.[0] || {};
@@ -560,9 +647,11 @@ app.get("/api/financials/:symbol", apiLimiter, async (req, res) => {
         ebitda: fd.ebitdaMargins ? (raw(fd.ebitdaMargins) * 100).toFixed(1) : "0",
       },
       ratios: {
-        pe: raw(ks.trailingPe || ks.forwardPe),
-        pb: raw(ks.priceToBook),
-        ps: raw(ks.priceToSalesTrailing12Months),
+        // trailing/forward P/E and P/S live in summaryDetail; priceToBook is in
+        // defaultKeyStatistics. raw() collapses any value-less {} to 0.
+        pe: raw(sd.trailingPE) || raw(sd.forwardPE) || raw(ks.forwardPE),
+        pb: raw(ks.priceToBook) || raw(sd.priceToBook),
+        ps: raw(sd.priceToSalesTrailing12Months),
         evEbitda: raw(ks.enterpriseToEbitda),
         roe: fd.returnOnEquity ? (raw(fd.returnOnEquity) * 100).toFixed(1) : "0",
         roa: fd.returnOnAssets ? (raw(fd.returnOnAssets) * 100).toFixed(1) : "0",
@@ -583,7 +672,7 @@ app.get("/api/financials/:symbol", apiLimiter, async (req, res) => {
     };
 
     // Don't cache empty results (they indicate API failure)
-    const hasData = profile.sector || quarterlyRevenue.length > 0 || raw(ks.trailingPe);
+    const hasData = profile.sector || quarterlyRevenue.length > 0 || raw(sd.trailingPE);
     if (!hasData) {
       cache.delete(cacheKey); // Remove bad cache entry
     }
@@ -964,6 +1053,40 @@ app.get("/api/search", apiLimiter, async (req, res) => {
     res.json(data);
   } catch (e) {
     res.json([]);
+  }
+});
+
+// ── Finnhub IPO calendar ────────────────────────────────
+// Live recent + upcoming IPOs. Finnhub's free tier needs a key (FINNHUB_API_KEY);
+// without one the endpoint reports configured:false and the UI shows a friendly
+// "add a key" note while the curated 2026 list keeps working. Cached 6h (the
+// calendar barely moves intraday) with stale-on-error via cached().
+const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY || "";
+const FINNHUB_BASE = process.env.FINNHUB_BASE || "https://finnhub.io/api/v1";
+
+async function finnhubFetch(url) {
+  const r = await fetchWithTimeout(url, {
+    headers: { "User-Agent": UA, "Accept": "application/json" },
+  });
+  if (!r.ok) throw new Error(`Finnhub ${r.status}: ${r.statusText}`);
+  return r.json();
+}
+
+app.get("/api/ipo-calendar", apiLimiter, async (req, res) => {
+  if (!FINNHUB_API_KEY) return res.json({ configured: false, events: [] });
+  const now = Date.now();
+  const from = new Date(now - 21 * 86_400_000).toISOString().split("T")[0];
+  const to = new Date(now + 90 * 86_400_000).toISOString().split("T")[0];
+  const cacheKey = `ipo:finnhub:${from}:${to}`;
+  try {
+    const events = await cached(cacheKey, 6 * 3600_000, async () => {
+      const url = `${FINNHUB_BASE}/calendar/ipo?from=${from}&to=${to}&token=${encodeURIComponent(FINNHUB_API_KEY)}`;
+      return normalizeFinnhubIpo(await finnhubFetch(url));
+    });
+    res.json({ configured: true, events });
+  } catch (e) {
+    console.error("IPO calendar (Finnhub) error:", e.message);
+    res.json({ configured: true, events: [] });
   }
 });
 
