@@ -1,10 +1,12 @@
 # Purpleberg Terminal
 
 A Bloomberg-style market terminal built as a personal project: React + Vite
-frontend and a thin Express proxy to Yahoo Finance and CoinGecko. Twelve screens
-cover equities, FX, fixed income, commodities, crypto (top 20 by market cap), a
-screener, portfolio tracking, risk analytics, economic calendar, news, and a
-side-by-side stock compare view.
+frontend and a thin Express proxy to Yahoo Finance and CoinGecko. Thirteen
+screens cover equities, FX, fixed income, commodities, crypto (top 20 by market
+cap), a screener, portfolio tracking, risk analytics, economic calendar, news, a
+side-by-side stock compare view, and an IPO center (curated top-25 IPOs of 2026
+with live quotes, plus a live IPO calendar). The market screens track the top
+250 US equities by market cap.
 
 > **This is a hobby / learning project, not a licensed market-data product.**
 > Read the [Data source disclaimer](#data-source-disclaimer) before running it
@@ -58,7 +60,10 @@ Node 18+ is required (ESM + `fetch`).
   router so one broken panel cannot take down the terminal.
 - `server/index.js` — Express proxy. Handles the Yahoo crumb dance, caches
   responses in a bounded LRU, rate-limits clients, and proxies CoinGecko with an
-  automatic CoinPaprika fallback when CoinGecko rate-limits the deploy IP.
+  automatic CoinPaprika fallback when CoinGecko rate-limits the deploy IP. Also
+  serves the Finnhub IPO calendar (`/api/ipo-calendar`, optional key) and a
+  keyless `open.er-api.com` FX fallback that fills in `=X` pairs (incl. the BDT
+  crosses) when Yahoo returns nothing, so the FX screen never goes blank.
 
 ### Data flow
 
@@ -81,6 +86,7 @@ Create `.env` at the repo root (all are optional — defaults cover local dev):
 | `PORT`               | `3001`                                        | Backend HTTP port.                                         |
 | `ALLOWED_ORIGINS`    | `http://localhost:5173,http://localhost:3001` | CORS allowlist (comma-separated).                          |
 | `COINGECKO_API_KEY`  | _unset_                                       | Optional CoinGecko Demo key; lifts the public rate limit.  |
+| `FINNHUB_API_KEY`    | _unset_                                       | Optional [Finnhub](https://finnhub.io) key; enables the **live IPO calendar**. The curated 2026 IPO list works without it. |
 
 ---
 

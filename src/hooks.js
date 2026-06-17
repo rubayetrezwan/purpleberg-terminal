@@ -302,6 +302,59 @@ export function useCryptoChart(id, range = "3mo") {
   return { data, loading };
 }
 
+// ── Fetch live IPO calendar (Finnhub via proxy) ─────────
+// Same visibility-pause pattern as the other polls. Slow 30-min interval since
+// the proxy caches Finnhub for 6h — the calendar barely moves intraday.
+// `configured` is false when no FINNHUB_API_KEY is set server-side, letting the
+// screen show an "add a key" note instead of an empty table.
+export function useIpoCalendar(intervalMs = 1_800_000) {
+  const [events, setEvents] = useState([]);
+  const [configured, setConfigured] = useState(true);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    let iv = null;
+
+    const fetchData = async () => {
+      try {
+        const res = await api.ipoCalendar();
+        if (!cancelled) {
+          setConfigured(res?.configured !== false);
+          setEvents(Array.isArray(res?.events) ? res.events : []);
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    const start = () => {
+      if (iv != null) return;
+      fetchData();
+      iv = setInterval(fetchData, intervalMs);
+    };
+    const stop = () => {
+      if (iv != null) { clearInterval(iv); iv = null; }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") stop();
+      else start();
+    };
+
+    if (document.visibilityState !== "hidden") start();
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      cancelled = true;
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [intervalMs]);
+
+  return { events, configured, loading };
+}
+
 // ── Live search with debounce ────────────────────────────
 export function useSearch(query, delayMs = 300) {
   const [results, setResults] = useState([]);

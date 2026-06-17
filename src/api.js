@@ -33,4 +33,6 @@ export const api = {
 
   cryptoChart: (id, range = "3mo") =>
     get(`/crypto/${encodeURIComponent(id)}/chart?range=${range}`),
+
+  ipoCalendar: () => get("/ipo-calendar"),
 };
