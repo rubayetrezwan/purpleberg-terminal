@@ -4,6 +4,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useColors } from "../ThemeContext";
 import { useIsMobile, useQuotes, useHistorical, useFinancialsWithRetry } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, LoadingSpinner } from "../shared";
+import { useChartTheme } from "../chartTheme";
 import { fmt, fmtK } from "../config";
 import { normalizeToPct, alignTimelines, winnerOf } from "../compareUtils";
 
@@ -84,6 +85,7 @@ function QuoteSide({ quote, label, COLORS }) {
 // fetches on mount — the user picks two tickers first.
 export default function CompareStocks({ allStockQuotes = [], news = [] }) {
   const COLORS = useColors();
+  const { gridProps, axisProps, tooltipProps } = useChartTheme();
   const isMobile = useIsMobile(768);
 
   // Pending input state (what's in the boxes)
@@ -252,16 +254,16 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
                 ) : (
                   <ResponsiveContainer>
                     <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: COLORS.textMuted }} minTickGap={40} />
-                      <YAxis tick={{ fontSize: 10, fill: COLORS.textMuted }} tickFormatter={(v) => Number.isFinite(v) ? v.toFixed(0) + "%" : ""} />
+                      <CartesianGrid {...gridProps} />
+                      <XAxis dataKey="date" {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 10 }} minTickGap={40} />
+                      <YAxis {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 10 }} tickFormatter={(v) => Number.isFinite(v) ? v.toFixed(0) + "%" : ""} />
                       <Tooltip
-                        contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11 }}
+                        {...tooltipProps}
                         formatter={(v) => (Number.isFinite(v) ? v.toFixed(2) + "%" : "—")}
                       />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Line type="monotone" dataKey="a" name={liveA} stroke={COLORS.purple} strokeWidth={2} dot={false} connectNulls={false} />
-                      <Line type="monotone" dataKey="b" name={liveB} stroke={COLORS.cyan} strokeWidth={2} dot={false} connectNulls={false} />
+                      <Line type="monotone" dataKey="a" name={liveA} stroke={COLORS.purple} strokeWidth={2.5} dot={false} connectNulls={false} />
+                      <Line type="monotone" dataKey="b" name={liveB} stroke={COLORS.cyan} strokeWidth={2.5} dot={false} connectNulls={false} />
                     </LineChart>
                   </ResponsiveContainer>
                 )}

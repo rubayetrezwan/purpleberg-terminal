@@ -52,8 +52,8 @@ export default function CommandPalette({ open, query, setQuery, allStockQuotes, 
   return (
     <div
       onClick={onClose}
+      className="pb-overlay"
       style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)",
         display: "flex", alignItems: isMobile ? "flex-end" : "flex-start", justifyContent: "center",
         paddingTop: isMobile ? 0 : 100, zIndex: 999,
       }}
@@ -63,11 +63,11 @@ export default function CommandPalette({ open, query, setQuery, allStockQuotes, 
         aria-modal="true"
         aria-label="Command palette"
         onClick={(e) => e.stopPropagation()}
+        className="pb-dialog pb-enter"
         style={{
-          width: isMobile ? "100%" : 520, maxHeight: isMobile ? "70vh" : "auto",
-          background: "var(--c-card)", border: isMobile ? "none" : "1px solid var(--c-border)",
-          borderRadius: isMobile ? "16px 16px 0 0" : 8,
-          boxShadow: `var(--shadow-pop), 0 0 0 1px ${COLORS.purple}44`,
+          width: isMobile ? "100%" : 540, maxHeight: isMobile ? "70vh" : "auto",
+          border: isMobile ? "none" : "1px solid color-mix(in srgb, var(--c-purple) 30%, var(--c-border))",
+          borderRadius: isMobile ? "16px 16px 0 0" : 12,
           display: "flex", flexDirection: "column",
         }}
       >

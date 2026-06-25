@@ -10,9 +10,28 @@ import { fmt, fmtK, fmtPct, fmtAxisDate, fmtTooltipDate } from "../config";
 import { useColors } from "../ThemeContext";
 import { useHistorical, useFinancialsWithRetry, useQuotes, useIsMobile } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, DataCell, TabBar, MiniTable, LoadingSpinner } from "../shared";
+import { useChartTheme, ChartGradient } from "../chartTheme";
+
+// Unit to append per ratio metric (see /api/financials in server/index.js):
+//   pe/pb/ps/evEbitda  -> genuine multiples           ("x")
+//   roe/roa            -> percentages already *100     ("%")
+//   debtToEquity       -> Yahoo returns a percent-like number, e.g. 79.55 ("%")
+//   currentRatio       -> a ratio, rendered as a multiple ("x")
+// Unlisted keys fall back to "x".
+const RATIO_UNITS = {
+  pe: "x",
+  pb: "x",
+  ps: "x",
+  evEbitda: "x",
+  roe: "%",
+  roa: "%",
+  debtToEquity: "%",
+  currentRatio: "x",
+};
 
 export default function EquityAnalysis({ allStockQuotes, initialSymbol, onSymbolConsumed }) {
   const COLORS = useColors();
+  const chart = useChartTheme();
   const isMobile = useIsMobile(768);
   const isTablet = useIsMobile(1024);
   const stocks = allStockQuotes || [];
@@ -131,7 +150,7 @@ export default function EquityAnalysis({ allStockQuotes, initialSymbol, onSymbol
         </div>
 
         <TabBar tabs={["CHART", "FINANCIALS", "ESTIMATES", "RATIOS", "PROFILE"]} active={tab} onChange={setTab} />
-        <div style={{ padding: 8 }}>{renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finError, finData, selected, COLORS, isMobile: true, xAxisFmt })}</div>
+        <div style={{ padding: 8 }}>{renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finError, finData, selected, COLORS, chart, isMobile: true, xAxisFmt })}</div>
       </div>
     );
   }
@@ -199,13 +218,14 @@ export default function EquityAnalysis({ allStockQuotes, initialSymbol, onSymbol
         </div>
 
         <TabBar tabs={["CHART", "FINANCIALS", "ESTIMATES", "RATIOS", "PROFILE"]} active={tab} onChange={setTab} />
-        <div style={{ padding: 12 }}>{renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finError, finData, selected, COLORS, isMobile: false, xAxisFmt })}</div>
+        <div style={{ padding: 12 }}>{renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finError, finData, selected, COLORS, chart, isMobile: false, xAxisFmt })}</div>
       </div>
     </div>
   );
 }
 
-function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finError, finData, selected, COLORS, isMobile, xAxisFmt }) {
+function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, finLoading, finError, finData, selected, COLORS, chart, isMobile, xAxisFmt }) {
+  const { gridProps, axisProps, tooltipProps } = chart;
   if (tab === "CHART") {
     return (
       <Panel>
@@ -233,32 +253,32 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
             <ResponsiveContainer>
               {chartType === "area" ? (
                 <AreaChart data={chartData}>
-                  <defs><linearGradient id="gp" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={COLORS.purple} stopOpacity={0.3} /><stop offset="95%" stopColor={COLORS.purple} stopOpacity={0} /></linearGradient></defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                  <XAxis dataKey="date" tickFormatter={xAxisFmt} tick={{ fontSize: 9, fill: COLORS.textMuted }} interval={Math.max(1, Math.floor(chartData.length / (isMobile ? 6 : 12)))} />
-                  <YAxis tick={{ fontSize: 9, fill: COLORS.textMuted }} domain={["auto", "auto"]} />
-                  <Tooltip labelFormatter={fmtTooltipDate} contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11, color: COLORS.text }} />
-                  <Area type="monotone" dataKey="price" stroke={COLORS.purple} fill="url(#gp)" strokeWidth={2} />
+                  <defs><ChartGradient id="gp" color={COLORS.purple} /></defs>
+                  <CartesianGrid {...gridProps} />
+                  <XAxis dataKey="date" tickFormatter={xAxisFmt} {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} interval={Math.max(1, Math.floor(chartData.length / (isMobile ? 6 : 12)))} />
+                  <YAxis {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} domain={["auto", "auto"]} />
+                  <Tooltip labelFormatter={fmtTooltipDate} {...tooltipProps} />
+                  <Area type="monotone" dataKey="price" stroke={COLORS.purple} fill="url(#gp)" strokeWidth={2.5} />
                 </AreaChart>
               ) : chartType === "line" ? (
                 <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                  <XAxis dataKey="date" tickFormatter={xAxisFmt} tick={{ fontSize: 9, fill: COLORS.textMuted }} interval={Math.max(1, Math.floor(chartData.length / (isMobile ? 6 : 12)))} />
-                  <YAxis tick={{ fontSize: 9, fill: COLORS.textMuted }} domain={["auto", "auto"]} />
-                  <Tooltip labelFormatter={fmtTooltipDate} contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11, color: COLORS.text }} />
-                  <Line type="monotone" dataKey="price" stroke={COLORS.green} strokeWidth={2} dot={false} />
+                  <CartesianGrid {...gridProps} />
+                  <XAxis dataKey="date" tickFormatter={xAxisFmt} {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} interval={Math.max(1, Math.floor(chartData.length / (isMobile ? 6 : 12)))} />
+                  <YAxis {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} domain={["auto", "auto"]} />
+                  <Tooltip labelFormatter={fmtTooltipDate} {...tooltipProps} />
+                  <Line type="monotone" dataKey="price" stroke={COLORS.green} strokeWidth={2.5} dot={false} />
                   <Line type="monotone" dataKey="high" stroke={COLORS.purple + "66"} strokeWidth={1} dot={false} strokeDasharray="4 2" />
                   <Line type="monotone" dataKey="low" stroke={COLORS.red + "66"} strokeWidth={1} dot={false} strokeDasharray="4 2" />
                 </LineChart>
               ) : (
                 <ComposedChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                  <XAxis dataKey="date" tickFormatter={xAxisFmt} tick={{ fontSize: 9, fill: COLORS.textMuted }} interval={Math.max(1, Math.floor(chartData.length / (isMobile ? 6 : 12)))} />
-                  <YAxis yAxisId="p" tick={{ fontSize: 9, fill: COLORS.textMuted }} domain={["auto", "auto"]} />
-                  <YAxis yAxisId="v" orientation="right" tick={{ fontSize: 9, fill: COLORS.textMuted }} />
-                  <Tooltip labelFormatter={fmtTooltipDate} contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11, color: COLORS.text }} />
+                  <CartesianGrid {...gridProps} />
+                  <XAxis dataKey="date" tickFormatter={xAxisFmt} {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} interval={Math.max(1, Math.floor(chartData.length / (isMobile ? 6 : 12)))} />
+                  <YAxis yAxisId="p" {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} domain={["auto", "auto"]} />
+                  <YAxis yAxisId="v" orientation="right" {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} />
+                  <Tooltip labelFormatter={fmtTooltipDate} {...tooltipProps} />
                   <Bar yAxisId="v" dataKey="volume" fill={COLORS.purple + "33"} barSize={3} />
-                  <Line yAxisId="p" type="monotone" dataKey="price" stroke={COLORS.green} strokeWidth={2} dot={false} />
+                  <Line yAxisId="p" type="monotone" dataKey="price" stroke={COLORS.green} strokeWidth={2.5} dot={false} />
                 </ComposedChart>
               )}
             </ResponsiveContainer>
@@ -277,10 +297,10 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
             {finLoading ? <LoadingSpinner /> : finData?.quarterlyRevenue?.length ? (
               <ResponsiveContainer>
                 <BarChart data={finData.quarterlyRevenue}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                  <XAxis dataKey="quarter" tick={{ fontSize: 9, fill: COLORS.textMuted }} />
-                  <YAxis tick={{ fontSize: 9, fill: COLORS.textMuted }} tickFormatter={(v) => fmtK(v)} />
-                  <Tooltip contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11 }} formatter={(v) => fmtK(v)} />
+                  <CartesianGrid {...gridProps} />
+                  <XAxis dataKey="quarter" {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} />
+                  <YAxis {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} tickFormatter={(v) => fmtK(v)} />
+                  <Tooltip {...tooltipProps} formatter={(v) => fmtK(v)} />
                   <Bar dataKey="revenue" fill={COLORS.purple} radius={[3, 3, 0, 0]} barSize={24} name="Revenue" />
                   <Bar dataKey="earnings" fill={COLORS.green} radius={[3, 3, 0, 0]} barSize={24} name="Earnings" />
                 </BarChart>
@@ -351,9 +371,12 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
         <PanelHeader icon={<Calculator size={14} color={COLORS.purple} />} title="VALUATION & RATIOS" subtitle="Key financial ratios" />
         {finLoading ? <LoadingSpinner /> : (
           <div style={{ padding: 16, display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 16 }}>
-            {Object.entries(finData?.ratios || {}).map(([k, v]) => (
-              <DataCell key={k} label={k.replace(/([A-Z])/g, " $1").toUpperCase()} value={v ? fmt(parseFloat(v), 2) + "x" : "N/A"} />
-            ))}
+            {Object.entries(finData?.ratios || {}).map(([k, v]) => {
+              const unit = RATIO_UNITS[k] ?? "x";
+              return (
+                <DataCell key={k} label={k.replace(/([A-Z])/g, " $1").toUpperCase()} value={v ? fmt(parseFloat(v), 2) + unit : "N/A"} />
+              );
+            })}
           </div>
         )}
       </Panel>

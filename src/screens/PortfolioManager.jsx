@@ -1,15 +1,17 @@
 import { useState, useMemo } from "react";
 import {
-  PieChart, Pie, Cell, AreaChart, Area, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { Briefcase, TrendingUp, PieChart as PieIcon, Plus, Trash2 } from "lucide-react";
 import { fmt, fmtK, fmtPct } from "../config";
 import { useColors } from "../ThemeContext";
+import { useChartTheme } from "../chartTheme";
 import { useQuotes, usePortfolio, useIsMobile } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, MiniTable, LoadingSpinner } from "../shared";
 
 export default function PortfolioManager() {
   const COLORS = useColors();
+  const { tooltipProps } = useChartTheme();
   const isMobile = useIsMobile(768);
   const { holdings, addHolding, removeHolding } = usePortfolio();
   const [showAdd, setShowAdd] = useState(false);
@@ -208,7 +210,7 @@ export default function PortfolioManager() {
                           <Cell key={i} fill={pieColors[i % pieColors.length]} />
                         ))}
                       </Pie>
-                      <Tooltip contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11 }} />
+                      <Tooltip {...tooltipProps} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>

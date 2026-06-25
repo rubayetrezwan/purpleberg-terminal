@@ -5,11 +5,13 @@ import {
 import { DollarSign, TrendingUp, Calculator, Activity, ChevronDown } from "lucide-react";
 import { FX_SYMBOLS, fmt, fmtPct } from "../config";
 import { useColors } from "../ThemeContext";
+import { useChartTheme, ChartGradient } from "../chartTheme";
 import { useQuotes, useHistorical, useIsMobile } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, DataCell, LoadingSpinner } from "../shared";
 
 export default function FXDashboard() {
   const COLORS = useColors();
+  const { gridProps, axisProps, tooltipProps } = useChartTheme();
   const isMobile = useIsMobile(768);
   const isTablet = useIsMobile(1024);
   const fxSymbols = useMemo(() => FX_SYMBOLS.map((f) => f.symbol), []);
@@ -78,12 +80,12 @@ export default function FXDashboard() {
               {histLoading ? <LoadingSpinner text="Loading chart..." /> : (
                 <ResponsiveContainer>
                   <AreaChart data={chartData}>
-                    <defs><linearGradient id="fxg" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={COLORS.cyan} stopOpacity={0.3} /><stop offset="95%" stopColor={COLORS.cyan} stopOpacity={0} /></linearGradient></defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                    <XAxis dataKey="date" tick={{ fontSize: 9, fill: COLORS.textMuted }} interval={Math.max(1, Math.floor(chartData.length / 6))} />
-                    <YAxis tick={{ fontSize: 9, fill: COLORS.textMuted }} domain={["auto", "auto"]} />
-                    <Tooltip contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11 }} />
-                    <Area type="monotone" dataKey="price" stroke={COLORS.cyan} fill="url(#fxg)" strokeWidth={2} />
+                    <defs><ChartGradient id="fxg" color={COLORS.cyan} /></defs>
+                    <CartesianGrid {...gridProps} />
+                    <XAxis dataKey="date" {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} interval={Math.max(1, Math.floor(chartData.length / 6))} />
+                    <YAxis {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} domain={["auto", "auto"]} />
+                    <Tooltip {...tooltipProps} />
+                    <Area type="monotone" dataKey="price" stroke={COLORS.cyan} fill="url(#fxg)" strokeWidth={2.5} />
                   </AreaChart>
                 </ResponsiveContainer>
               )}
@@ -148,12 +150,12 @@ export default function FXDashboard() {
               {histLoading ? <LoadingSpinner text="Loading chart..." /> : (
                 <ResponsiveContainer>
                   <AreaChart data={chartData}>
-                    <defs><linearGradient id="fxg" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={COLORS.cyan} stopOpacity={0.3} /><stop offset="95%" stopColor={COLORS.cyan} stopOpacity={0} /></linearGradient></defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                    <XAxis dataKey="date" tick={{ fontSize: 9, fill: COLORS.textMuted }} interval={Math.max(1, Math.floor(chartData.length / 8))} />
-                    <YAxis tick={{ fontSize: 9, fill: COLORS.textMuted }} domain={["auto", "auto"]} />
-                    <Tooltip contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11 }} />
-                    <Area type="monotone" dataKey="price" stroke={COLORS.cyan} fill="url(#fxg)" strokeWidth={2} />
+                    <defs><ChartGradient id="fxg" color={COLORS.cyan} /></defs>
+                    <CartesianGrid {...gridProps} />
+                    <XAxis dataKey="date" {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} interval={Math.max(1, Math.floor(chartData.length / 8))} />
+                    <YAxis {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} domain={["auto", "auto"]} />
+                    <Tooltip {...tooltipProps} />
+                    <Area type="monotone" dataKey="price" stroke={COLORS.cyan} fill="url(#fxg)" strokeWidth={2.5} />
                   </AreaChart>
                 </ResponsiveContainer>
               )}

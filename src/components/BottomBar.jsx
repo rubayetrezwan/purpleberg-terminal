@@ -1,6 +1,7 @@
 import { useColors } from "../ThemeContext";
 import { fmt, fmtK } from "../config";
 import { MOBILE_TABS } from "../navConfig";
+import { Price } from "../shared";
 
 // Bottom of the shell: scrolling ticker on desktop, quick-tab bar on mobile.
 export default function BottomBar({ isMobile, tickerStocks, liveCount, screen, setScreen }) {
@@ -9,10 +10,12 @@ export default function BottomBar({ isMobile, tickerStocks, liveCount, screen, s
   if (isMobile) {
     return (
       <div
+        className="pb-bottombar"
         style={{
-          height: 56, background: "var(--c-panel)", borderTop: "1px solid var(--c-border)",
+          height: 56,
           display: "flex", alignItems: "center", justifyContent: "space-around",
           flexShrink: 0, paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          position: "relative", zIndex: 30,
         }}
       >
         {MOBILE_TABS.map((tab) => {
@@ -43,9 +46,10 @@ export default function BottomBar({ isMobile, tickerStocks, liveCount, screen, s
 
   return (
     <div
+      className="pb-bottombar"
       style={{
-        height: 24, background: "var(--c-panel)", borderTop: "1px solid var(--c-border)",
-        display: "flex", alignItems: "center", overflow: "hidden", flexShrink: 0, position: "relative",
+        height: 26,
+        display: "flex", alignItems: "center", overflow: "hidden", flexShrink: 0, position: "relative", zIndex: 30,
       }}
     >
       <div
@@ -57,7 +61,8 @@ export default function BottomBar({ isMobile, tickerStocks, liveCount, screen, s
         {[...tickerStocks, ...tickerStocks].map((s, i) => (
           <span key={`${s.symbol}-${i}`} style={{ fontSize: "var(--fs-xs)", whiteSpace: "nowrap", display: "inline-flex", gap: 4, alignItems: "center" }}>
             <span style={{ color: "var(--c-text-muted)", fontWeight: 600 }}>{s.symbol}</span>
-            <span className="pb-mono" style={{ color: "var(--c-text)" }}>{fmt(s.price, s.price > 1000 ? 0 : 2)}</span>
+            <Price value={s.price} format={(v) => fmt(v, s.price > 1000 ? 0 : 2)} style={{ color: "var(--c-text)" }} />
+
             <span className={`pb-mono ${(s.changePercent ?? 0) >= 0 ? "pb-pos" : "pb-neg"}`}>
               {(s.changePercent ?? 0) >= 0 ? "+" : ""}{fmt(s.changePercent)}%
             </span>
@@ -68,14 +73,13 @@ export default function BottomBar({ isMobile, tickerStocks, liveCount, screen, s
       </div>
       <div
         style={{
-          position: "absolute", right: 0, top: 0, bottom: 0, display: "flex", alignItems: "center",
-          padding: "0 12px", fontSize: "var(--fs-xs)", color: "var(--c-text-muted)",
-          background: "linear-gradient(90deg, transparent, var(--c-panel) 30%)",
+          position: "absolute", right: 0, top: 0, bottom: 0, display: "flex", alignItems: "center", gap: 6,
+          padding: "0 14px 0 28px", fontSize: "var(--fs-xs)", color: "var(--c-text-muted)",
+          background: "linear-gradient(90deg, transparent, var(--c-elevated) 45%)",
         }}
       >
-        <span style={{ color: liveCount > 0 ? "var(--c-green)" : "var(--c-red)" }}>●</span>
-        {" "}
-        {liveCount > 0 ? `${liveCount} LIVE` : "..."} | v2.1.0
+        {liveCount > 0 ? <span className="pb-live-dot" /> : <span style={{ color: "var(--c-red)" }}>●</span>}
+        <span className="pb-mono">{liveCount > 0 ? `${liveCount} LIVE` : "..."} | v2.1.0</span>
       </div>
     </div>
   );

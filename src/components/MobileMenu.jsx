@@ -10,14 +10,14 @@ export default function MobileMenu({ screen, setScreen, onClose }) {
         type="button"
         aria-label="Close navigation menu"
         onClick={onClose}
-        className="pb-reset"
-        style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 90 }}
+        className="pb-reset pb-overlay"
+        style={{ position: "absolute", zIndex: 90 }}
       />
       <nav
         aria-label="Main navigation"
+        className="pb-sidebar"
         style={{
           position: "absolute", top: 0, left: 0, bottom: 0, width: 240,
-          background: "var(--c-panel)", borderRight: "1px solid var(--c-border)",
           zIndex: 100, overflowY: "auto", animation: "slideIn 0.2s ease-out",
         }}
       >

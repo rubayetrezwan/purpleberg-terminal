@@ -109,7 +109,7 @@ export default function IpoCenter() {
           icon={<CalendarClock size={14} color={COLORS.cyan} />}
           title="IPO CALENDAR (LIVE)"
           subtitle="Recent &amp; upcoming listings · source: Finnhub"
-          right={configured ? <Badge color={COLORS.green}>LIVE</Badge> : <Badge color={COLORS.orange}>NOT CONFIGURED</Badge>}
+          right={configured ? <Badge color={COLORS.green} dot>LIVE</Badge> : <Badge color={COLORS.orange}>NOT CONFIGURED</Badge>}
         />
         {!configured ? (
           <div style={{ padding: 16, display: "flex", gap: 8, alignItems: "flex-start", color: COLORS.textDim, fontSize: 12 }}>

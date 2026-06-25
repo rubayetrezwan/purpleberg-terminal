@@ -92,7 +92,7 @@ export default function App() {
   };
 
   return (
-    <div style={{ width: "100%", height: "100vh", background: "var(--c-bg)", color: "var(--c-text)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div style={{ width: "100%", height: "100vh", background: "transparent", color: "var(--c-text)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <TopBar
         isMobile={isMobile}
         isTablet={isTablet}
@@ -114,7 +114,7 @@ export default function App() {
           <Sidebar screen={screen} setScreen={setScreen} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} isTablet={isTablet} />
         )}
 
-        <main style={{ flex: 1, overflow: "auto", background: "var(--c-bg)" }}>
+        <main style={{ flex: 1, overflow: "auto", background: "transparent" }}>
           {/* key={screen} unmounts the boundary on navigation so a stale error
               from one screen doesn't stick when the user opens another. */}
           <ErrorBoundary key={screen} screen={screen}>

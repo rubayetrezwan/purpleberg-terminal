@@ -1,16 +1,18 @@
 import { useMemo } from "react";
 import {
-  BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
+  BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from "recharts";
 import { AlertTriangle, Shield, Activity, PieChart as PieIcon } from "lucide-react";
 import { fmt, fmtPct, fmtK } from "../config";
 import { useColors } from "../ThemeContext";
+import { useChartTheme } from "../chartTheme";
 import { useIsMobile } from "../hooks";
 import { Panel, PanelHeader, Badge, MiniTable } from "../shared";
 
 export default function RiskAnalytics({ allStockQuotes }) {
   const COLORS = useColors();
+  const { gridProps, axisProps, tooltipProps } = useChartTheme();
   const isMobile = useIsMobile(768);
   const stocks = allStockQuotes || [];
 
@@ -104,14 +106,14 @@ export default function RiskAnalytics({ allStockQuotes }) {
       <div style={{ display: "grid", gridTemplateColumns: panelGrid, gap: 10 }}>
         {/* RETURN DISTRIBUTION */}
         <Panel>
-          <PanelHeader icon={<AlertTriangle size={14} color={COLORS.red} />} title="RETURN DISTRIBUTION" subtitle="Today's returns across watchlist" right={<Badge color={COLORS.green}>LIVE</Badge>} />
+          <PanelHeader icon={<AlertTriangle size={14} color={COLORS.red} />} title="RETURN DISTRIBUTION" subtitle="Today's returns across watchlist" right={<Badge color={COLORS.green} dot>LIVE</Badge>} />
           <div style={{ padding: 8, height: 240 }}>
             <ResponsiveContainer>
               <BarChart data={returnData}>
-                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                <XAxis dataKey="name" tick={{ fontSize: 8, fill: COLORS.textMuted }} interval={Math.max(0, Math.floor(returnData.length / (isMobile ? 8 : 15)))} angle={-45} textAnchor="end" height={40} />
-                <YAxis tick={{ fontSize: 9, fill: COLORS.textMuted }} />
-                <Tooltip contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11 }} />
+                <CartesianGrid {...gridProps} />
+                <XAxis dataKey="name" {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 8 }} interval={Math.max(0, Math.floor(returnData.length / (isMobile ? 8 : 15)))} angle={-45} textAnchor="end" height={40} />
+                <YAxis {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} />
+                <Tooltip {...tooltipProps} />
                 <Bar dataKey="ret" barSize={8}>
                   {returnData.map((d, i) => (
                     <Cell key={i} fill={d.ret < p5 ? COLORS.red : d.ret < 0 ? COLORS.orange + "88" : COLORS.green + "88"} />
@@ -146,7 +148,7 @@ export default function RiskAnalytics({ allStockQuotes }) {
 
         {/* TOP RISK CONTRIBUTORS */}
         <Panel>
-          <PanelHeader icon={<Activity size={14} color={COLORS.cyan} />} title="TOP RISK CONTRIBUTORS" subtitle="Biggest movers today" right={<Badge color={COLORS.green}>LIVE</Badge>} />
+          <PanelHeader icon={<Activity size={14} color={COLORS.cyan} />} title="TOP RISK CONTRIBUTORS" subtitle="Biggest movers today" right={<Badge color={COLORS.green} dot>LIVE</Badge>} />
           <div style={{ padding: 8 }}>
             {topRiskContributors.map((s) => (
               <div key={s.symbol} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 4px", borderBottom: `1px solid ${COLORS.border}22` }}>
@@ -167,7 +169,7 @@ export default function RiskAnalytics({ allStockQuotes }) {
 
         {/* RISK METRICS */}
         <Panel>
-          <PanelHeader icon={<PieIcon size={14} color={COLORS.purple} />} title="RISK METRICS" right={<Badge color={COLORS.green}>LIVE</Badge>} />
+          <PanelHeader icon={<PieIcon size={14} color={COLORS.purple} />} title="RISK METRICS" right={<Badge color={COLORS.green} dot>LIVE</Badge>} />
           <div style={{ padding: 12 }}>
             {[
               { l: "Max Loss Today", v: fmtPct(maxLoss), c: COLORS.red },

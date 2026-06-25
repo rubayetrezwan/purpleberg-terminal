@@ -7,9 +7,11 @@ import { BOND_SYMBOLS, fmt } from "../config";
 import { useColors } from "../ThemeContext";
 import { useQuotes, useIsMobile } from "../hooks";
 import { Panel, PanelHeader, ChgVal, MiniTable, LoadingSpinner } from "../shared";
+import { useChartTheme, ChartGradient } from "../chartTheme";
 
 export default function FixedIncome() {
   const COLORS = useColors();
+  const { gridProps, axisProps, tooltipProps } = useChartTheme();
   const isMobile = useIsMobile(768);
   const bondSymbols = useMemo(() => BOND_SYMBOLS.map((b) => b.symbol), []);
   const { data: bondQuotes, loading } = useQuotes(bondSymbols, 15000);
@@ -55,16 +57,13 @@ export default function FixedIncome() {
             <ResponsiveContainer>
               <AreaChart data={yieldCurve}>
                 <defs>
-                  <linearGradient id="yg" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={COLORS.gold} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={COLORS.gold} stopOpacity={0} />
-                  </linearGradient>
+                  <ChartGradient id="yg" color={COLORS.gold} />
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                <XAxis dataKey="tenor" tick={{ fontSize: 10, fill: COLORS.textMuted }} />
-                <YAxis tick={{ fontSize: 10, fill: COLORS.textMuted }} domain={[0, "auto"]} />
-                <Tooltip contentStyle={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11 }} />
-                <Area type="monotone" dataKey="yield_val" stroke={COLORS.gold} fill="url(#yg)" strokeWidth={2} name="Yield %" />
+                <CartesianGrid {...gridProps} />
+                <XAxis dataKey="tenor" {...axisProps} />
+                <YAxis {...axisProps} domain={[0, "auto"]} />
+                <Tooltip {...tooltipProps} />
+                <Area type="monotone" dataKey="yield_val" stroke={COLORS.gold} fill="url(#yg)" strokeWidth={2.5} name="Yield %" />
               </AreaChart>
             </ResponsiveContainer>
           )}

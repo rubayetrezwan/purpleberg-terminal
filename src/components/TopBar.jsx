@@ -12,10 +12,11 @@ export default function TopBar({
 
   return (
     <div
+      className="pb-topbar"
       style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: isMobile ? "0 8px" : "0 12px", height: isMobile ? 44 : 38,
-        background: "var(--c-panel)", borderBottom: "1px solid var(--c-border)", flexShrink: 0,
+        flexShrink: 0, position: "relative", zIndex: 30,
       }}
     >
       {/* Left cluster */}
@@ -33,16 +34,10 @@ export default function TopBar({
           </button>
         )}
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div
-            style={{
-              width: 20, height: 20, borderRadius: 4,
-              background: `linear-gradient(135deg, ${COLORS.purple}, ${COLORS.purpleDark})`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}
-          >
-            <Zap size={12} color={COLORS.white} />
+          <div className="pb-logo-mark" style={{ width: 22, height: 22, borderRadius: 6 }}>
+            <Zap size={13} color={COLORS.white} />
           </div>
-          <span style={{ fontSize: isMobile ? "var(--fs-base)" : "var(--fs-lg)", fontWeight: 800, letterSpacing: 1, color: "var(--c-purple-light)" }}>
+          <span className="pb-glow-text" style={{ fontSize: isMobile ? "var(--fs-base)" : "var(--fs-lg)", fontWeight: 800, letterSpacing: 1.2, color: "var(--c-purple-light)" }}>
             PURPLEBERG
           </span>
           {!isMobile && <span style={{ fontSize: "var(--fs-xs)", color: "var(--c-text-muted)", fontWeight: 600 }}>TERMINAL</span>}
@@ -69,20 +64,16 @@ export default function TopBar({
           <button type="button" className="pb-reset" onClick={toggleTheme} aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"} style={{ padding: 10, margin: -6 }}>
             {isDark ? <Sun size={16} color={COLORS.gold} /> : <Moon size={16} color={COLORS.purpleDark} />}
           </button>
-          <Badge color={liveCount > 0 ? COLORS.green : COLORS.orange}>{liveCount} LIVE</Badge>
+          <Badge color={liveCount > 0 ? COLORS.green : COLORS.orange} dot>{liveCount} LIVE</Badge>
         </div>
       ) : (
         <>
           <button
             type="button"
-            className="pb-reset"
+            className="pb-reset pb-search-pill"
             onClick={onOpenCommand}
             aria-label="Search any stock or function (Ctrl+K)"
-            style={{
-              display: "flex", alignItems: "center", gap: 8, padding: "4px 14px",
-              background: "var(--c-input)", border: "1px solid var(--c-border)", borderRadius: 4,
-              minWidth: isTablet ? 200 : 300,
-            }}
+            style={{ padding: "5px 14px", minWidth: isTablet ? 200 : 300 }}
           >
             <Search size={13} color={COLORS.textMuted} />
             <span style={{ fontSize: "var(--fs-sm)", color: "var(--c-text-muted)" }}>Search any stock, function... (Ctrl+K)</span>
@@ -99,8 +90,8 @@ export default function TopBar({
             </button>
             <Clock color={COLORS.green} />
             <div style={{ width: 1, height: 20, background: "var(--c-border)" }} />
-            <Badge color={liveCount > 0 ? COLORS.green : COLORS.orange}>{liveCount} LIVE</Badge>
-            <div style={{ width: 24, height: 24, borderRadius: 12, background: "var(--c-purple-dim)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Badge color={liveCount > 0 ? COLORS.green : COLORS.orange} dot>{liveCount} LIVE</Badge>
+            <div style={{ width: 24, height: 24, borderRadius: 12, background: "color-mix(in srgb, var(--c-purple) 22%, transparent)", border: "1px solid color-mix(in srgb, var(--c-purple) 40%, transparent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <User size={12} color={COLORS.purpleLight} />
             </div>
           </div>

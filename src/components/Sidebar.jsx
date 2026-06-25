@@ -8,14 +8,15 @@ export default function Sidebar({ screen, setScreen, collapsed, setCollapsed, is
   const COLORS = useColors();
   return (
     <div
+      className="pb-sidebar"
       style={{
         width: collapsed ? 48 : isTablet ? 130 : 160,
-        background: "var(--c-panel)",
-        borderRight: "1px solid var(--c-border)",
         flexShrink: 0,
         display: "flex",
         flexDirection: "column",
         transition: "width 0.2s",
+        position: "relative",
+        zIndex: 20,
       }}
     >
       <button

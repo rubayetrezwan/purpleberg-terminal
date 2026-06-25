@@ -65,7 +65,7 @@ export default function EconomicCalendar() {
           subtitle={isMobile ? "Upcoming releases (ET)" : "Upcoming economic releases & central bank decisions — all times ET"}
           right={
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <Badge color={COLORS.green}>LIVE</Badge>
+              <Badge color={COLORS.green} dot>LIVE</Badge>
               <RefreshCw size={12} color={COLORS.textMuted} style={{ cursor: "pointer" }} onClick={fetchData} />
             </div>
           }
@@ -130,7 +130,7 @@ export default function EconomicCalendar() {
             icon={<Landmark size={14} color={COLORS.gold} />}
             title="US TREASURY YIELDS"
             subtitle="Live from Yahoo Finance"
-            right={ratesLoading ? <Badge color={COLORS.orange}>Loading</Badge> : <Badge color={COLORS.green}>LIVE</Badge>}
+            right={ratesLoading ? <Badge color={COLORS.orange}>Loading</Badge> : <Badge color={COLORS.green} dot>LIVE</Badge>}
           />
           {/* Only show LIVE when we actually have a yield; otherwise a muted
               "No data" badge keeps the indicator honest if Yahoo's ^TNX feed

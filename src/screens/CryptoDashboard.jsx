@@ -6,6 +6,7 @@ import {
 import { CircleDollarSign, Activity, Info, BarChart3, ChevronDown } from "lucide-react";
 import { fmtK, fmtPct, MONTHS_SHORT, fmtAxisDate, fmtTooltipDate } from "../config";
 import { useColors } from "../ThemeContext";
+import { useChartTheme, ChartGradient } from "../chartTheme";
 import { useCryptoMarkets, useCryptoChart, useIsMobile } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, DataCell, TabBar, LoadingSpinner } from "../shared";
 
@@ -57,6 +58,7 @@ function fmtAthDate(iso) {
 
 export default function CryptoDashboard() {
   const COLORS = useColors();
+  const chartTheme = useChartTheme();
   const isMobile = useIsMobile(768);
 
   const tierColors = useMemo(() => ({
@@ -225,7 +227,7 @@ export default function CryptoDashboard() {
 
         <TabBar tabs={["CHART", "STATS", "ABOUT"]} active={tab} onChange={setTab} />
         <div style={{ padding: 8 }}>
-          {renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, selected, selTier, selTierColor, perf, COLORS, isMobile: true, showYearOnAxis })}
+          {renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, selected, selTier, selTierColor, perf, COLORS, chartTheme, isMobile: true, showYearOnAxis })}
         </div>
       </div>
     );
@@ -298,14 +300,14 @@ export default function CryptoDashboard() {
 
         <TabBar tabs={["CHART", "STATS", "ABOUT"]} active={tab} onChange={setTab} />
         <div style={{ padding: 12 }}>
-          {renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, selected, selTier, selTierColor, perf, COLORS, isMobile: false, showYearOnAxis })}
+          {renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, selected, selTier, selTierColor, perf, COLORS, chartTheme, isMobile: false, showYearOnAxis })}
         </div>
       </div>
     </div>
   );
 }
 
-function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, selected, selTier, selTierColor, perf, COLORS, isMobile, showYearOnAxis }) {
+function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRange, histLoading, chartData, selected, selTier, selTierColor, perf, COLORS, chartTheme, isMobile, showYearOnAxis }) {
   if (tab === "CHART") {
     const priceFmtTooltip = (v) => v == null || isNaN(v) ? "\u2014" : "$" + Number(v).toFixed(priceDecimals(v));
     const axisPriceFmt = (v) => {
@@ -322,9 +324,9 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
       return [priceFmtTooltip(value), seriesLabel[name] || name];
     };
     const interval = Math.max(1, Math.floor(chartData.length / (isMobile ? 6 : 12)));
+    const { gridProps, axisProps } = chartTheme;
     const tooltipProps = {
-      contentStyle: { background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 4, fontSize: 11, color: COLORS.text },
-      labelStyle: { color: COLORS.textMuted, fontSize: 10, marginBottom: 2 },
+      ...chartTheme.tooltipProps,
       labelFormatter: tooltipLabelFmt,
       formatter: tooltipValueFmt,
     };
@@ -355,30 +357,30 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
             <ResponsiveContainer>
               {chartType === "area" ? (
                 <AreaChart data={chartData}>
-                  <defs><linearGradient id="crg" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={COLORS.gold} stopOpacity={0.35} /><stop offset="95%" stopColor={COLORS.gold} stopOpacity={0} /></linearGradient></defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                  <XAxis dataKey="date" tick={{ fontSize: 9, fill: COLORS.textMuted }} interval={interval} tickFormatter={xAxisFmt} minTickGap={20} />
-                  <YAxis tick={{ fontSize: 9, fill: COLORS.textMuted }} domain={["auto", "auto"]} tickFormatter={axisPriceFmt} width={64} />
+                  <defs><ChartGradient id="crg" color={COLORS.gold} /></defs>
+                  <CartesianGrid {...gridProps} />
+                  <XAxis dataKey="date" {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} interval={interval} tickFormatter={xAxisFmt} minTickGap={20} />
+                  <YAxis {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} domain={["auto", "auto"]} tickFormatter={axisPriceFmt} width={64} />
                   <Tooltip {...tooltipProps} />
-                  <Area type="monotone" dataKey="price" stroke={COLORS.gold} fill="url(#crg)" strokeWidth={2} name="Close" />
+                  <Area type="monotone" dataKey="price" stroke={COLORS.gold} fill="url(#crg)" strokeWidth={2.5} name="Close" />
                 </AreaChart>
               ) : chartType === "line" ? (
                 <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                  <XAxis dataKey="date" tick={{ fontSize: 9, fill: COLORS.textMuted }} interval={interval} tickFormatter={xAxisFmt} minTickGap={20} />
-                  <YAxis tick={{ fontSize: 9, fill: COLORS.textMuted }} domain={["auto", "auto"]} tickFormatter={axisPriceFmt} width={64} />
+                  <CartesianGrid {...gridProps} />
+                  <XAxis dataKey="date" {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} interval={interval} tickFormatter={xAxisFmt} minTickGap={20} />
+                  <YAxis {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} domain={["auto", "auto"]} tickFormatter={axisPriceFmt} width={64} />
                   <Tooltip {...tooltipProps} />
-                  <Line type="monotone" dataKey="price" stroke={COLORS.gold} strokeWidth={2} dot={false} name="Close" />
+                  <Line type="monotone" dataKey="price" stroke={COLORS.gold} strokeWidth={2.5} dot={false} name="Close" />
                 </LineChart>
               ) : (
                 <ComposedChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border + "44"} />
-                  <XAxis dataKey="date" tick={{ fontSize: 9, fill: COLORS.textMuted }} interval={interval} tickFormatter={xAxisFmt} minTickGap={20} />
-                  <YAxis yAxisId="p" tick={{ fontSize: 9, fill: COLORS.textMuted }} domain={["auto", "auto"]} tickFormatter={axisPriceFmt} width={64} />
-                  <YAxis yAxisId="v" orientation="right" tick={{ fontSize: 9, fill: COLORS.textMuted }} tickFormatter={volumeFmt} width={52} />
+                  <CartesianGrid {...gridProps} />
+                  <XAxis dataKey="date" {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} interval={interval} tickFormatter={xAxisFmt} minTickGap={20} />
+                  <YAxis yAxisId="p" {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} domain={["auto", "auto"]} tickFormatter={axisPriceFmt} width={64} />
+                  <YAxis yAxisId="v" orientation="right" {...axisProps} tick={{ fill: COLORS.textMuted, fontSize: 9 }} tickFormatter={volumeFmt} width={52} />
                   <Tooltip {...tooltipProps} />
                   <Bar yAxisId="v" dataKey="volume" fill={COLORS.purple + "33"} barSize={3} name="Volume" />
-                  <Line yAxisId="p" type="monotone" dataKey="price" stroke={COLORS.gold} strokeWidth={2} dot={false} name="Close" />
+                  <Line yAxisId="p" type="monotone" dataKey="price" stroke={COLORS.gold} strokeWidth={2.5} dot={false} name="Close" />
                 </ComposedChart>
               )}
             </ResponsiveContainer>
