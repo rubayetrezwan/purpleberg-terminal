@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { FileText } from "lucide-react";
 import { useColors } from "../ThemeContext";
 import { Panel, PanelHeader, Badge, LoadingSpinner } from "../shared";
 
@@ -33,7 +32,6 @@ export default function NewsCenter({ news, loading }) {
     <div style={{ padding: 12 }}>
       <Panel>
         <PanelHeader
-          icon={<FileText size={14} color={COLORS.gold} />}
           title="NEWS CENTER"
           subtitle={`Real-time market news from Yahoo Finance — times in ${LOCAL_TZ}`}
           right={<Badge>{filtered.length} stories</Badge>}

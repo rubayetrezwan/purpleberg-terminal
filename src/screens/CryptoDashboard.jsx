@@ -3,7 +3,7 @@ import {
   AreaChart, Area, LineChart, Line, Bar, ComposedChart,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { CircleDollarSign, Activity, Info, BarChart3, ChevronDown } from "lucide-react";
+import { CircleDollarSign, ChevronDown } from "lucide-react";
 import { fmtK, fmtPct, MONTHS_SHORT, fmtAxisDate, fmtTooltipDate } from "../config";
 import { useColors } from "../ThemeContext";
 import { useChartTheme, ChartGradient } from "../chartTheme";
@@ -401,7 +401,7 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
     return (
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}>
         <Panel>
-          <PanelHeader icon={<Activity size={14} color={COLORS.orange} />} title="PRICE ACTION" subtitle="24h session & all-time reference" />
+          <PanelHeader title="PRICE ACTION" subtitle="24h session & all-time reference" />
           <div style={{ padding: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <DataCell label="Last" value={`$${fmtPrice(price)}`} color={COLORS.gold} />
             <DataCell label="Rank" value={marketCapRank ? `#${marketCapRank}` : "\u2014"} color={selTierColor} />
@@ -435,7 +435,7 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
         </Panel>
 
         <Panel>
-          <PanelHeader icon={<BarChart3 size={14} color={selTierColor} />} title="PERIOD RETURNS" subtitle="Calendar-day offsets from current window" />
+          <PanelHeader title="PERIOD RETURNS" subtitle="Calendar-day offsets from current window" />
           <div style={{ padding: 14 }}>
             {perfRows.length === 0 ? (
               <div style={{ fontSize: 11, color: COLORS.textMuted, textAlign: "center", padding: 20 }}>
@@ -486,7 +486,7 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
 
     return (
       <Panel>
-        <PanelHeader icon={<Info size={14} color={COLORS.cyan} />} title="COIN REFERENCE" subtitle={`${selected.name} (${symbol}) supply & all-time levels`} />
+        <PanelHeader title="COIN REFERENCE" subtitle={`${selected.name} (${symbol}) supply & all-time levels`} />
         <div style={{ padding: 16 }}>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr", gap: 16, marginBottom: 14 }}>
             <DataCell label="Symbol" value={symbol || "\u2014"} />

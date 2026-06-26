@@ -1,7 +1,4 @@
 import { useMemo } from "react";
-import {
-  Globe, BarChart3, Zap, Layers, Hash, Landmark,
-} from "lucide-react";
 import { INDEX_SYMBOLS, COMMODITY_SYMBOLS, BOND_SYMBOLS, fmt, fmtK, fmtPct } from "../config";
 import { useColors } from "../ThemeContext";
 import { useQuotes, useIsMobile } from "../hooks";
@@ -68,7 +65,6 @@ export default function MarketDashboard({ allStockQuotes, news }) {
       {/* INDICES */}
       <Panel style={{ gridColumn: isMobile ? "1" : isTablet ? "1/3" : "1/-1" }}>
         <PanelHeader
-          icon={<Globe size={14} color={COLORS.purple} />}
           title="WORLD EQUITY INDICES"
           subtitle="Real-time global market overview"
           right={<Badge color={COLORS.green}>LIVE</Badge>}
@@ -100,7 +96,7 @@ export default function MarketDashboard({ allStockQuotes, news }) {
 
       {/* TOP MOVERS */}
       <Panel>
-        <PanelHeader icon={<BarChart3 size={14} color={COLORS.orange} />} title="TOP MOVERS" subtitle="Biggest price changes today" />
+        <PanelHeader title="TOP MOVERS" subtitle="Biggest price changes today" />
         <div style={{ padding: 8 }}>
           {!allStockQuotes?.length ? (
             <LoadingSpinner text="Loading movers..." />
@@ -124,7 +120,7 @@ export default function MarketDashboard({ allStockQuotes, news }) {
 
       {/* TOP NEWS */}
       <Panel>
-        <PanelHeader icon={<Zap size={14} color={COLORS.gold} />} title="TOP NEWS" subtitle="Market-moving headlines" />
+        <PanelHeader title="TOP NEWS" subtitle="Market-moving headlines" />
         <div style={{ maxHeight: 340, overflowY: "auto" }}>
           {newsItems.length === 0 ? (
             <LoadingSpinner text="Fetching news..." />
@@ -149,7 +145,7 @@ export default function MarketDashboard({ allStockQuotes, news }) {
 
       {/* MARKET MAP */}
       <Panel>
-        <PanelHeader icon={<Layers size={14} color={COLORS.cyan} />} title="MARKET MAP" subtitle="Top stocks by market cap" />
+        <PanelHeader title="MARKET MAP" subtitle="Top stocks by market cap" />
         <div style={{ padding: 8 }}>
           {treemapData.length === 0 ? (
             <LoadingSpinner text="Loading market map..." />
@@ -169,7 +165,7 @@ export default function MarketDashboard({ allStockQuotes, news }) {
 
       {/* COMMODITIES */}
       <Panel style={{ gridColumn: isMobile ? "1" : "1/-1" }}>
-        <PanelHeader icon={<Hash size={14} color={COLORS.gold} />} title="COMMODITIES" subtitle="Real-time commodity prices" />
+        <PanelHeader title="COMMODITIES" subtitle="Real-time commodity prices" />
         <MiniTable
           headers={["Commodity", "Price", "Change", "Unit"]}
           rows={commodities.map((c) => [
@@ -183,7 +179,7 @@ export default function MarketDashboard({ allStockQuotes, news }) {
 
       {/* BONDS */}
       <Panel>
-        <PanelHeader icon={<Landmark size={14} color={COLORS.blue} />} title="FIXED INCOME" subtitle="US Treasury yields" />
+        <PanelHeader title="FIXED INCOME" subtitle="US Treasury yields" />
         <MiniTable
           headers={["Bond", "Yield", "Change"]}
           rows={bonds.map((b) => [

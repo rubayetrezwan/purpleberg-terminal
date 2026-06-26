@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Calendar, Landmark, BarChart3, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useColors } from "../ThemeContext";
 import { useIsMobile } from "../hooks";
 import { api } from "../api";
@@ -60,7 +60,6 @@ export default function EconomicCalendar() {
     <div style={{ padding: isMobile ? 8 : 12 }}>
       <Panel>
         <PanelHeader
-          icon={<Calendar size={14} color={COLORS.blue} />}
           title="ECONOMIC CALENDAR"
           subtitle={isMobile ? "Upcoming releases (ET)" : "Upcoming economic releases & central bank decisions — all times ET"}
           right={
@@ -127,7 +126,6 @@ export default function EconomicCalendar() {
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginTop: 10 }}>
         <Panel>
           <PanelHeader
-            icon={<Landmark size={14} color={COLORS.gold} />}
             title="US TREASURY YIELDS"
             subtitle="Live from Yahoo Finance"
             right={ratesLoading ? <Badge color={COLORS.orange}>Loading</Badge> : <Badge color={COLORS.green} dot>LIVE</Badge>}
@@ -159,7 +157,7 @@ export default function EconomicCalendar() {
         </Panel>
 
         <Panel>
-          <PanelHeader icon={<BarChart3 size={14} color={COLORS.cyan} />} title="DATA SOURCES" subtitle="Where to find live economic data" />
+          <PanelHeader title="DATA SOURCES" subtitle="Where to find live economic data" />
           <div style={{ padding: 12 }}>
             {[
               { l: "US Bureau of Labor Statistics", url: "https://www.bls.gov", desc: "CPI, PPI, Employment" },

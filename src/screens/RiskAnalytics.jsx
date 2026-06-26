@@ -3,7 +3,6 @@ import {
   BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from "recharts";
-import { AlertTriangle, Shield, Activity, PieChart as PieIcon } from "lucide-react";
 import { fmt, fmtPct, fmtK } from "../config";
 import { useColors } from "../ThemeContext";
 import { useChartTheme } from "../chartTheme";
@@ -106,7 +105,7 @@ export default function RiskAnalytics({ allStockQuotes }) {
       <div style={{ display: "grid", gridTemplateColumns: panelGrid, gap: 10 }}>
         {/* RETURN DISTRIBUTION */}
         <Panel>
-          <PanelHeader icon={<AlertTriangle size={14} color={COLORS.red} />} title="RETURN DISTRIBUTION" subtitle="Today's returns across watchlist" right={<Badge color={COLORS.green} dot>LIVE</Badge>} />
+          <PanelHeader title="RETURN DISTRIBUTION" subtitle="Today's returns across watchlist" right={<Badge color={COLORS.green} dot>LIVE</Badge>} />
           <div style={{ padding: 8, height: 240 }}>
             <ResponsiveContainer>
               <BarChart data={returnData}>
@@ -126,7 +125,7 @@ export default function RiskAnalytics({ allStockQuotes }) {
 
         {/* STRESS TESTS */}
         <Panel>
-          <PanelHeader icon={<Shield size={14} color={COLORS.orange} />} title="ILLUSTRATIVE SCENARIOS" subtitle="Today's dispersion scaled by past event drawdowns — not a real stress test" />
+          <PanelHeader title="ILLUSTRATIVE SCENARIOS" subtitle="Today's dispersion scaled by past event drawdowns — not a real stress test" />
           <div style={{ overflowX: "auto" }}>
             <MiniTable
               headers={isMobile ? ["Scenario", "Impact", "Severity"] : ["Scenario", "Est. Impact", "Scaled Tail", "Severity"]}
@@ -148,7 +147,7 @@ export default function RiskAnalytics({ allStockQuotes }) {
 
         {/* TOP RISK CONTRIBUTORS */}
         <Panel>
-          <PanelHeader icon={<Activity size={14} color={COLORS.cyan} />} title="TOP RISK CONTRIBUTORS" subtitle="Biggest movers today" right={<Badge color={COLORS.green} dot>LIVE</Badge>} />
+          <PanelHeader title="TOP RISK CONTRIBUTORS" subtitle="Biggest movers today" right={<Badge color={COLORS.green} dot>LIVE</Badge>} />
           <div style={{ padding: 8 }}>
             {topRiskContributors.map((s) => (
               <div key={s.symbol} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 4px", borderBottom: `1px solid ${COLORS.border}22` }}>
@@ -169,7 +168,7 @@ export default function RiskAnalytics({ allStockQuotes }) {
 
         {/* RISK METRICS */}
         <Panel>
-          <PanelHeader icon={<PieIcon size={14} color={COLORS.purple} />} title="RISK METRICS" right={<Badge color={COLORS.green} dot>LIVE</Badge>} />
+          <PanelHeader title="RISK METRICS" right={<Badge color={COLORS.green} dot>LIVE</Badge>} />
           <div style={{ padding: 12 }}>
             {[
               { l: "Max Loss Today", v: fmtPct(maxLoss), c: COLORS.red },

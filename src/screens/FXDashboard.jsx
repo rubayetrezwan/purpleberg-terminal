@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { DollarSign, TrendingUp, Calculator, Activity, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { FX_SYMBOLS, fmt, fmtPct } from "../config";
 import { useColors } from "../ThemeContext";
 import { useChartTheme, ChartGradient } from "../chartTheme";
@@ -75,7 +75,7 @@ export default function FXDashboard() {
         {/* Chart */}
         <div style={{ padding: 8 }}>
           <Panel>
-            <PanelHeader icon={<TrendingUp size={14} color={COLORS.purple} />} title={`${selConfig.pair} — 90 DAY`} />
+            <PanelHeader title={`${selConfig.pair} — 90 DAY`} />
             <div style={{ padding: 8, height: 220 }}>
               {histLoading ? <LoadingSpinner text="Loading chart..." /> : (
                 <ResponsiveContainer>
@@ -95,7 +95,7 @@ export default function FXDashboard() {
           {/* Stats + Calculator stacked */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
             <Panel>
-              <PanelHeader icon={<Activity size={14} color={COLORS.orange} />} title="PAIR STATS" />
+              <PanelHeader title="PAIR STATS" />
               <div style={{ padding: 10 }}>
                 <DataCell label="Rate" value={fmt(bid, isJpyQuote ? 2 : 4)} color={COLORS.green} />
                 <DataCell label="Day Range" value={dayRangePips + " pips"} />
@@ -103,7 +103,7 @@ export default function FXDashboard() {
               </div>
             </Panel>
             <Panel>
-              <PanelHeader icon={<Calculator size={14} color={COLORS.gold} />} title="CALCULATOR" />
+              <PanelHeader title="CALCULATOR" />
               <div style={{ padding: 10 }}>
                 <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4 }}>{selConfig.pair.split("/")[0]}</div>
                 <input value={calcFrom} onChange={(e) => setCalcFrom(e.target.value)} style={{ width: "100%", padding: 6, background: COLORS.bgInput, border: `1px solid ${COLORS.border}`, borderRadius: 4, color: COLORS.text, fontSize: 13, fontFamily: "'JetBrains Mono',monospace", outline: "none", boxSizing: "border-box" }} />
@@ -123,7 +123,7 @@ export default function FXDashboard() {
   return (
     <div style={{ display: "grid", gridTemplateColumns: isTablet ? "220px 1fr" : "280px 1fr", gap: 0 }}>
       <div style={{ borderRight: `1px solid ${COLORS.border}`, background: COLORS.bgPanel, overflowY: "auto" }}>
-        <PanelHeader icon={<DollarSign size={14} color={COLORS.green} />} title="FX RATES" subtitle="Real-time exchange rates" />
+        <PanelHeader title="FX RATES" subtitle="Real-time exchange rates" />
         {loading ? (
           <LoadingSpinner text="Loading FX rates..." />
         ) : (
@@ -145,7 +145,7 @@ export default function FXDashboard() {
       <div style={{ overflow: "auto" }}>
         <div style={{ padding: 12, display: "grid", gridTemplateColumns: isTablet ? "1fr" : "1fr 300px", gap: 10 }}>
           <Panel>
-            <PanelHeader icon={<TrendingUp size={14} color={COLORS.purple} />} title={`${selConfig.pair} — 90 DAY CHART`} subtitle="Historical exchange rate" />
+            <PanelHeader title={`${selConfig.pair} — 90 DAY CHART`} subtitle="Historical exchange rate" />
             <div style={{ padding: 8, height: 300 }}>
               {histLoading ? <LoadingSpinner text="Loading chart..." /> : (
                 <ResponsiveContainer>
@@ -164,7 +164,7 @@ export default function FXDashboard() {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <Panel>
-              <PanelHeader icon={<Calculator size={14} color={COLORS.gold} />} title="FX CALCULATOR" />
+              <PanelHeader title="FX CALCULATOR" />
               <div style={{ padding: 12 }}>
                 <div style={{ marginBottom: 8 }}>
                   <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4 }}>Amount ({selConfig.pair.split("/")[0]})</div>
@@ -179,7 +179,7 @@ export default function FXDashboard() {
             </Panel>
 
             <Panel>
-              <PanelHeader icon={<Activity size={14} color={COLORS.orange} />} title="PAIR STATS" />
+              <PanelHeader title="PAIR STATS" />
               <div style={{ padding: 12 }}>
                 <DataCell label="Rate" value={fmt(bid, isJpyQuote ? 2 : 4)} color={COLORS.green} />
                 <DataCell label="Day Range" value={dayRangePips + " pips"} />

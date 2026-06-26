@@ -3,7 +3,7 @@ import {
   AreaChart, Area, LineChart, Line, Bar, ComposedChart,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Gem, Activity, Info, BarChart3, ChevronDown } from "lucide-react";
+import { Gem, ChevronDown } from "lucide-react";
 import { COMMODITY_SYMBOLS, fmt, fmtK, fmtPct, fmtAxisDate, fmtTooltipDate } from "../config";
 import { useColors } from "../ThemeContext";
 import { useChartTheme, ChartGradient } from "../chartTheme";
@@ -393,7 +393,7 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
     return (
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}>
         <Panel>
-          <PanelHeader icon={<Activity size={14} color={COLORS.orange} />} title="PRICE ACTION" subtitle={`Current session & 52-week range${unit ? ` (${unit})` : ""}`} />
+          <PanelHeader title="PRICE ACTION" subtitle={`Current session & 52-week range${unit ? ` (${unit})` : ""}`} />
           <div style={{ padding: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <DataCell label="Open" value={fmt(open)} />
             <DataCell label="Last" value={fmt(price)} color={COLORS.gold} />
@@ -423,7 +423,7 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
         </Panel>
 
         <Panel>
-          <PanelHeader icon={<BarChart3 size={14} color={selCatColor} />} title="PERIOD RETURNS" subtitle="Trading-day offsets from current window" />
+          <PanelHeader title="PERIOD RETURNS" subtitle="Trading-day offsets from current window" />
           <div style={{ padding: 14 }}>
             {perfRows.length === 0 ? (
               <div style={{ fontSize: 11, color: COLORS.textMuted, textAlign: "center", padding: 20 }}>
@@ -470,7 +470,7 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
   if (tab === "SPEC") {
     return (
       <Panel>
-        <PanelHeader icon={<Info size={14} color={COLORS.cyan} />} title="CONTRACT SPECIFICATION" subtitle={`${selected.symbol} front-month futures`} />
+        <PanelHeader title="CONTRACT SPECIFICATION" subtitle={`${selected.symbol} front-month futures`} />
         <div style={{ padding: 16 }}>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr", gap: 16, marginBottom: 14 }}>
             <DataCell label="Yahoo Symbol" value={selected.symbol} />

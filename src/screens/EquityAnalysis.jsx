@@ -3,9 +3,7 @@ import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import {
-  TrendingUp, Activity, Calculator, Building, PieChart as PieIcon, ChevronDown,
-} from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { fmt, fmtK, fmtPct, fmtAxisDate, fmtTooltipDate } from "../config";
 import { useColors } from "../ThemeContext";
 import { useHistorical, useFinancialsWithRetry, useQuotes, useIsMobile } from "../hooks";
@@ -292,7 +290,7 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
     return (
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}>
         <Panel>
-          <PanelHeader icon={<TrendingUp size={14} color={COLORS.green} />} title="QUARTERLY EARNINGS" subtitle="Revenue & Earnings" />
+          <PanelHeader title="QUARTERLY EARNINGS" subtitle="Revenue & Earnings" />
           <div style={{ padding: 8, height: 220 }}>
             {finLoading ? <LoadingSpinner /> : finData?.quarterlyRevenue?.length ? (
               <ResponsiveContainer>
@@ -309,7 +307,7 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
           </div>
         </Panel>
         <Panel>
-          <PanelHeader icon={<PieIcon size={14} color={COLORS.orange} />} title="MARGIN ANALYSIS" subtitle="Profitability metrics" />
+          <PanelHeader title="MARGIN ANALYSIS" subtitle="Profitability metrics" />
           <div style={{ padding: 12 }}>
             {finLoading ? <LoadingSpinner /> : Object.entries(finData?.margins || {}).map(([k, v]) => (
               <div key={k} style={{ marginBottom: 10 }}>
@@ -331,7 +329,7 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
   if (tab === "ESTIMATES") {
     return (
       <Panel>
-        <PanelHeader icon={<Activity size={14} color={COLORS.cyan} />} title="ANALYST ESTIMATES" subtitle="Consensus recommendations" />
+        <PanelHeader title="ANALYST ESTIMATES" subtitle="Consensus recommendations" />
         {finLoading ? <LoadingSpinner /> : (
           <>
             <div style={{ padding: 16, display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 16 }}>
@@ -368,7 +366,7 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
   if (tab === "RATIOS") {
     return (
       <Panel>
-        <PanelHeader icon={<Calculator size={14} color={COLORS.purple} />} title="VALUATION & RATIOS" subtitle="Key financial ratios" />
+        <PanelHeader title="VALUATION & RATIOS" subtitle="Key financial ratios" />
         {finLoading ? <LoadingSpinner /> : (
           <div style={{ padding: 16, display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 16 }}>
             {Object.entries(finData?.ratios || {}).map(([k, v]) => {
@@ -386,7 +384,7 @@ function renderTabContent({ tab, chartType, setChartType, chartRange, setChartRa
   if (tab === "PROFILE") {
     return (
       <Panel>
-        <PanelHeader icon={<Building size={14} color={COLORS.blue} />} title="COMPANY PROFILE" subtitle="Overview & description" />
+        <PanelHeader title="COMPANY PROFILE" subtitle="Overview & description" />
         {finLoading ? <LoadingSpinner /> : (
           <div style={{ padding: 16 }}>
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>

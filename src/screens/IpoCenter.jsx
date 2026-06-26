@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Rocket, CalendarClock, Info } from "lucide-react";
+import { Info } from "lucide-react";
 import { IPO_2026, IPO_2026_LISTED_TICKERS, fmt, fmtK } from "../config";
 import { useColors } from "../ThemeContext";
 import { useQuotes, useIpoCalendar, useIsMobile } from "../hooks";
@@ -40,7 +40,6 @@ export default function IpoCenter() {
       {/* ── CURATED TOP 10 ── */}
       <Panel>
         <PanelHeader
-          icon={<Rocket size={14} color={COLORS.purple} />}
           title="TOP IPOs OF 2026"
           subtitle="Curated from public reporting · live price/cap via Yahoo for listed names"
           right={<Badge color={COLORS.purpleLight}>{rows.length} TRACKED</Badge>}
@@ -106,7 +105,6 @@ export default function IpoCenter() {
       {/* ── LIVE FINNHUB CALENDAR ── */}
       <Panel>
         <PanelHeader
-          icon={<CalendarClock size={14} color={COLORS.cyan} />}
           title="IPO CALENDAR (LIVE)"
           subtitle="Recent &amp; upcoming listings · source: Finnhub"
           right={configured ? <Badge color={COLORS.green} dot>LIVE</Badge> : <Badge color={COLORS.orange}>NOT CONFIGURED</Badge>}

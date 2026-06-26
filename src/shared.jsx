@@ -66,14 +66,11 @@ export const DataCell = ({ label, value, sub, color }) => (
   </div>
 );
 
-export const PanelHeader = ({ icon, title, subtitle, right }) => (
+export const PanelHeader = ({ title, subtitle, right }) => (
   <div className="pb-panel-header">
-    <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
-      {icon}
-      <div>
-        <div className="pb-panel-header__title">{title}</div>
-        {subtitle && <div className="pb-panel-header__sub">{subtitle}</div>}
-      </div>
+    <div>
+      <div className="pb-panel-header__title">{title}</div>
+      {subtitle && <div className="pb-panel-header__sub">{subtitle}</div>}
     </div>
     {right}
   </div>

@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Briefcase, TrendingUp, PieChart as PieIcon, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { fmt, fmtK, fmtPct } from "../config";
 import { useColors } from "../ThemeContext";
 import { useChartTheme } from "../chartTheme";
@@ -108,7 +108,6 @@ export default function PortfolioManager() {
         {/* HOLDINGS TABLE */}
         <Panel>
           <PanelHeader
-            icon={<Briefcase size={14} color={COLORS.purple} />}
             title="HOLDINGS"
             subtitle={staleCount > 0 ? `${staleCount} stale — no live quote` : "Portfolio positions with live P&L"}
             right={
@@ -199,7 +198,7 @@ export default function PortfolioManager() {
         {/* ALLOCATION + DAILY PERFORMANCE */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <Panel>
-            <PanelHeader icon={<PieIcon size={14} color={COLORS.orange} />} title="ALLOCATION" subtitle="Portfolio breakdown" />
+            <PanelHeader title="ALLOCATION" subtitle="Portfolio breakdown" />
             {pieData.length > 0 ? (
               <>
                 <div style={{ padding: 8, height: 200 }}>
@@ -231,7 +230,7 @@ export default function PortfolioManager() {
           </Panel>
 
           <Panel>
-            <PanelHeader icon={<TrendingUp size={14} color={COLORS.green} />} title="TODAY'S MOVERS" subtitle="Daily change by holding" />
+            <PanelHeader title="TODAY'S MOVERS" subtitle="Daily change by holding" />
             <div style={{ padding: 8 }}>
               {liveRows
                 .slice()

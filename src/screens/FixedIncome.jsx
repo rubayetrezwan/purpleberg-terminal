@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Landmark, Globe, Shield } from "lucide-react";
 import { BOND_SYMBOLS, fmt } from "../config";
 import { useColors } from "../ThemeContext";
 import { useQuotes, useIsMobile } from "../hooks";
@@ -46,7 +45,6 @@ export default function FixedIncome() {
       {/* YIELD CURVE */}
       <Panel style={{ gridColumn: isMobile ? "1" : "1/3" }}>
         <PanelHeader
-          icon={<Landmark size={14} color={COLORS.blue} />}
           title="US TREASURY YIELD CURVE"
           subtitle="Real-time yield curve from market data"
         />
@@ -73,7 +71,6 @@ export default function FixedIncome() {
       {/* BOND MONITOR */}
       <Panel>
         <PanelHeader
-          icon={<Globe size={14} color={COLORS.cyan} />}
           title="TREASURY MONITOR"
           subtitle="US Government bond yields"
         />
@@ -90,7 +87,6 @@ export default function FixedIncome() {
       {/* YIELD ANALYSIS */}
       <Panel>
         <PanelHeader
-          icon={<Shield size={14} color={COLORS.orange} />}
           title="YIELD SPREAD ANALYSIS"
           subtitle="Key fixed income metrics"
         />

@@ -1,5 +1,4 @@
 import { useState, useMemo } from "react";
-import { Filter } from "lucide-react";
 import { fmt, fmtK, fmtPct } from "../config";
 import { useColors } from "../ThemeContext";
 import { useIsMobile } from "../hooks";
@@ -67,7 +66,6 @@ export default function StockScreener({ allStockQuotes }) {
     <div style={{ padding: isMobile ? 8 : 12 }}>
       <Panel>
         <PanelHeader
-          icon={<Filter size={14} color={COLORS.purple} />}
           title="EQUITY SCREENER"
           subtitle="Real-time multi-criteria stock screening"
           right={<Badge>{filtered.length} results</Badge>}

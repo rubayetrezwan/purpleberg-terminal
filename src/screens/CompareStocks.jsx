@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { GitCompare, ArrowLeftRight, X } from "lucide-react";
+import { ArrowLeftRight, X } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useColors } from "../ThemeContext";
 import { useIsMobile, useQuotes, useHistorical, useFinancialsWithRetry } from "../hooks";
@@ -159,7 +159,6 @@ export default function CompareStocks({ allStockQuotes = [], news = [] }) {
     <div style={{ padding: isMobile ? 8 : 12 }}>
       <Panel>
         <PanelHeader
-          icon={<GitCompare size={14} color={COLORS.purple} />}
           title="COMPARE STOCKS"
           subtitle="Side-by-side comparison of two equities"
           right={liveA && liveB ? <Badge color={COLORS.green}>{liveA} vs {liveB}</Badge> : null}
