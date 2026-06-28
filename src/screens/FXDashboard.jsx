@@ -7,7 +7,7 @@ import { FX_SYMBOLS, fmt, fmtPct } from "../config";
 import { useColors } from "../ThemeContext";
 import { useChartTheme, ChartGradient } from "../chartTheme";
 import { useQuotes, useHistorical, useIsMobile } from "../hooks";
-import { Panel, PanelHeader, Badge, ChgVal, DataCell, LoadingSpinner } from "../shared";
+import { Panel, PanelHeader, ChgVal, DataCell, LoadingSpinner } from "../shared";
 
 export default function FXDashboard() {
   const COLORS = useColors();

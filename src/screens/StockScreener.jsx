@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { fmt, fmtK, fmtPct } from "../config";
+import { fmt, fmtK } from "../config";
 import { useColors } from "../ThemeContext";
 import { useIsMobile } from "../hooks";
 import { Panel, PanelHeader, Badge, ChgVal, LoadingSpinner } from "../shared";

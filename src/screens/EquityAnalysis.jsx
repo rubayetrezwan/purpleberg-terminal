@@ -7,7 +7,7 @@ import { ChevronDown } from "lucide-react";
 import { fmt, fmtK, fmtPct, fmtAxisDate, fmtTooltipDate } from "../config";
 import { useColors } from "../ThemeContext";
 import { useHistorical, useFinancialsWithRetry, useQuotes, useIsMobile } from "../hooks";
-import { Panel, PanelHeader, Badge, ChgVal, DataCell, TabBar, MiniTable, LoadingSpinner } from "../shared";
+import { Panel, PanelHeader, Badge, ChgVal, DataCell, TabBar, LoadingSpinner } from "../shared";
 import { useChartTheme, ChartGradient } from "../chartTheme";
 
 // Unit to append per ratio metric (see /api/financials in server/index.js):

@@ -7,7 +7,7 @@ import { fmt, fmtK, fmtPct } from "../config";
 import { useColors } from "../ThemeContext";
 import { useChartTheme } from "../chartTheme";
 import { useQuotes, usePortfolio, useIsMobile } from "../hooks";
-import { Panel, PanelHeader, Badge, ChgVal, MiniTable, LoadingSpinner } from "../shared";
+import { Panel, PanelHeader, ChgVal, MiniTable, LoadingSpinner } from "../shared";
 
 export default function PortfolioManager() {
   const COLORS = useColors();
