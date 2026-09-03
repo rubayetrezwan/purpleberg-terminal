@@ -1,0 +1,205 @@
+/* ============================================================
+   Purpleberg Terminal - Quiet Terminal design system
+   One monospaced family, one canvas tone, hairline separation,
+   one accent. Tokens flip on <html data-theme> and
+   <html data-density>. Kit and shell classes are appended in
+   later tasks; the LEGACY block at the bottom is deleted in P2.
+   ============================================================ */
+
+:root {
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, "Liberation Mono", Menlo, monospace;
+
+  --fs-label: 11px;
+  --fs-xs: 10px;
+
+  --t-fast: 150ms ease-out;
+  --t-slide: 180ms ease-out;
+
+  --top-h: 32px;
+  --tape-h: 22px;
+  --side-w: 152px;
+  --side-w-collapsed: 44px;
+  --drawer-w: 360px;
+
+  --z-shell: 20;
+  --z-layer: 100;
+  --z-toast: 200;
+}
+
+/* ---- Dark (default) ---- */
+:root,
+:root[data-theme="dark"] {
+  --c-bg: #000000;
+  --c-raised: #0d0d0d;
+  --c-line: #222222;
+  --c-line-strong: #3a3a3a;
+  --c-text: #e8e8e8;
+  --c-text-dim: #a3a3a3;
+  --c-text-muted: #787878;
+  --c-accent: #8b5cf6;
+  --c-accent-text: #a78bfa;
+  --c-on-accent: #ffffff;
+  --c-up: #22c55e;
+  --c-down: #ef4444;
+  --c-warn: #f59e0b;
+  --c-selected: rgba(139, 92, 246, 0.12);
+  --c-hover: rgba(255, 255, 255, 0.04);
+  --c-flash-up: rgba(34, 197, 94, 0.22);
+  --c-flash-down: rgba(239, 68, 68, 0.22);
+  --c-scrim: rgba(0, 0, 0, 0.55);
+  color-scheme: dark;
+}
+
+/* ---- Light ("paper") ---- */
+:root[data-theme="light"] {
+  --c-bg: #f4f4f1;
+  --c-raised: #ffffff;
+  --c-line: #d6d6d0;
+  --c-line-strong: #b8b8b0;
+  --c-text: #161616;
+  --c-text-dim: #4a4a4a;
+  --c-text-muted: #6e6e6e;
+  --c-accent: #6d28d9;
+  --c-accent-text: #5b21b6;
+  --c-on-accent: #ffffff;
+  --c-up: #15803d;
+  --c-down: #dc2626;
+  --c-warn: #b45309;
+  --c-selected: rgba(109, 40, 217, 0.08);
+  --c-hover: rgba(0, 0, 0, 0.03);
+  --c-flash-up: rgba(21, 128, 61, 0.16);
+  --c-flash-down: rgba(220, 38, 38, 0.16);
+  --c-scrim: rgba(20, 20, 20, 0.35);
+  color-scheme: light;
+}
+
+/* ---- Density ---- */
+:root,
+:root[data-density="compact"] {
+  --fs-base: 12px;
+  --fs-sm: 11px;
+  --fs-lg: 14px;
+  --fs-xl: 18px;
+  --row-h: 24px;
+  --cell-px: 8px;
+  --cell-py: 4px;
+  --sec-pad: 10px;
+  --ctl-h: 24px;
+}
+:root[data-density="comfortable"] {
+  --fs-base: 13px;
+  --fs-sm: 12px;
+  --fs-lg: 15px;
+  --fs-xl: 20px;
+  --row-h: 30px;
+  --cell-px: 12px;
+  --cell-py: 6px;
+  --sec-pad: 14px;
+  --ctl-h: 28px;
+}
+
+/* ============================================================
+   Base
+   ============================================================ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body, #root { height: 100%; }
+body {
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-base);
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select, textarea { font: inherit; color: inherit; background: none; border: 0; border-radius: 0; }
+button { cursor: pointer; }
+a { color: var(--c-accent-text); text-decoration: none; }
+a:hover { text-decoration: underline; }
+h1, h2, h3, h4 { font-size: inherit; font-weight: 500; }
+:focus { outline: none; }
+:focus-visible { outline: 1px solid var(--c-accent); outline-offset: -1px; }
+* { -webkit-tap-highlight-color: transparent; }
+input::placeholder { color: var(--c-text-muted); }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--c-line-strong); }
+::-webkit-scrollbar-thumb:hover { background: var(--c-text-muted); }
+
+/* ============================================================
+   Utilities
+   ============================================================ */
+.pb-up { color: var(--c-up); }
+.pb-down { color: var(--c-down); }
+.pb-warn { color: var(--c-warn); }
+.pb-muted { color: var(--c-text-muted); }
+.pb-dim { color: var(--c-text-dim); }
+.pb-accent { color: var(--c-accent-text); }
+.pb-label { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.06em; color: var(--c-text-muted); }
+.pb-right { text-align: right; }
+.pb-nowrap { white-space: nowrap; }
+.pb-reset { appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: inherit; cursor: pointer; }
+.pb-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@keyframes pb-flash-up { from { background-color: var(--c-flash-up); } to { background-color: transparent; } }
+@keyframes pb-flash-down { from { background-color: var(--c-flash-down); } to { background-color: transparent; } }
+@keyframes pb-tape { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes pb-slide-in { from { transform: translateX(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes pb-rise { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+.pb-flash-up { animation: pb-flash-up 0.6s ease-out; }
+.pb-flash-down { animation: pb-flash-down 0.6s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ============================================================
+   LEGACY - flat stand-ins for classes src/shared.jsx and the old
+   screens still use. Deleted in Plan P2 with the last old screen.
+   ============================================================ */
+.pb-mono { font-family: var(--font-mono); }
+.pb-pos { color: var(--c-up); }
+.pb-neg { color: var(--c-down); }
+.pb-panel { border: 1px solid var(--c-line); background: var(--c-bg); min-width: 0; overflow: hidden; }
+.pb-panel-header { display: flex; align-items: center; justify-content: space-between; min-height: var(--row-h); padding: 0 var(--cell-px); border-bottom: 1px solid var(--c-line); }
+.pb-panel-header__title { font-size: var(--fs-label); font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--c-accent-text); }
+.pb-panel-header__sub { font-size: var(--fs-label); color: var(--c-text-muted); }
+.pb-badge { display: inline-flex; align-items: center; gap: 4px; padding: 0 4px; font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.04em; border: 1px solid currentColor; white-space: nowrap; }
+.pb-btn { display: inline-flex; align-items: center; gap: 4px; height: var(--ctl-h); padding: 0 8px; font-size: var(--fs-sm); text-transform: uppercase; border: 1px solid var(--c-line-strong); color: var(--c-text-muted); background: transparent; cursor: pointer; }
+.pb-btn:hover { color: var(--c-text); }
+.pb-btn--active { color: var(--c-text); background: var(--c-selected); box-shadow: inset 0 -2px 0 var(--c-accent); }
+.pb-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: var(--ctl-h); height: var(--ctl-h); border: 1px solid var(--c-line-strong); background: transparent; cursor: pointer; }
+.pb-row, .pb-link-row { transition: background var(--t-fast); }
+.pb-row:hover, .pb-link-row:hover { background: var(--c-hover); }
+.pb-tabbar { display: flex; border-bottom: 1px solid var(--c-line); }
+.pb-tab { height: var(--row-h); padding: 0 var(--cell-px); font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.06em; color: var(--c-text-muted); background: transparent; border: 0; cursor: pointer; }
+.pb-tab:hover { color: var(--c-text); }
+.pb-tab--active { color: var(--c-text); box-shadow: inset 0 -2px 0 var(--c-accent); }
+.pb-datacell__label { font-size: var(--fs-label); color: var(--c-text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.pb-datacell__value { font-size: var(--fs-lg); font-weight: 600; margin-top: 1px; }
+.pb-datacell__sub { font-size: var(--fs-sm); color: var(--c-text-dim); }
+.pb-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.pb-table th { height: var(--row-h); padding: 0 var(--cell-px); color: var(--c-text-muted); border-bottom: 1px solid var(--c-line); font-size: var(--fs-label); font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; text-align: right; }
+.pb-table th:first-child { text-align: left; }
+.pb-table td { height: var(--row-h); padding: 0 var(--cell-px); text-align: right; white-space: nowrap; }
+.pb-table td:first-child { text-align: left; }
+.pb-table tbody tr { border-bottom: 1px solid var(--c-line); }
+.pb-table tbody tr:last-child { border-bottom: 0; }
+.pb-table--hover tbody tr:hover { background: var(--c-hover); }
+.pb-overlay { position: fixed; inset: 0; background: var(--c-scrim); }
+.pb-dialog { background: var(--c-raised); border: 1px solid var(--c-line-strong); }
+.pb-live-dot { display: inline-block; width: 6px; height: 6px; background: var(--c-up); }
+/* LEGACY SHELL - deleted in Task 16 with src/components */
+.pb-topbar { background: var(--c-bg); border-bottom: 1px solid var(--c-line); }
+.pb-sidebar { background: var(--c-bg); border-right: 1px solid var(--c-line); }
+.pb-bottombar { background: var(--c-bg); border-top: 1px solid var(--c-line); }
+.pb-nav-item { display: flex; align-items: center; gap: 8px; width: 100%; cursor: pointer; }
+.pb-nav-item:hover { background: var(--c-hover); }
+.pb-nav-item--active { background: var(--c-selected); box-shadow: inset 2px 0 0 var(--c-accent); }
+.pb-logo-mark { display: flex; align-items: center; justify-content: center; background: var(--c-accent); }
+.pb-search-pill { display: flex; align-items: center; gap: 8px; border: 1px solid var(--c-line-strong); }
