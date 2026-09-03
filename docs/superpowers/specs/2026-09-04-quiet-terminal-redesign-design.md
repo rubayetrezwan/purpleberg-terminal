@@ -74,8 +74,8 @@ Dark (default):
 | `--c-line-strong` | `#3a3a3a` | inputs, floating-layer borders |
 | `--c-text` | `#e8e8e8` | primary text |
 | `--c-text-dim` | `#a3a3a3` | secondary text |
-| `--c-text-muted` | `#787878` | labels, meta |
-| `--c-accent` | `#8b5cf6` | active marker, focus, primary button (4.98:1 on black) |
+| `--c-text-muted` | `#7d7d7d` | labels, meta (4.7:1 on raised) |
+| `--c-accent` | `#7c3aed` | active marker, focus, primary button fill (3.7:1 on black as a non-text marker; white text on it 5.7:1) |
 | `--c-accent-text` | `#a78bfa` | section titles, command line, links (7.7:1 on black) |
 | `--c-up` / `--c-down` | `#22c55e` / `#ef4444` | signed changes |
 | `--c-warn` | `#f59e0b` | stale, offline, alerts |
@@ -84,7 +84,7 @@ Dark (default):
 
 Light ("paper"): `--c-bg #f4f4f1`, `--c-raised #ffffff`, `--c-line #d6d6d0`,
 `--c-line-strong #b8b8b0`, `--c-text #161616`, `--c-text-dim #4a4a4a`, `--c-text-muted #6e6e6e`,
-`--c-accent #6d28d9`, `--c-accent-text #5b21b6`, `--c-up #15803d`, `--c-down #dc2626`,
+`--c-accent #6d28d9`, `--c-accent-text #5b21b6`, `--c-up #15803d`, `--c-down #b91c1c`,
 `--c-warn #b45309`, `--c-selected rgba(109,40,217,.08)`, `--c-hover rgba(0,0,0,.03)`.
 
 Theme is applied as `data-theme="dark|light"` on `<html>`; "system" resolves through

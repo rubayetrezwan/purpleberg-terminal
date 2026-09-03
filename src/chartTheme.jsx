@@ -17,8 +17,6 @@ export function useChartTheme() {
   const tooltipProps = {
     contentStyle: {
       background: "var(--c-glass-strong)",
-      backdropFilter: "blur(12px) saturate(135%)",
-      WebkitBackdropFilter: "blur(12px) saturate(135%)",
       border: "1px solid color-mix(in srgb, var(--c-purple) 28%, var(--c-border))",
       borderRadius: 8,
       boxShadow: "var(--shadow-panel)",

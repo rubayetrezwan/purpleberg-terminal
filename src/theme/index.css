@@ -35,8 +35,8 @@
   --c-line-strong: #3a3a3a;
   --c-text: #e8e8e8;
   --c-text-dim: #a3a3a3;
-  --c-text-muted: #787878;
-  --c-accent: #8b5cf6;
+  --c-text-muted: #7d7d7d;
+  --c-accent: #7c3aed;
   --c-accent-text: #a78bfa;
   --c-on-accent: #ffffff;
   --c-up: #22c55e;
@@ -63,7 +63,7 @@
   --c-accent-text: #5b21b6;
   --c-on-accent: #ffffff;
   --c-up: #15803d;
-  --c-down: #dc2626;
+  --c-down: #b91c1c;
   --c-warn: #b45309;
   --c-selected: rgba(109, 40, 217, 0.08);
   --c-hover: rgba(0, 0, 0, 0.03);
@@ -140,7 +140,7 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-right { text-align: right; }
 .pb-nowrap { white-space: nowrap; }
 .pb-reset { appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: inherit; cursor: pointer; }
-.pb-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.pb-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 @keyframes pb-flash-up { from { background-color: var(--c-flash-up); } to { background-color: transparent; } }
 @keyframes pb-flash-down { from { background-color: var(--c-flash-down); } to { background-color: transparent; } }
@@ -155,13 +155,36 @@ input::placeholder { color: var(--c-text-muted); }
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+    animation-delay: 0s !important;
+    scroll-behavior: auto !important;
   }
 }
 
+/* === LEGACY:BEGIN (delete in Plan P2 with the last old screen) === */
 /* ============================================================
    LEGACY - flat stand-ins for classes src/shared.jsx and the old
    screens still use. Deleted in Plan P2 with the last old screen.
    ============================================================ */
+/* LEGACY TOKEN ALIASES - old names still referenced by inline styles in
+   src/shared.jsx, src/chartTheme.jsx, src/components/*. Deleted with them. */
+:root {
+  --c-purple: var(--c-accent);
+  --c-purple-light: var(--c-accent-text);
+  --c-purple-dim: var(--c-selected);
+  --c-border: var(--c-line);
+  --c-elevated: var(--c-raised);
+  --c-glass-strong: var(--c-raised);
+  --c-red: var(--c-down);
+  --c-orange: var(--c-warn);
+  --c-cyan: var(--c-accent-text);
+  --fs-2xs: 9px;
+  --fs-md: 13px;
+  --sp-2: 8px;
+  --glow-purple: none;
+  --shadow-panel: none;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 .pb-mono { font-family: var(--font-mono); }
 .pb-pos { color: var(--c-up); }
 .pb-neg { color: var(--c-down); }
@@ -203,3 +226,4 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-nav-item--active { background: var(--c-selected); box-shadow: inset 2px 0 0 var(--c-accent); }
 .pb-logo-mark { display: flex; align-items: center; justify-content: center; background: var(--c-accent); }
 .pb-search-pill { display: flex; align-items: center; gap: 8px; border: 1px solid var(--c-line-strong); }
+/* === LEGACY:END === */

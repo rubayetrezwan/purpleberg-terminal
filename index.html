@@ -9,11 +9,14 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
     <script>
       // Paint the saved theme before the bundle loads so a light-theme user
-      // does not see a black flash. Mirrors src/theme/applyTheme.js.
+      // does not see a black flash. Mirrors src/theme/applyTheme.js (added in
+      // Task 5); until the settings store exists it also honours the old
+      // purpleberg_theme key.
       try {
         var s = JSON.parse(localStorage.getItem("purpleberg.settings") || "{}");
-        var dark = s.theme === "light" ? false
-          : s.theme === "system" ? window.matchMedia("(prefers-color-scheme: dark)").matches
+        var theme = s.theme || localStorage.getItem("purpleberg_theme") || "dark";
+        var dark = theme === "light" ? false
+          : theme === "system" ? window.matchMedia("(prefers-color-scheme: dark)").matches
           : true;
         document.documentElement.dataset.theme = dark ? "dark" : "light";
         document.documentElement.dataset.density = s.density === "comfortable" ? "comfortable" : "compact";
