@@ -1,0 +1,8 @@
+node_modules
+dist
+.env
+*.log
+.claude/
+
+# brainstorming mockups (visual companion)
+.superpowers/
