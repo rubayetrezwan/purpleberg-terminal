@@ -86,66 +86,10 @@ export const BOND_SYMBOLS = [
 ];
 
 // ═══════════════════════════════════════════
-// UTILITIES
+// UTILITIES - moved to src/lib/format.js; re-exported so the
+// untouched screens keep importing them from here until P2.
 // ═══════════════════════════════════════════
-
-export const fmt = (n, d = 2) => {
-  if (n == null || isNaN(n)) return "—";
-  return Number(n).toFixed(d);
-};
-
-export const fmtK = (n) => {
-  if (n == null || isNaN(n)) return "—";
-  if (n === 0) return "0";
-  // Abbreviate on magnitude so negatives (e.g. a -$5B P&L) collapse too —
-  // the old `n >= 1e9` checks let negatives fall through unabbreviated.
-  const neg = n < 0;
-  const a = Math.abs(n);
-  let out;
-  if (a >= 1e12) out = (a / 1e12).toFixed(2) + "T";
-  else if (a >= 1e9) out = (a / 1e9).toFixed(1) + "B";
-  else if (a >= 1e6) out = (a / 1e6).toFixed(1) + "M";
-  else if (a >= 1e3) out = (a / 1e3).toFixed(1) + "K";
-  else out = a.toString();
-  return neg ? "-" + out : out;
-};
-
-export const fmtPct = (n) => {
-  if (n == null || isNaN(n)) return "—";
-  return (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
-};
-
-export const ts = () =>
-  new Date().toLocaleTimeString("en-US", { hour12: false });
-
-// ── Chart date formatters ───────────────────────────────
-// Shared by the Equity, Commodities, and Crypto chart screens (previously
-// copy-pasted into each). Recharts passes raw ISO "YYYY-MM-DD" strings through
-// untouched unless formatted, so these are used from tickFormatter/labelFormatter.
-export const MONTHS_SHORT = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
-// Axis tick: "Mar 14" normally; "Mar '25" when showYear is set (multi-year ranges).
-export const fmtAxisDate = (iso, showYear) => {
-  if (!iso || typeof iso !== "string") return "";
-  const parts = iso.split("-");
-  if (parts.length < 3) return iso;
-  const [y, m, d] = parts;
-  const mon = MONTHS_SHORT[parseInt(m, 10) - 1] || m;
-  return showYear ? `${mon} '${y.slice(-2)}` : `${mon} ${parseInt(d, 10)}`;
-};
-
-// Tooltip label: full "Mar 14, 2025".
-export const fmtTooltipDate = (iso) => {
-  if (!iso || typeof iso !== "string") return "";
-  const parts = iso.split("-");
-  if (parts.length < 3) return iso;
-  const [y, m, d] = parts;
-  const mon = MONTHS_SHORT[parseInt(m, 10) - 1] || m;
-  return `${mon} ${parseInt(d, 10)}, ${y}`;
-};
+export { fmt, fmtK, fmtPct, ts, MONTHS_SHORT, fmtAxisDate, fmtTooltipDate } from "./lib/format.js";
 
 export const SECTORS = [
   "Technology", "Healthcare", "Financial Services", "Energy",
