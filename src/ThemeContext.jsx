@@ -1,4 +1,6 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useMemo } from "react";
+import { setSetting } from "./stores/settings.js";
+import { useResolvedTheme } from "./theme/useResolvedTheme.js";
 
 // JS palette mirrors the CSS custom properties in index.css. Components that
 // read colours inline via useColors() must stay in sync with :root[data-theme].
@@ -60,34 +62,16 @@ const LIGHT = {
 
 const ThemeContext = createContext();
 
-const THEME_KEY = "purpleberg_theme";
-
+// Bridge for the old screens: `useColors()` keeps returning the JS palette and
+// `toggle` writes to the settings store. Deleted in P2 with the last old screen.
 export function ThemeProvider({ children }) {
-  const [isDark, setIsDark] = useState(() => {
-    try {
-      return localStorage.getItem(THEME_KEY) !== "light";
-    } catch {
-      return true;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(THEME_KEY, isDark ? "dark" : "light");
-    } catch {}
-    // Drive the CSS custom properties in index.css. useColors() still returns
-    // the JS palette for components that read colours inline.
-    document.documentElement.dataset.theme = isDark ? "dark" : "light";
-  }, [isDark]);
-
-  const toggle = () => setIsDark((v) => !v);
-  const colors = isDark ? DARK : LIGHT;
-
-  return (
-    <ThemeContext.Provider value={{ colors, isDark, toggle }}>
-      {children}
-    </ThemeContext.Provider>
+  const theme = useResolvedTheme();
+  const isDark = theme === "dark";
+  const value = useMemo(
+    () => ({ colors: isDark ? DARK : LIGHT, isDark, toggle: () => setSetting("theme", isDark ? "light" : "dark") }),
+    [isDark]
   );
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {
