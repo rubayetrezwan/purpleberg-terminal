@@ -42,7 +42,7 @@
   --c-up: #22c55e;
   --c-down: #ef4444;
   --c-warn: #f59e0b;
-  --c-selected: rgba(139, 92, 246, 0.12);
+  --c-selected: rgba(124, 58, 237, 0.12);
   --c-hover: rgba(255, 255, 255, 0.04);
   --c-flash-up: rgba(34, 197, 94, 0.22);
   --c-flash-down: rgba(239, 68, 68, 0.22);
@@ -168,7 +168,7 @@ input::placeholder { color: var(--c-text-muted); }
 /* LEGACY TOKEN ALIASES - old names still referenced by inline styles in
    src/shared.jsx, src/chartTheme.jsx, src/components/*. Deleted with them. */
 :root {
-  --c-purple: var(--c-accent);
+  --c-purple: var(--c-accent-text);
   --c-purple-light: var(--c-accent-text);
   --c-purple-dim: var(--c-selected);
   --c-border: var(--c-line);
@@ -185,6 +185,7 @@ input::placeholder { color: var(--c-text-muted); }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+@keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
 .pb-mono { font-family: var(--font-mono); }
 .pb-pos { color: var(--c-up); }
 .pb-neg { color: var(--c-down); }
