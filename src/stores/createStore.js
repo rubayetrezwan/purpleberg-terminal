@@ -24,15 +24,33 @@ function browserStorage() {
 }
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
+export const isPlainObject = (v) => v != null && typeof v === "object" && !Array.isArray(v);
 
+// options: { storage, migrate(storage), sanitize(state), debounceMs }
+// `sanitize` runs on every hydrate, replace, and reset so a corrupt or
+// hand-edited localStorage value can never reach the app unchecked.
 export function createStore(key, initial, options = {}) {
-  const { migrate = null, debounceMs = 150 } = options;
+  const { migrate = null, sanitize = null, debounceMs = 150 } = options;
   const storage = "storage" in options ? options.storage : browserStorage();
+  const usingBrowserStorage = Boolean(storage) && storage === browserStorage();
   const fullKey = PREFIX + key;
   const listeners = new Set();
   let timer = null;
 
-  function load() {
+  const finish = (obj) => {
+    const merged = { ...clone(initial), ...obj };
+    return sanitize ? sanitize(merged) : merged;
+  };
+
+  function write(value) {
+    if (!storage) return;
+    try { storage.setItem(fullKey, JSON.stringify(value)); } catch { /* quota or blocked */ }
+  }
+
+  // allowMigrate is false on a cross-tab rehydrate so a removed key cannot
+  // resurrect legacy data. A successful migration is persisted at once so it
+  // runs exactly once per browser.
+  function load(allowMigrate) {
     let parsed = null;
     try {
       const raw = storage ? storage.getItem(fullKey) : null;
@@ -40,42 +58,65 @@ export function createStore(key, initial, options = {}) {
     } catch {
       parsed = null;
     }
-    const usable = (v) => v != null && typeof v === "object" && !Array.isArray(v);
-    if (!usable(parsed) && migrate) {
-      try { parsed = migrate(storage) ?? null; } catch { parsed = null; }
+    if (isPlainObject(parsed)) return finish(parsed);
+    if (allowMigrate && migrate) {
+      let migrated = null;
+      try { migrated = migrate(storage) ?? null; } catch { migrated = null; }
+      if (isPlainObject(migrated)) {
+        const next = finish(migrated);
+        write(next);
+        return next;
+      }
     }
-    if (!usable(parsed)) return clone(initial);
-    return { ...clone(initial), ...parsed };
+    return finish({});
   }
 
-  let state = load();
+  let state = load(true);
 
-  function persist() {
-    if (!storage) return;
-    try { storage.setItem(fullKey, JSON.stringify(state)); } catch { /* quota or blocked */ }
+  function persist() { write(state); }
+  function flush() {
+    if (timer) { clearTimeout(timer); timer = null; }
+    persist();
   }
   function schedulePersist() {
     if (debounceMs === 0) { persist(); return; }
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => { timer = null; persist(); }, debounceMs);
   }
-  function emit() { for (const fn of listeners) fn(state); }
-  function set(next) { state = next; schedulePersist(); emit(); }
+  function emit() {
+    for (const fn of listeners) {
+      try { fn(state); } catch (e) { console.error(`[store ${fullKey}] subscriber failed`, e); }
+    }
+  }
+  function set(next) {
+    if (!isPlainObject(next)) return;
+    state = next;
+    schedulePersist();
+    emit();
+  }
 
   const store = {
     key: fullKey,
     get: () => state,
     set,
     update: (fn) => set(fn(state)),
-    replace: (next) => { state = { ...clone(initial), ...(next && typeof next === "object" ? next : {}) }; persist(); emit(); },
-    reset: () => { state = clone(initial); persist(); emit(); },
-    flush: () => { if (timer) { clearTimeout(timer); timer = null; } persist(); },
+    replace: (next) => { state = finish(isPlainObject(next) ? next : {}); persist(); emit(); },
+    reset: () => { state = finish({}); persist(); emit(); },
+    flush,
     subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
-    rehydrate: () => { state = load(); emit(); },
+    // Cross-tab: a pending local write is newer than whatever just arrived,
+    // so flush it instead of adopting the other tab's value.
+    rehydrate: () => {
+      if (timer) { flush(); return; }
+      state = load(false);
+      emit();
+    },
   };
 
-  if (typeof window !== "undefined" && storage && storage === browserStorage()) {
+  if (typeof window !== "undefined" && usingBrowserStorage) {
     window.addEventListener("storage", (e) => { if (e.key === fullKey) store.rehydrate(); });
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
   }
   return store;
 }

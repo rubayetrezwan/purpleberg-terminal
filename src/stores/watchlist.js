@@ -32,7 +32,19 @@ export function moveInList(list, symbol, dir) {
   return next;
 }
 
-export const watchlist = createStore("watchlist", WATCHLIST_DEFAULTS);
+// Corrupt or foreign data never reaches the app: symbols are re-validated,
+// deduplicated, and capped; a non-array falls back to the defaults.
+export function sanitizeWatchlist(s) {
+  if (!Array.isArray(s.symbols)) return { symbols: [...WATCHLIST_DEFAULTS.symbols] };
+  const out = [];
+  for (const raw of s.symbols) {
+    const t = normalizeSymbol(raw);
+    if (t && !out.includes(t) && out.length < WATCHLIST_MAX) out.push(t);
+  }
+  return { symbols: out };
+}
+
+export const watchlist = createStore("watchlist", WATCHLIST_DEFAULTS, { sanitize: sanitizeWatchlist });
 
 export const addSymbol = (s) => watchlist.update((st) => ({ ...st, symbols: addToList(st.symbols, s) }));
 export const removeSymbol = (s) => watchlist.update((st) => ({ ...st, symbols: removeFromList(st.symbols, s) }));

@@ -3,7 +3,12 @@ import { newId } from "../lib/id.js";
 
 // items: [{ id, symbol, op: "above"|"below", price, baseline, lastPrice,
 //           createdAt, triggeredAt, triggeredPrice }]
-export const alerts = createStore("alerts", { items: [] });
+export function isAlertItem(a) {
+  return Boolean(a) && typeof a === "object" && typeof a.id === "string" && typeof a.symbol === "string"
+    && (a.op === "above" || a.op === "below") && Number(a.price) > 0;
+}
+export const sanitizeAlerts = (s) => ({ items: Array.isArray(s.items) ? s.items.filter(isAlertItem) : [] });
+export const alerts = createStore("alerts", { items: [] }, { sanitize: sanitizeAlerts });
 
 export function addAlert({ symbol, op, price, baseline }) {
   const base = baseline == null || Number.isNaN(Number(baseline)) ? null : Number(baseline);

@@ -16,19 +16,28 @@ export const fmtNum = (n, d = 2) =>
     ? "—"
     : Number(n).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 
-// Magnitude abbreviation. Abbreviates on |n| so negatives collapse too.
+// Magnitude abbreviation. Abbreviates on |n| so negatives collapse too, and
+// promotes to the next unit when rounding would print "1000.0K".
+const BANDS = [[1e12, "T", 2], [1e9, "B", 1], [1e6, "M", 1], [1e3, "K", 1]];
 export const fmtK = (n) => {
   if (missing(n)) return "—";
   const v = Number(n);
   if (v === 0) return "0";
   const neg = v < 0;
   const a = Math.abs(v);
-  let out;
-  if (a >= 1e12) out = (a / 1e12).toFixed(2) + "T";
-  else if (a >= 1e9) out = (a / 1e9).toFixed(1) + "B";
-  else if (a >= 1e6) out = (a / 1e6).toFixed(1) + "M";
-  else if (a >= 1e3) out = (a / 1e3).toFixed(1) + "K";
-  else out = a.toString();
+  let out = null;
+  for (let i = 0; i < BANDS.length && out == null; i += 1) {
+    const [div, suffix, d] = BANDS[i];
+    if (a < div) continue;
+    const s = (a / div).toFixed(d);
+    if (Number(s) >= 1000 && i > 0) {
+      const [pdiv, psuffix, pd] = BANDS[i - 1];
+      out = (a / pdiv).toFixed(pd) + psuffix;
+    } else {
+      out = s + suffix;
+    }
+  }
+  if (out == null) out = a.toString();
   return neg ? "-" + out : out;
 };
 
@@ -40,17 +49,24 @@ export const fmtSigned = (n, d = 2) => {
 
 export const fmtPct = (n, d = 2) => (missing(n) ? "—" : fmtSigned(n, d) + "%");
 
-export const ts = () => new Date().toLocaleTimeString("en-US", { hour12: false });
+// "14:18:53" in any IANA zone; formatters are cached because the session
+// clock calls this every second for three zones.
+const clockFormatters = new Map();
+export const fmtClock = (date, timeZone) => {
+  const key = timeZone || "local";
+  let f = clockFormatters.get(key);
+  if (!f) {
+    try {
+      f = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    } catch {
+      return "—";
+    }
+    clockFormatters.set(key, f);
+  }
+  return f.format(date);
+};
 
-// "14:18:53" in any IANA zone.
-export const fmtClock = (date, timeZone) =>
-  new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hourCycle: "h23",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).format(date);
+export const ts = () => fmtClock(new Date());
 
 // Coarse age: 9s, 2m, 1h, 2d.
 export function fmtAgo(ms) {

@@ -28,11 +28,19 @@ function refresh() {
   for (const fn of listeners) fn();
 }
 
+let stop = null;
 export function startThemeSync() {
+  if (stop) return stop;
+  if (typeof document === "undefined") return () => {};
   paint();
   const unsub = settings.subscribe(refresh);
   if (mql) mql.addEventListener("change", refresh);
-  return () => { unsub(); if (mql) mql.removeEventListener("change", refresh); };
+  stop = () => {
+    unsub();
+    if (mql) mql.removeEventListener("change", refresh);
+    stop = null;
+  };
+  return stop;
 }
 
 export function getResolved() { return current; }

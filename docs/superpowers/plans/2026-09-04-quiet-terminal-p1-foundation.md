@@ -1448,6 +1448,8 @@ git commit -m "theme: settings-driven theme and density applier, legacy palette 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
+**Post-review amendments (applied in the fix commit after Tasks 2-5):** `createStore` gained a `sanitize` option applied on hydrate, replace, and reset, persists a migration immediately, skips `migrate` on cross-tab rehydrate, keeps a pending local write over a foreign one, and flushes on `pagehide` and hidden `visibilitychange`; every domain store passes a sanitizer; `importAll` checks `version` and the required array field of each section before writing anything, and `exportAll` returns a copy; `fmtK` promotes units at band edges; `fmtClock` caches formatters and returns "—" for an unknown zone; `ts()` delegates to `fmtClock`; `migratePortfolio` dates on the local day; `startThemeSync` is a no-op without a DOM and idempotent. Later tasks that read these modules should rely on the code in the repository.
+
 ---
 ### Task 6: Router
 

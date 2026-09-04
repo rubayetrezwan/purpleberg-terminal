@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   fmt, fmtNum, fmtK, fmtPct, fmtSigned, fmtAgo, fmtCountdown,
-  fmtDateTable, fmtAxisDate, fmtTooltipDate, fmtClock,
+  fmtDateTable, fmtAxisDate, fmtTooltipDate, fmtClock, ts,
 } from "./format.js";
 
 test("fmt: fixed decimals, em dash for missing", () => {
@@ -27,6 +27,10 @@ test("fmtK: magnitude suffixes including negatives", () => {
   assert.equal(fmtK(950), "950");
   assert.equal(fmtK(0), "0");
   assert.equal(fmtK(undefined), "—");
+  assert.equal(fmtK(999_999), "1.0M");
+  assert.equal(fmtK(999_999_999), "1.0B");
+  assert.equal(fmtK(999_999_999_999), "1.00T");
+  assert.equal(fmtK(-999_999), "-1.0M");
 });
 
 test("fmtPct and fmtSigned carry an explicit sign", () => {
@@ -67,4 +71,6 @@ test("fmtClock: 24-hour clock in a given zone", () => {
   const d = new Date(Date.UTC(2026, 8, 4, 14, 18, 53));
   assert.equal(fmtClock(d, "UTC"), "14:18:53");
   assert.equal(fmtClock(d, "Asia/Tokyo"), "23:18:53");
+  assert.equal(fmtClock(d, "Not/AZone"), "—");
+  assert.match(ts(), /^\d{2}:\d{2}:\d{2}$/);
 });

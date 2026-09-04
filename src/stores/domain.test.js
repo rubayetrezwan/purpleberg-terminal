@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { memoryStorage } from "./createStore.js";
-import { migrateSettings, sanitizeSettings, SETTINGS_DEFAULTS } from "./settings.js";
-import { addToList, removeFromList, moveInList, normalizeSymbol, WATCHLIST_MAX } from "./watchlist.js";
-import { migratePortfolio } from "./portfolio.js";
+import { migrateSettings, sanitizeSettings, SETTINGS_DEFAULTS, setSetting } from "./settings.js";
+import { addToList, removeFromList, moveInList, normalizeSymbol, WATCHLIST_MAX, sanitizeWatchlist } from "./watchlist.js";
+import { sanitizeAlerts } from "./alerts.js";
+import { migratePortfolio, sanitizePortfolio, localYmd } from "./portfolio.js";
 import { STORES, exportAll, importAll, validateExport, resetAll } from "./index.js";
 
 test("settings migrate from the old purpleberg_theme key", () => {
@@ -47,7 +48,7 @@ test("portfolio migrates old holdings into dated buy transactions", () => {
     { symbol: "aapl", name: "Apple", shares: 10, avgCost: 150 },
     { symbol: "MSFT", name: "Microsoft", shares: 0, avgCost: 300 },
   ]));
-  const out = migratePortfolio(st, new Date(Date.UTC(2026, 8, 4)));
+  const out = migratePortfolio(st, new Date(2026, 8, 4, 12));
   assert.equal(out.transactions.length, 1);
   const tx = out.transactions[0];
   assert.equal(tx.symbol, "AAPL");
@@ -77,7 +78,42 @@ test("export and import round-trip through every store", () => {
   assert.deepEqual(STORES.watchlist.get().symbols, ["NVDA", "AAPL"]);
   assert.equal(STORES.settings.get().theme, "light");
   assert.equal(validateExport({ app: "other" }), "Not a Purpleberg export file");
-  assert.equal(validateExport({ app: "purpleberg", stores: { settings: 3 } }), "Invalid section: settings");
+  assert.equal(validateExport({ app: "purpleberg", version: 1, stores: { settings: 3 } }), "Invalid section: settings");
   assert.equal(importAll(null).ok, false);
   resetAll();
+});
+
+test("importAll rejects bad inner shapes and wrong versions without touching any store", () => {
+  resetAll();
+  STORES.watchlist.set({ symbols: ["AAPL"] });
+  let res = importAll({ app: "purpleberg", version: 1, stores: { watchlist: { symbols: "NVDA" }, alerts: { items: [] } } });
+  assert.deepEqual(res, { ok: false, error: "Invalid section: watchlist" });
+  assert.deepEqual(STORES.watchlist.get().symbols, ["AAPL"]);
+  res = importAll({ app: "purpleberg", version: 2, stores: {} });
+  assert.equal(res.ok, false);
+  assert.match(res.error, /Unsupported export version/);
+  const dump = exportAll();
+  assert.notEqual(dump.stores.watchlist, STORES.watchlist.get());
+  resetAll();
+});
+
+test("settings are sanitized on every path", () => {
+  resetAll();
+  STORES.settings.replace({ theme: "neon", refreshSec: 5, extra: 1 });
+  assert.deepEqual(STORES.settings.get(), SETTINGS_DEFAULTS);
+  setSetting("bogus", 1);
+  assert.equal("bogus" in STORES.settings.get(), false);
+  setSetting("density", "comfortable");
+  assert.equal(STORES.settings.get().density, "comfortable");
+  resetAll();
+});
+
+test("domain sanitizers repair corrupt shapes", () => {
+  assert.equal(sanitizeWatchlist({ symbols: "NVDA" }).symbols.length, 8);
+  assert.deepEqual(sanitizeWatchlist({ symbols: ["aapl", "AAPL", "bad symbol!", null, ""] }), { symbols: ["AAPL"] });
+  assert.deepEqual(sanitizeWatchlist({ symbols: [] }), { symbols: [] });
+  assert.deepEqual(sanitizeAlerts({ items: 5 }), { items: [] });
+  assert.equal(sanitizeAlerts({ items: [{ id: "a", symbol: "NVDA", op: "above", price: 1 }, { id: "b" }] }).items.length, 1);
+  assert.equal(sanitizePortfolio({ transactions: [{ id: "t", date: "2026-09-04", symbol: "AAPL", side: "buy", shares: 1, price: 10, fees: 0 }, { id: "u", date: "bad" }] }).transactions.length, 1);
+  assert.equal(localYmd(new Date(2026, 0, 5, 21)), "2026-01-05");
 });

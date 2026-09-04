@@ -32,7 +32,7 @@ export function sanitizeSettings(input) {
   };
 }
 
-export const settings = createStore("settings", SETTINGS_DEFAULTS, { migrate: migrateSettings });
+export const settings = createStore("settings", SETTINGS_DEFAULTS, { migrate: migrateSettings, sanitize: sanitizeSettings });
 
 export function setSetting(key, value) {
   settings.update((s) => sanitizeSettings({ ...s, [key]: value }));
