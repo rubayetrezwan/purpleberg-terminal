@@ -261,6 +261,46 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-dt__tr--selected > .pb-dt__td:first-child { box-shadow: inset 2px 0 0 var(--c-accent); }
 .pb-dt__tr:focus-visible { outline: 1px solid var(--c-accent); outline-offset: -1px; }
 
+/* ============================================================
+   Kit C - layers, drawer, toasts, dialog, list-detail, chart
+   ============================================================ */
+.pb-scrim { position: fixed; inset: 0; z-index: var(--z-layer); background: var(--c-scrim); display: flex; }
+.pb-scrim--right { justify-content: flex-end; }
+.pb-scrim--center { align-items: center; justify-content: center; }
+.pb-drawer { width: var(--drawer-w); max-width: 100%; height: 100%; background: var(--c-raised); border-left: 1px solid var(--c-line-strong); display: flex; flex-direction: column; animation: pb-slide-in var(--t-slide); }
+.pb-drawer__head { display: flex; align-items: center; gap: 8px; min-height: var(--top-h); padding: 0 var(--cell-px); border-bottom: 1px solid var(--c-line); }
+.pb-drawer__title { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.06em; color: var(--c-accent-text); }
+.pb-drawer__close { margin-left: auto; color: var(--c-text-muted); display: inline-flex; padding: 4px; }
+.pb-drawer__close:hover { color: var(--c-text); }
+.pb-drawer__body { flex: 1; overflow: auto; min-height: 0; }
+@media (max-width: 767px) { .pb-drawer { width: 100%; border-left: 0; } }
+
+.pb-toasts { position: fixed; right: 12px; bottom: calc(var(--tape-h) + 12px); z-index: var(--z-toast); display: flex; flex-direction: column; gap: 6px; width: 320px; max-width: calc(100vw - 24px); }
+.pb-toast { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; background: var(--c-raised); border: 1px solid var(--c-line-strong); animation: pb-rise var(--t-fast); }
+.pb-toast--warn { border-color: var(--c-warn); }
+.pb-toast__text { flex: 1; min-width: 0; }
+.pb-toast__title { font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: 0.04em; }
+.pb-toast--warn .pb-toast__title { color: var(--c-warn); }
+.pb-toast__body { font-size: var(--fs-sm); color: var(--c-text-dim); margin-top: 2px; }
+.pb-toast__action { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--c-accent-text); padding: 2px 4px; border: 1px solid var(--c-line-strong); }
+.pb-toast__close { color: var(--c-text-muted); display: inline-flex; padding: 2px; }
+@media (max-width: 767px) { .pb-toasts { bottom: 68px; } }
+
+.pb-dialogbox { width: 360px; max-width: calc(100vw - 24px); background: var(--c-raised); border: 1px solid var(--c-line-strong); padding: var(--sec-pad); animation: pb-rise var(--t-fast); }
+.pb-dialogbox__title { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.06em; color: var(--c-accent-text); margin-bottom: 8px; }
+.pb-dialogbox__body { font-size: var(--fs-sm); color: var(--c-text-dim); margin-bottom: 12px; }
+.pb-dialogbox__actions { display: flex; justify-content: flex-end; gap: 6px; }
+
+.pb-ld { display: grid; min-height: 100%; }
+.pb-ld__list { border-right: 1px solid var(--c-line); min-width: 0; overflow: auto; }
+.pb-ld__detail { min-width: 0; overflow: auto; }
+.pb-ld--mobile { display: flex; flex-direction: column; }
+.pb-ld__selector { padding: var(--cell-py) var(--cell-px); border-bottom: 1px solid var(--c-line); }
+
+.pb-chart { width: 100%; min-width: 0; }
+.pb-chart .recharts-cartesian-axis-tick-value { font-family: inherit; }
+.pb-chart .recharts-tooltip-wrapper { outline: none; }
+
 /* === LEGACY:BEGIN (delete in Plan P2 with the last old screen) === */
 /* ============================================================
    LEGACY - flat stand-ins for classes src/shared.jsx and the old
