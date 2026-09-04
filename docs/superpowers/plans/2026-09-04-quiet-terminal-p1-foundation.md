@@ -5911,6 +5911,37 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 ---
 
+## Verification record (Task 18, run 2026-09-04)
+
+Tasks 1 to 17 are implemented and committed. `npm test` reports **104 passing, 0 failing**;
+`npx vite build` succeeds. Verified in the browser against both dev servers:
+
+| Check | Result |
+|---|---|
+| Shell renders (top bar, mnemonic sidebar, tape, crumb, session clock, bell) | Pass |
+| Quote pool | 249 rows through one poll, freshness "Ns ago" |
+| Router: sidebar Link, deep link, back | Pass (`/equities`, `/equities/NVDA`, `/fx`) |
+| Command line: `WFX`, `DES NVDA` plus Enter | Navigates; `<GO>` label shown |
+| Command line: symbol plus Shift+Enter | Opens quick-look |
+| Quick-look drawer (price, sparkline, 12 stats, 52-week bar, headlines, actions) | Pass |
+| Watchlist star plus undo toast | Pass; always-mounted `aria-live` region confirmed |
+| Escape closes the top layer | Pass |
+| Alerts engine end to end | Fired on the next poll: sticky amber toast, `1!` on the bell, persisted |
+| Offline banner | Backend stopped: amber banner with RETRY after two failed polls, values retained, tape "OFFLINE"; cleared on restart |
+| Theme light plus density comfortable | Repaint everywhere, persisted across reload |
+| Settings screen incl. `/api/status` | Pass; version reads 3.0.0 |
+| Mobile 375px | Bottom tabs WEI/DES/PORT/TOP/MENU, no sidebar or tape, no horizontal scroll |
+| Session clock popover (New York, London, Tokyo) | Pass |
+
+**Guardrail 4 (bundle not larger) is not met yet, by design:** total gzip is 241.2 kB versus
+226.6 kB at the baseline commit (`73cb96e`), because the new kit, shell, router, stores, and
+data layer ship alongside all thirteen old screens plus `shared.jsx` and `chartTheme.jsx`.
+Plan P2 deletes the old screens and those two modules; re-measure there and at the end of P3.
+
+Known cosmetic gaps until P2 replaces the screens: the old screens still show ring spinners,
+"LIVE" badges, marketing subtitles, and gradient treemap tiles, none of which follow spec
+section 3.4. The plan's checkboxes were not ticked item by item; this table is the record.
+
 ## Self-review notes
 
 - **Spec coverage in this plan:** 3 (tokens, kit, 3.4 rules in CSS and copy), 4 (kit), 5 (shell), 6 (router), 7.1 (stores), 7.2 (command line, keys), 7.4 (quick-look), 7.5 (alerts), 7.7 (freshness, offline), 7.8 (session clock), 7.10 (Settings), 7.11 (`/api/status`), 9 (data layer). Watchlist toggle on screens (7.3), screener presets (7.6), the screens themselves (8), and portfolio math (7.9) are Plans P2 and P3 by design.

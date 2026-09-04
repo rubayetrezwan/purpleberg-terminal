@@ -8,6 +8,18 @@ side-by-side stock compare view, and an IPO center (curated top-25 IPOs of 2026
 with live quotes, plus a live IPO calendar). The market screens track the top
 250 US equities by market cap.
 
+> **Redesign in progress on `redesign/quiet-terminal`.** The "Quiet Terminal"
+> rebuild has landed its foundation: a flat monospaced design system, a
+> component kit under `src/ui/`, an in-house router (`src/router/`), persistent
+> stores (`src/stores/`), a single shared quote pool (`src/data/`), and a new
+> shell (`src/shell/`) with a Bloomberg-style command line, quick-look drawer,
+> price alerts, a market-session clock, and a Settings screen. The twelve
+> screens themselves are still the pre-redesign ones, wrapped by the new shell,
+> and are rebuilt next. Design:
+> [docs/superpowers/specs/2026-09-04-quiet-terminal-redesign-design.md](docs/superpowers/specs/2026-09-04-quiet-terminal-redesign-design.md).
+> The sections below still describe the pre-redesign architecture where they
+> differ; they are rewritten when the screens land.
+
 > **This is a hobby / learning project, not a licensed market-data product.**
 > Read the [Data source disclaimer](#data-source-disclaimer) before running it
 > in front of anyone.
