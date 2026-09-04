@@ -239,6 +239,28 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-spark--empty { display: inline-block; }
 .pb-fresh { font-size: var(--fs-label); letter-spacing: 0.04em; white-space: nowrap; }
 
+/* ============================================================
+   Kit B - DataTable
+   ============================================================ */
+.pb-dt { position: relative; min-width: 0; overflow-x: auto; }
+.pb-dt__table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-sm); }
+.pb-dt__th { position: sticky; top: 0; z-index: 1; height: var(--row-h); padding: 0 var(--cell-px); background: var(--c-bg); color: var(--c-text-muted); font-size: var(--fs-label); font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; border-bottom: 1px solid var(--c-line); }
+.pb-dt__th--right { text-align: right; }
+.pb-dt__th--left { text-align: left; }
+.pb-dt__sort { display: inline-flex; align-items: center; gap: 4px; text-transform: inherit; letter-spacing: inherit; color: inherit; }
+.pb-dt__sort:hover { color: var(--c-text); }
+.pb-dt__caret { font-size: 8px; }
+.pb-dt__th[aria-sort="ascending"] .pb-dt__sort, .pb-dt__th[aria-sort="descending"] .pb-dt__sort { color: var(--c-text); }
+.pb-dt__td { height: var(--row-h); padding: 0 var(--cell-px); white-space: nowrap; border-bottom: 1px solid var(--c-line); vertical-align: middle; }
+.pb-dt__td--right { text-align: right; }
+.pb-dt__td--left { text-align: left; }
+.pb-dt__num { width: 1%; padding-right: 0; color: var(--c-text-muted); text-align: left; }
+.pb-dt__tr--click { cursor: pointer; }
+.pb-dt__tr:hover > .pb-dt__td { background: var(--c-hover); }
+.pb-dt__tr--selected > .pb-dt__td { background: var(--c-selected); }
+.pb-dt__tr--selected > .pb-dt__td:first-child { box-shadow: inset 2px 0 0 var(--c-accent); }
+.pb-dt__tr:focus-visible { outline: 1px solid var(--c-accent); outline-offset: -1px; }
+
 /* === LEGACY:BEGIN (delete in Plan P2 with the last old screen) === */
 /* ============================================================
    LEGACY - flat stand-ins for classes src/shared.jsx and the old
