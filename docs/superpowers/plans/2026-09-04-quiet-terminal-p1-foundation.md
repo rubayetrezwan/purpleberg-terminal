@@ -5075,7 +5075,7 @@ export function BottomTape() {
   const pool = useQuotePool();
   const tape = useMemo(
     () => pool.equities.filter((q) => q.price > 0).sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0)).slice(0, 20),
-    [pool.list]
+    [pool.equities]
   );
   return (
     <footer className="pb-tape" aria-label="Price tape and feed status">
@@ -5091,7 +5091,7 @@ export function BottomTape() {
         </div>
       </div>
       <div className="pb-tape__status">
-        <span>{pool.list.length} QUOTES</span>
+        <span>{pool.equities.length} QUOTES</span>
         <span className="pb-muted">·</span>
         <Freshness updatedAt={pool.updatedAt} intervalMs={pool.intervalMs} />
       </div>
