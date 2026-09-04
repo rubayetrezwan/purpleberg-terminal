@@ -5,7 +5,7 @@ import { pushLayer, popLayer } from "./layers.js";
 export function useLayer(open, onClose) {
   const id = useId();
   const closeRef = useRef(onClose);
-  closeRef.current = onClose;
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
   useEffect(() => {
     if (!open) return undefined;
     pushLayer(id, () => closeRef.current());

@@ -120,8 +120,12 @@ desktop `≥ 1024`.
 
 Recharts stays. Line width 1.5px, area fill at 8% opacity of the series colour, horizontal
 hairline grid only, axis ticks 10px muted mono, no axis lines, tooltip on `--c-raised` with a
-`--c-line-strong` border and no blur. Series palette: accent first, then `#a78bfa`, `#7a7a86`,
-`#c4b5fd`, `#5b5b66`, `#ddd6fe` for multi-series and allocation. Recharts needs concrete
+`--c-line-strong` border and no blur. Series palette: accent text first (`#a78bfa` dark,
+`#5b21b6` light), then a purple-and-grey ramp (`#8b5cf6`, the muted text token,
+`#c4b5fd`/`#9d4edd`, `#6b6b78`/`#3f3f46`, `#ddd6fe`/`#a855f7` for dark/light) that keeps at
+least 3:1 against the raised surface in each theme. Area fills are a flat 8% opacity, never a
+gradient. `useChartTheme()` supplies `gridProps`, `axisProps`, `tooltipProps`, `lineProps`, and
+`areaProps` (1.5px strokes, no dots, no entrance animation). Recharts needs concrete
 colours for SVG attributes, so `ui/ChartFrame` reads the tokens with `getComputedStyle` once per
 theme change and exposes them through `useChartColors()`. `chartTheme.jsx` is folded into it.
 
@@ -164,18 +168,18 @@ under `.pb-*` classes; components carry no inline colours.
 | `Stat` | `label`, `value`, `sub`, `tone` (`up`, `down`, `warn`, default). Label over mono value. `StatRow` lays Stats in a hairline grid. |
 | `DataTable` | `columns: [{key, label, align, width, sortable, sortValue(row), render(row)}]`, `rows`, `rowKey`, `sort {key, dir}`, `onSort`, `selectedKey`, `onRowClick`, `navigable` (roving tabindex, arrows, Enter, Space, digits 1 to 9 open the nth visible row), `numbered` (muted "1)" first column), `virtualize` (fixed `--row-h` windowing for > 60 rows), `loading` (skeleton rows), `empty` (node). Numeric columns right-aligned. Headers expose `aria-sort`. Rows are keyboard-navigable whenever `onRowClick` is set; with `virtualize`, numbering and digit keys are relative to the first visible row; the table carries `role="grid"` when navigable. |
 | `Sparkline` | `values: number[]`, `width`, `height`; colour from sign of last minus first. Pure SVG polyline. |
-| `ChartFrame` | Wraps a Recharts chart with the theme, fixed height, loading skeleton, empty state, and `useChartColors()`. |
+| `ChartFrame` | Wraps a Recharts chart with the theme, fixed height, text loading state, empty state; `useChartTheme()` returns colours plus grid, axis, tooltip, line, and area props. |
 | `Segmented` | `options: [{value, label}]`, `value`, `onChange`, `aria-label`. Used for chart type, range, list mode, tabs of secondary importance. |
 | `Tabs` | `tabs`, `active`, `onChange`; `role="tablist"`, underline marker. |
 | `Button` | `variant: primary | ghost | danger`, `size`, `loading` (disables the button and sets `aria-busy`); icons are passed as children. |
 | `Input`, `Select`, `Kbd` | Square form controls at `--ctl-h`; `Input` supports `mono`; `Select` calls `onChange(value)`. |
-| `ListDetail` | `list` (node), `detail` (node), `listWidth`, `mobile: {title, summary, items, onSelect}`. Desktop: list left with hairline, detail right. Mobile: a selector dropdown above the detail. |
+| `ListDetail` | `list` (node), `detail` (node), `listWidth`, `mobile: { label, options: [{ value, label }], value, onChange }`. Desktop: list left with hairline, detail right. Mobile: a native select above the detail. |
 | `Ticker` | `symbol`, `name?`, `starred?`. Mono bold symbol; click opens quick-look; Space toggles star when focused. |
 | `Change` | `value`, `suffix ("%"\|"bp"\|"")`, `decimals`. Signed, coloured, mono. Replaces `ChgVal`. |
 | `Price` | Mono value with the tick flash on change (kept from today). |
 | `Freshness` | `updatedAt`, `intervalMs`. "updated 9s ago"; amber "stale 2m" when age > max(3 × interval, 45s); "offline" when the feed is down. One shared 1s ticker. |
 | `Drawer` | Right sheet, `open`, `onClose`, `title`, `width`. `role="dialog"`, focus trap, Esc, click-outside. Full width on mobile. |
-| `Toast` | Stack bottom-right, max 5, `tone`, optional actions (Undo, Dismiss, Re-arm). Alerts persist until dismissed; info toasts auto-dismiss in 4s. `aria-live="polite"`. |
+| `Toast` | Stack bottom-right, max 5, `tone`, optional actions (Undo, Dismiss, Re-arm). Sticky toasts (alerts) persist until dismissed and are never evicted by non-sticky ones; info toasts auto-dismiss in 4s. The `aria-live="polite"` region is always mounted. |
 | `Dialog` | Confirmations (reset data, delete transactions). |
 | `EmptyState` | Icon-free message plus optional action. |
 | `Skeleton` | Row placeholders used by tables and charts while loading. |

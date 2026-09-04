@@ -17,7 +17,12 @@ export function popLayer(id) {
 export function closeTopLayer() {
   const top = stack.pop();
   if (!top) return false;
-  top.onClose();
+  try {
+    top.onClose();
+  } catch (e) {
+    stack.push(top); // still on screen: keep it on the stack so Escape targets it again
+    console.error("[layers] close handler failed", e);
+  }
   return true;
 }
 

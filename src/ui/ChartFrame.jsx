@@ -5,16 +5,20 @@ import { Loading } from "./Loading.jsx";
 import { EmptyState } from "./EmptyState.jsx";
 
 // Recharts needs concrete colours for SVG attributes, so read the tokens once
-// per theme change instead of hardcoding a palette in JS.
+// per theme change instead of hardcoding a palette in JS. Series 1 is the
+// accent shade that reads as a line on the canvas; the rest of the ramp keeps
+// at least 3:1 against the raised surface in its theme.
 function readColors(theme) {
   const cs = getComputedStyle(document.documentElement);
   const g = (n) => cs.getPropertyValue(n).trim();
+  const accentText = g("--c-accent-text");
+  const muted = g("--c-text-muted");
   const series = theme === "light"
-    ? ["#6d28d9", "#8b5cf6", "#6e6e6e", "#a78bfa", "#3f3f46", "#c4b5fd"]
-    : ["#8b5cf6", "#a78bfa", "#787878", "#c4b5fd", "#5b5b66", "#ddd6fe"];
+    ? [accentText, "#8b5cf6", muted, "#9d4edd", "#3f3f46", "#a855f7"]
+    : [accentText, "#8b5cf6", muted, "#c4b5fd", "#6b6b78", "#ddd6fe"];
   return {
-    accent: g("--c-accent"), accentText: g("--c-accent-text"), text: g("--c-text"), dim: g("--c-text-dim"),
-    muted: g("--c-text-muted"), line: g("--c-line"), lineStrong: g("--c-line-strong"), up: g("--c-up"),
+    accent: g("--c-accent"), accentText, text: g("--c-text"), dim: g("--c-text-dim"),
+    muted, line: g("--c-line"), lineStrong: g("--c-line-strong"), up: g("--c-up"),
     down: g("--c-down"), warn: g("--c-warn"), raised: g("--c-raised"), bg: g("--c-bg"), series,
   };
 }
@@ -24,7 +28,7 @@ export function useChartColors() {
   return useMemo(() => readColors(theme), [theme]);
 }
 
-// Spread these onto <CartesianGrid>, <XAxis>/<YAxis>, and <Tooltip>.
+// Spread these onto <CartesianGrid>, <XAxis>/<YAxis>, <Tooltip>, <Line>, <Area>.
 export function useChartTheme() {
   const colors = useChartColors();
   return useMemo(() => ({
@@ -37,6 +41,9 @@ export function useChartTheme() {
       itemStyle: { color: colors.text, fontSize: 11, padding: 0 },
       cursor: { stroke: colors.muted, strokeWidth: 1 },
     },
+    lineProps: { strokeWidth: 1.5, dot: false, activeDot: { r: 3, strokeWidth: 0 }, isAnimationActive: false },
+    // Flat 8% fill, no gradient (spec 3.3 and rule 3).
+    areaProps: { strokeWidth: 1.5, dot: false, fillOpacity: 0.08, activeDot: { r: 3, strokeWidth: 0 }, isAnimationActive: false },
   }), [colors]);
 }
 
@@ -47,15 +54,5 @@ export function ChartFrame({ height = 280, loading = false, empty = null, classN
         <ResponsiveContainer width="100%" height="100%">{children}</ResponsiveContainer>
       )}
     </div>
-  );
-}
-
-// Faint vertical fade for area fills (8% at the top, 0 at the bottom).
-export function ChartGradient({ id, color, from = 0.08, to = 0 }) {
-  return (
-    <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-      <stop offset="5%" stopColor={color} stopOpacity={from} />
-      <stop offset="95%" stopColor={color} stopOpacity={to} />
-    </linearGradient>
   );
 }
