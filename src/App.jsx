@@ -18,7 +18,7 @@ const FXDashboard = lazy(() => import("./screens/FXDashboard")); // old
 const FixedIncome = lazy(() => import("./screens/FixedIncome")); // old
 const CommoditiesDashboard = lazy(() => import("./screens/CommoditiesDashboard")); // old
 const CryptoDashboard = lazy(() => import("./screens/CryptoDashboard")); // old
-const StockScreener = lazy(() => import("./screens/StockScreener")); // old
+const Screener = lazy(() => import("./screens/Screener.jsx"));
 const PortfolioManager = lazy(() => import("./screens/PortfolioManager")); // old
 const EconomicCalendar = lazy(() => import("./screens/EconomicCalendar")); // old
 const NewsCenter = lazy(() => import("./screens/NewsCenter")); // old
@@ -46,7 +46,7 @@ function Screen({ route }) {
   const list = pool.equities;
   switch (route ? route.name : "dashboard") {
     case "equities": return <Equities />;
-    case "screener": return <StockScreener allStockQuotes={list} />;
+    case "screener": return <Screener />;
     case "compare": return <CompareStocks allStockQuotes={list} news={news} />;
     case "fx": return <FXDashboard />;
     case "rates": return <><FixedIncome /><EconomicCalendar /></>;

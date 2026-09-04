@@ -517,6 +517,23 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-profile__link { padding: 8px 0 0; font-size: var(--fs-sm); }
 .pb-profile__summary { font-size: var(--fs-sm); line-height: 1.5; margin-top: 8px; max-height: 220px; overflow: auto; }
 
+.pb-scr__chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: var(--cell-py) var(--cell-px); border-bottom: 1px solid var(--c-line); }
+.pb-chip { display: inline-flex; align-items: center; gap: 4px; height: var(--ctl-h); padding: 0 8px; font-size: var(--fs-xs); letter-spacing: 0.06em; color: var(--c-text-muted); border: 1px solid var(--c-line-strong); background: transparent; white-space: nowrap; }
+.pb-chip:hover { color: var(--c-text); }
+.pb-chip--on { color: var(--c-text); background: var(--c-selected); box-shadow: inset 0 -2px 0 var(--c-accent); }
+.pb-chip--saved { color: var(--c-accent-text); border-color: var(--c-accent); padding-right: 4px; }
+.pb-chip__apply { font: inherit; letter-spacing: inherit; color: inherit; }
+.pb-chip__del { display: inline-flex; color: var(--c-text-muted); padding: 2px; }
+.pb-chip__del:hover { color: var(--c-down); }
+.pb-scr__sep { width: 1px; height: var(--ctl-h); background: var(--c-line); }
+.pb-scr__save { display: inline-flex; gap: 4px; align-items: center; }
+.pb-scr__save .pb-input { width: 140px; }
+.pb-scr__filters { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; padding: var(--cell-py) var(--cell-px); border-bottom: 1px solid var(--c-line); }
+.pb-scr__field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pb-scr__field .pb-input, .pb-scr__field .pb-select { width: 130px; }
+.pb-scr__bounds { display: inline-flex; gap: 4px; }
+.pb-scr__bounds .pb-input { width: 62px; }
+
 /* === LEGACY:BEGIN (delete in Plan P2 with the last old screen) === */
 /* ============================================================
    LEGACY - flat stand-ins for classes src/shared.jsx and the old
