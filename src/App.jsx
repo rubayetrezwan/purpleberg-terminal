@@ -3,7 +3,6 @@ import { useRoute, navigate, pathFor, routeByMnemonic } from "./router/index.jsx
 import { AppShell } from "./shell/AppShell.jsx";
 import { installKeyboard } from "./shell/keyboard.js";
 import { useAlertsEngine } from "./features/useAlertsEngine.js";
-import { useNewsFeed } from "./features/newsFeed.jsx";
 import { settings } from "./stores/settings.js";
 import { Loading } from "./ui/Loading.jsx";
 import { toast } from "./ui/toasts.js";
@@ -19,9 +18,9 @@ const Commodities = lazy(() => import("./screens/Commodities.jsx"));
 const Crypto = lazy(() => import("./screens/Crypto.jsx"));
 const Screener = lazy(() => import("./screens/Screener.jsx"));
 const PortfolioManager = lazy(() => import("./screens/PortfolioManager")); // old
-const NewsCenter = lazy(() => import("./screens/NewsCenter")); // old
+const News = lazy(() => import("./screens/News.jsx"));
 const Compare = lazy(() => import("./screens/Compare.jsx"));
-const IpoCenter = lazy(() => import("./screens/IpoCenter")); // old
+const Ipos = lazy(() => import("./screens/Ipos.jsx"));
 const Settings = lazy(() => import("./screens/Settings.jsx"));
 
 function useDefaultScreen() {
@@ -38,7 +37,6 @@ function useDefaultScreen() {
 }
 
 function Screen({ route }) {
-  const { news, loading: newsLoading } = useNewsFeed();
   switch (route ? route.name : "dashboard") {
     case "equities": return <Equities />;
     case "screener": return <Screener />;
@@ -47,9 +45,9 @@ function Screen({ route }) {
     case "rates": return <Rates />;
     case "commodities": return <Commodities />;
     case "crypto": return <Crypto />;
-    case "ipos": return <IpoCenter />;
+    case "ipos": return <Ipos />;
     case "portfolio": return <PortfolioManager />;
-    case "news": return <NewsCenter news={news} loading={newsLoading} />;
+    case "news": return <News />;
     case "settings": return <Settings />;
     default: return <Dashboard />;
   }
