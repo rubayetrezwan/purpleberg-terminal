@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   positionsFrom, enrichPositions, portfolioTotals, allocation,
-  valueSeries, flowsByDate, dietzSeries, normalizeTo100,
+  valueSeries, flowsByDate, alignFlows, dietzSeries, normalizeTo100,
   riskMetrics, beta, maxDrawdown, toCsv, parseCsv,
   sampleTransactions, localYmd, MIN_RISK_POINTS,
 } from "./portfolio.js";
@@ -127,6 +127,38 @@ test("shares held on a date reflect only transactions up to that date", () => {
   const closes = { AAPL: [{ date: "2026-01-02", close: 100 }, { date: "2026-01-06", close: 120 }] };
   const out = valueSeries(txs, closes, ["2026-01-02", "2026-01-06"]);
   assert.deepEqual(out.map((r) => r.value), [1000, 0]);
+});
+
+test("shares bought on a session are valued at cost that day, not at the close", () => {
+  // Entered at 100 on a day that closed at 130: without this the chain would
+  // book a 30% one-day gain that never happened to this holder.
+  const txs = [tx({ date: "2026-01-02", symbol: "AAPL", side: "buy", shares: 10, price: 100 })];
+  const closes = { AAPL: [{ date: "2026-01-02", close: 130 }, { date: "2026-01-05", close: 140 }] };
+  const out = valueSeries(txs, closes, ["2026-01-01", "2026-01-02", "2026-01-05"]);
+  assert.deepEqual(out.map((r) => r.value), [0, 1000, 1400]);
+  const { returns } = dietzSeries(out, alignFlows(flowsByDate(txs), out.map((r) => r.date)));
+  assert.equal(returns[0].r, 0, "the entry day is flat");
+  assert.equal(returns[1].r.toFixed(4), (0.4).toFixed(4));
+});
+
+test("a sale on a session still marks the remaining shares to the close", () => {
+  const txs = [
+    tx({ date: "2026-01-02", symbol: "AAPL", side: "buy", shares: 10, price: 100 }),
+    tx({ date: "2026-01-05", symbol: "AAPL", side: "sell", shares: 4, price: 150 }),
+  ];
+  const closes = { AAPL: [{ date: "2026-01-02", close: 100 }, { date: "2026-01-05", close: 140 }] };
+  const out = valueSeries(txs, closes, ["2026-01-02", "2026-01-05"]);
+  assert.deepEqual(out.map((r) => r.value), [1000, 6 * 140]);
+});
+
+test("a flow on a day the market was shut books to the next session", () => {
+  const flows = { "2026-01-03": 500, "2026-01-05": 200 };
+  assert.deepEqual(alignFlows(flows, ["2026-01-02", "2026-01-05", "2026-01-06"]), { "2026-01-05": 700 });
+});
+
+test("flows before the window are dropped, and after it are not invented", () => {
+  const flows = { "2025-12-01": 999, "2026-01-05": 100, "2026-02-01": 50 };
+  assert.deepEqual(alignFlows(flows, ["2026-01-02", "2026-01-05"]), { "2026-01-05": 100 });
 });
 
 test("cash flows are signed by side and include fees on the buy", () => {

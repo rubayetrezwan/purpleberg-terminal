@@ -9,9 +9,15 @@ export function Stat({ label, value, sub, tone, align = "left", size = "md", cla
   );
 }
 
+// Without `cols` the row flows every Stat into one implicit column each. With
+// `cols` the flow has to switch to rows, or `grid-auto-flow: column` keeps
+// adding implicit columns past the template and the row never wraps.
 export function StatRow({ cols, className = "", children }) {
   return (
-    <div className={`pb-statrow${className ? " " + className : ""}`} style={cols ? { gridTemplateColumns: cols } : undefined}>
+    <div
+      className={`pb-statrow${className ? " " + className : ""}`}
+      style={cols ? { gridTemplateColumns: cols, gridAutoFlow: "row" } : undefined}
+    >
       {children}
     </div>
   );

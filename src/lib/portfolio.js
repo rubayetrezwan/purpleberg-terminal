@@ -167,6 +167,12 @@ export function allocation(rows, keyFn = (r) => r.symbol) {
  * the last close at or before it. `closesBySymbol` is { SYM: [{date, close}] }
  * ascending. Gaps carry the previous close forward; a symbol with no close yet
  * contributes nothing rather than a guess. Pass accepted transactions only.
+ *
+ * Shares bought on one of these sessions are valued at what they cost that
+ * day, not at that day's close. Otherwise the gap between an entry price and
+ * the close would show up as a one-day return, which is how a rough cost basis
+ * (or a migrated holding dated today) turns into a fake several-hundred-percent
+ * day. From the next session on, everything is marked to the close.
  */
 export function valueSeries(transactions, closesBySymbol, dates) {
   const txs = sortTransactions(transactions);
@@ -177,10 +183,17 @@ export function valueSeries(transactions, closesBySymbol, dates) {
   let ti = 0;
   const out = [];
   for (const date of Array.isArray(dates) ? dates : []) {
+    const boughtToday = new Map();
     while (ti < txs.length && txs[ti].date <= date) {
       const t = txs[ti++];
       const s = String(t.symbol || "").toUpperCase();
       const q = num(t.shares);
+      if (t.date === date && t.side === "buy") {
+        const e = boughtToday.get(s) || { shares: 0, amount: 0 };
+        e.shares += q;
+        e.amount += q * num(t.price);
+        boughtToday.set(s, e);
+      }
       held.set(s, (held.get(s) || 0) + (t.side === "sell" ? -q : q));
     }
     let value = 0;
@@ -192,10 +205,34 @@ export function valueSeries(transactions, closesBySymbol, dates) {
         if (Number.isFinite(v) && v > 0) c.last = v;
         c.i++;
       }
-      const shares = held.get(s) || 0;
-      if (shares > EPS && c.last != null) value += shares * c.last;
+      const fresh = boughtToday.get(s);
+      const marked = (held.get(s) || 0) - (fresh ? fresh.shares : 0);
+      if (marked > EPS && c.last != null) value += marked * c.last;
+      if (fresh) value += fresh.amount;
     }
     out.push({ date, value });
+  }
+  return out;
+}
+
+/**
+ * Book every cash flow to a session in `dates`. A trade entered on a weekend,
+ * a holiday, or any day the series does not carry belongs to the next session,
+ * or the chain would read the purchase itself as a gain. Flows before the
+ * window are dropped: those shares are already inside the opening value, so
+ * counting the money again would show a large false loss on day one.
+ */
+export function alignFlows(flows, dates) {
+  const list = Array.isArray(dates) ? dates : [];
+  const out = {};
+  if (!list.length) return out;
+  const first = list[0];
+  let i = 0;
+  for (const key of Object.keys(flows || {}).sort()) {
+    if (key < first) continue;
+    while (i < list.length && list[i] < key) i += 1;
+    if (i >= list.length) break; // after the window: no session left to book it to
+    out[list[i]] = (out[list[i]] || 0) + num(flows[key]);
   }
   return out;
 }
@@ -387,7 +424,8 @@ export function parseCsv(text) {
 
 // ── Sample portfolio ────────────────────────────────────
 // Offered from the empty state so the screen can be tried without typing.
-// Prices are round illustrative levels, not quotes from those dates.
+// These prices are round fallbacks; the screen replaces each one with the
+// actual close on that date so the sample basis is not made up.
 const SAMPLE = [
   [330, "AAPL", 40, 190],
   [300, "MSFT", 12, 430],

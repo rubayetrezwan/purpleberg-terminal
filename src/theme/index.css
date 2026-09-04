@@ -575,6 +575,29 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-per__fill--down { background: var(--c-down); }
 .pb-eq__rangewrap { margin-top: 10px; }
 
+.pb-txform__row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pb-txform__note { margin-top: 4px; font-size: var(--fs-sm); }
+.pb-txform__date { width: 130px; }
+.pb-txform__sym { width: 90px; }
+.pb-txform__n { width: 84px; }
+.pb-port__emptyactions { margin-top: 8px; }
+
+.pb-alloc { list-style: none; }
+.pb-alloc__row { display: grid; grid-template-columns: 24px 88px minmax(40px, 1fr) 52px 72px; gap: 8px; align-items: center; height: var(--row-h); font-size: var(--fs-sm); }
+.pb-alloc__key { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-alloc__bar { display: block; height: 6px; background: var(--c-line); }
+.pb-alloc__fill { display: block; height: 100%; background: var(--c-accent); }
+.pb-alloc__pct { text-align: right; }
+.pb-alloc__val { text-align: right; }
+@media (max-width: 767px) {
+  .pb-alloc__row { grid-template-columns: 20px 1fr 40px 46px; }
+  .pb-alloc__val { display: none; }
+}
+
+.pb-import { padding: var(--cell-py) var(--cell-px); border-bottom: 1px solid var(--c-line); display: flex; flex-direction: column; gap: 4px; }
+.pb-import__head { font-size: var(--fs-sm); }
+.pb-import__err { font-size: var(--fs-sm); padding: 2px var(--cell-px); }
+
 /* === LEGACY:BEGIN (delete in Plan P2 with the last old screen) === */
 /* ============================================================
    LEGACY - flat stand-ins for classes src/shared.jsx and the old

@@ -49,3 +49,21 @@ export const portfolio = createStore("portfolio", { transactions: [] }, { saniti
 export function replaceTransactions(transactions) {
   portfolio.update((s) => ({ ...s, transactions: Array.isArray(transactions) ? transactions : [] }));
 }
+
+// The screen passes a transaction without an id; the store owns identity so two
+// identical trades on the same day stay separately deletable.
+export function addTransaction(t) {
+  const row = { id: newId(), fees: 0, ...t };
+  portfolio.update((s) => ({ ...s, transactions: [...s.transactions, row] }));
+  return row;
+}
+
+export function appendTransactions(rows) {
+  const added = (Array.isArray(rows) ? rows : []).map((t) => ({ id: newId(), fees: 0, ...t }));
+  if (added.length) portfolio.update((s) => ({ ...s, transactions: [...s.transactions, ...added] }));
+  return added;
+}
+
+export function removeTransaction(id) {
+  portfolio.update((s) => ({ ...s, transactions: s.transactions.filter((t) => t.id !== id) }));
+}

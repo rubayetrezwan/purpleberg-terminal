@@ -8,8 +8,7 @@ import { Loading } from "./ui/Loading.jsx";
 import { toast } from "./ui/toasts.js";
 import ErrorBoundary from "./ErrorBoundary";
 
-// Screens are code-split. The ones marked "old" are the pre-redesign screens,
-// replaced one by one in Plans P2 and P3.
+// Screens are code-split; every one is built on the kit.
 const Dashboard = lazy(() => import("./screens/Dashboard.jsx"));
 const Equities = lazy(() => import("./screens/Equities.jsx"));
 const Fx = lazy(() => import("./screens/Fx.jsx"));
@@ -17,7 +16,7 @@ const Rates = lazy(() => import("./screens/Rates.jsx"));
 const Commodities = lazy(() => import("./screens/Commodities.jsx"));
 const Crypto = lazy(() => import("./screens/Crypto.jsx"));
 const Screener = lazy(() => import("./screens/Screener.jsx"));
-const PortfolioManager = lazy(() => import("./screens/PortfolioManager")); // old
+const Portfolio = lazy(() => import("./screens/Portfolio.jsx"));
 const News = lazy(() => import("./screens/News.jsx"));
 const Compare = lazy(() => import("./screens/Compare.jsx"));
 const Ipos = lazy(() => import("./screens/Ipos.jsx"));
@@ -46,7 +45,7 @@ function Screen({ route }) {
     case "commodities": return <Commodities />;
     case "crypto": return <Crypto />;
     case "ipos": return <Ipos />;
-    case "portfolio": return <PortfolioManager />;
+    case "portfolio": return <Portfolio />;
     case "news": return <News />;
     case "settings": return <Settings />;
     default: return <Dashboard />;
