@@ -4,7 +4,6 @@ import { AppShell } from "./shell/AppShell.jsx";
 import { installKeyboard } from "./shell/keyboard.js";
 import { useAlertsEngine } from "./features/useAlertsEngine.js";
 import { useNewsFeed } from "./features/newsFeed.jsx";
-import { useQuotePool } from "./data/quotePool.jsx";
 import { settings } from "./stores/settings.js";
 import { Loading } from "./ui/Loading.jsx";
 import { toast } from "./ui/toasts.js";
@@ -14,7 +13,7 @@ import ErrorBoundary from "./ErrorBoundary";
 // replaced one by one in Plans P2 and P3.
 const Dashboard = lazy(() => import("./screens/Dashboard.jsx"));
 const Equities = lazy(() => import("./screens/Equities.jsx"));
-const FXDashboard = lazy(() => import("./screens/FXDashboard")); // old
+const Fx = lazy(() => import("./screens/Fx.jsx"));
 const FixedIncome = lazy(() => import("./screens/FixedIncome")); // old
 const CommoditiesDashboard = lazy(() => import("./screens/CommoditiesDashboard")); // old
 const CryptoDashboard = lazy(() => import("./screens/CryptoDashboard")); // old
@@ -22,7 +21,7 @@ const Screener = lazy(() => import("./screens/Screener.jsx"));
 const PortfolioManager = lazy(() => import("./screens/PortfolioManager")); // old
 const EconomicCalendar = lazy(() => import("./screens/EconomicCalendar")); // old
 const NewsCenter = lazy(() => import("./screens/NewsCenter")); // old
-const CompareStocks = lazy(() => import("./screens/CompareStocks")); // old
+const Compare = lazy(() => import("./screens/Compare.jsx"));
 const IpoCenter = lazy(() => import("./screens/IpoCenter")); // old
 const Settings = lazy(() => import("./screens/Settings.jsx"));
 
@@ -40,15 +39,12 @@ function useDefaultScreen() {
 }
 
 function Screen({ route }) {
-  const pool = useQuotePool();
   const { news, loading: newsLoading } = useNewsFeed();
-  // Old screens expect the tracked-equity list only; the pool excludes index rows.
-  const list = pool.equities;
   switch (route ? route.name : "dashboard") {
     case "equities": return <Equities />;
     case "screener": return <Screener />;
-    case "compare": return <CompareStocks allStockQuotes={list} news={news} />;
-    case "fx": return <FXDashboard />;
+    case "compare": return <Compare />;
+    case "fx": return <Fx />;
     case "rates": return <><FixedIncome /><EconomicCalendar /></>;
     case "commodities": return <CommoditiesDashboard />;
     case "crypto": return <CryptoDashboard />;
