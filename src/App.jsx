@@ -14,12 +14,11 @@ import ErrorBoundary from "./ErrorBoundary";
 const Dashboard = lazy(() => import("./screens/Dashboard.jsx"));
 const Equities = lazy(() => import("./screens/Equities.jsx"));
 const Fx = lazy(() => import("./screens/Fx.jsx"));
-const FixedIncome = lazy(() => import("./screens/FixedIncome")); // old
+const Rates = lazy(() => import("./screens/Rates.jsx"));
 const CommoditiesDashboard = lazy(() => import("./screens/CommoditiesDashboard")); // old
 const CryptoDashboard = lazy(() => import("./screens/CryptoDashboard")); // old
 const Screener = lazy(() => import("./screens/Screener.jsx"));
 const PortfolioManager = lazy(() => import("./screens/PortfolioManager")); // old
-const EconomicCalendar = lazy(() => import("./screens/EconomicCalendar")); // old
 const NewsCenter = lazy(() => import("./screens/NewsCenter")); // old
 const Compare = lazy(() => import("./screens/Compare.jsx"));
 const IpoCenter = lazy(() => import("./screens/IpoCenter")); // old
@@ -45,7 +44,7 @@ function Screen({ route }) {
     case "screener": return <Screener />;
     case "compare": return <Compare />;
     case "fx": return <Fx />;
-    case "rates": return <><FixedIncome /><EconomicCalendar /></>;
+    case "rates": return <Rates />;
     case "commodities": return <CommoditiesDashboard />;
     case "crypto": return <CryptoDashboard />;
     case "ipos": return <IpoCenter />;
