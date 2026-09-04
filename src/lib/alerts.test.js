@@ -29,26 +29,46 @@ test("fires when the price crosses below the target", () => {
   assert.equal(fired.length, 1);
 });
 
-test("does not fire when the condition already held at the reference price", () => {
-  const a = mk({ baseline: 1300, lastPrice: 1300 });
-  const { fired, next } = evaluateAlerts([a], prices({ NVDA: 1310 }), 5);
+test("does not fire, and does not rewrite, while still on the reference side", () => {
+  const items = [mk({ baseline: 1300, lastPrice: 1300 })];
+  const { fired, next } = evaluateAlerts(items, prices({ NVDA: 1310 }), 5);
   assert.equal(fired.length, 0);
-  assert.equal(next[0].lastPrice, 1310);
+  assert.equal(next, items);
+  assert.equal(next[0].lastPrice, 1300);
 });
 
-test("fires after dipping below and coming back above", () => {
+test("records a crossing back to the far side, then fires on the return", () => {
   const a = mk({ baseline: 1300, lastPrice: 1300 });
   const step1 = evaluateAlerts([a], prices({ NVDA: 1230 }), 5);
   assert.equal(step1.fired.length, 0);
+  assert.equal(step1.next[0].lastPrice, 1230);
   const step2 = evaluateAlerts(step1.next, prices({ NVDA: 1245 }), 6);
   assert.equal(step2.fired.length, 1);
 });
 
-test("never refires a triggered alert and ignores missing prices", () => {
-  const a = mk({ triggeredAt: 1, triggeredPrice: 1250, lastPrice: 1250 });
-  const r = evaluateAlerts([a, mk({ id: "a2", symbol: "ZZZZ" })], prices({ NVDA: 1300 }), 7);
+test("an alert without a reference arms on the first price instead of firing", () => {
+  const a = mk({ baseline: null, lastPrice: null });
+  const armed = evaluateAlerts([a], prices({ NVDA: 1300 }), 5);
+  assert.equal(armed.fired.length, 0);
+  assert.equal(armed.next[0].lastPrice, 1300);
+  const dip = evaluateAlerts(armed.next, prices({ NVDA: 1200 }), 6);
+  assert.equal(dip.fired.length, 0);
+  const back = evaluateAlerts(dip.next, prices({ NVDA: 1250 }), 7);
+  assert.equal(back.fired.length, 1);
+});
+
+test("never refires a triggered alert and ignores unusable prices", () => {
+  const items = [
+    mk({ triggeredAt: 0, triggeredPrice: 1250, lastPrice: 1250 }),
+    mk({ id: "a2", symbol: "ZZZZ" }),
+    mk({ id: "a3", symbol: "ZERO" }),
+    mk({ id: "a4", symbol: "NAN" }),
+    mk({ id: "a5", symbol: "INF" }),
+    mk({ id: "a6", symbol: "STR" }),
+  ];
+  const r = evaluateAlerts(items, prices({ NVDA: 1300, ZERO: 0, NAN: NaN, INF: Infinity, STR: "1300" }), 7);
   assert.equal(r.fired.length, 0);
-  assert.equal(r.next, r.next); // sanity
+  assert.equal(r.next, items);
 });
 
 test("returns the same array when nothing changed", () => {

@@ -6,8 +6,11 @@ import { scaleInterval } from "./polling.js";
 
 // Re-pace a running poll when the refresh setting changes, without firing an
 // immediate fetch. The fetch effect owns start/stop; this only swaps the period.
+// Skips the mount run so the timer the fetch effect just created is kept.
 function useRepace(timerRef, fetchRef, ms) {
+  const first = useRef(true);
   useEffect(() => {
+    if (first.current) { first.current = false; return; }
     if (timerRef.current == null || !fetchRef.current) return;
     clearInterval(timerRef.current);
     timerRef.current = setInterval(fetchRef.current, ms);
@@ -81,7 +84,7 @@ export function useQuotes(symbols, intervalMs = 15000) {
     }
     let cancelled = false;
     let attempt = 0;
-    setState((s) => ({ ...s, loading: s.data.length === 0 }));
+    setState((s) => (s.loading === (s.data.length === 0) ? s : { ...s, loading: s.data.length === 0 }));
 
     const fetchData = async () => {
       const myAttempt = ++attempt; // only the latest attempt may write state
@@ -188,19 +191,27 @@ export function useNews(symbols, intervalMs = 120000) {
   useEffect(() => {
     let cancelled = false;
     let attempt = 0;
+    let firstForKey = true;
+    // New symbol set: drop the old headlines rather than show them under the
+    // new symbols while the first poll is in flight.
+    setState((s) => (s.data.length === 0 && s.loading ? s : { data: [], loading: true, error: null, updatedAt: null }));
     const fetchData = async () => {
       const myAttempt = ++attempt;
       try {
         const result = await api.news(symbols);
         if (cancelled || myAttempt !== attempt) return;
         const rows = Array.isArray(result) ? result : [];
-        // Keep the previous headlines on an empty payload, matching useQuotes.
+        // The proxy answers [] both for a quiet day and for an upstream
+        // failure. The first poll for a symbol set shows what it got; later
+        // empty polls keep the previous headlines and the old timestamp.
+        const accept = rows.length > 0 || firstForKey;
         setState((s) => ({
-          data: rows.length ? rows : s.data,
+          data: accept ? rows : s.data,
           loading: false,
-          error: rows.length ? null : "empty payload",
-          updatedAt: rows.length ? Date.now() : s.updatedAt,
+          error: null,
+          updatedAt: accept ? Date.now() : s.updatedAt,
         }));
+        firstForKey = false;
       } catch (e) {
         if (cancelled || myAttempt !== attempt) return;
         setState((s) => ({ ...s, loading: false, error: e.message }));

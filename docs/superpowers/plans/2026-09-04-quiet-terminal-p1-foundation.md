@@ -2139,15 +2139,14 @@ import { watchlist } from "../stores/watchlist.js";
 import { alerts } from "../stores/alerts.js";
 import { portfolio } from "../stores/portfolio.js";
 import { poolExtras, retainSymbol, releaseSymbol } from "./poolExtras.js";
-import { dedupeSymbols } from "./symbols.js";
+import { dedupeSymbols, POOL_FIXED } from "./symbols.js";
 import { reportPoll } from "./feedStatus.js";
 import { useQuotes } from "./hooks.js";
 
-// One poll for everything equity-shaped the app needs: the tracked 250, the
-// watchlist, alert and portfolio symbols, and ad-hoc extras. Screens read
-// quotes from here instead of polling on their own.
-export const POOL_FIXED = ["^GSPC"]; // drives the session clock's market state
-
+// One poll for everything equity-shaped the app needs: the shell's fixed
+// symbols, the user's watchlist, alert and portfolio symbols, ad-hoc extras,
+// and finally the tracked 250. User-owned symbols come first so the proxy's
+// 300-symbol cap can only ever trim the tail of the static list.
 const PoolContext = createContext(null);
 
 export function QuotePoolProvider({ children }) {
@@ -2157,7 +2156,7 @@ export function QuotePoolProvider({ children }) {
   const extras = useStore(poolExtras, (s) => s.counts);
 
   const symbols = useMemo(
-    () => dedupeSymbols([POOL_FIXED, US_STOCKS, watch, alertItems.map((a) => a.symbol), txs.map((t) => t.symbol), Object.keys(extras)]),
+    () => dedupeSymbols([POOL_FIXED, watch, alertItems.map((a) => a.symbol), txs.map((t) => t.symbol), Object.keys(extras), US_STOCKS]),
     [watch, alertItems, txs, extras]
   );
 
@@ -2173,9 +2172,12 @@ export function QuotePoolProvider({ children }) {
     return m;
   }, [q.data]);
 
+  // Index rows (^GSPC) are for the shell only; screens read `equities`.
+  const equities = useMemo(() => q.data.filter((row) => !String(row.symbol || "").startsWith("^")), [q.data]);
+
   const value = useMemo(
-    () => ({ bySymbol, list: q.data, loading: q.loading, error: q.error, updatedAt: q.updatedAt, intervalMs: q.intervalMs, refetch: q.refetch, symbols }),
-    [bySymbol, q.data, q.loading, q.error, q.updatedAt, q.intervalMs, q.refetch, symbols]
+    () => ({ bySymbol, list: q.data, equities, loading: q.loading, error: q.error, updatedAt: q.updatedAt, intervalMs: q.intervalMs, refetch: q.refetch, symbols }),
+    [bySymbol, q.data, equities, q.loading, q.error, q.updatedAt, q.intervalMs, q.refetch, symbols]
   );
 
   return <PoolContext.Provider value={value}>{children}</PoolContext.Provider>;
@@ -2190,21 +2192,30 @@ export function useQuotePool() {
 export function useQuote(symbol) {
   const pool = useQuotePool();
   if (!symbol) return null;
-  return pool.bySymbol.get(String(symbol).toUpperCase()) ?? null;
+  return pool.bySymbol.get(String(symbol).trim().toUpperCase()) ?? null;
 }
 
+// Rows for the given symbols, in order, skipping any not yet in the pool.
+// Keyed on the joined string so callers may pass a fresh array literal.
 export function usePoolQuotes(symbols) {
   const pool = useQuotePool();
-  return useMemo(() => (symbols || []).map((s) => pool.bySymbol.get(s)).filter(Boolean), [pool.bySymbol, symbols]);
+  const key = (symbols || []).map((s) => String(s).trim().toUpperCase()).join(",");
+  return useMemo(
+    () => (key ? key.split(",") : []).map((s) => pool.bySymbol.get(s)).filter(Boolean),
+    [pool.bySymbol, key]
+  );
 }
 
 // Keep an ad-hoc symbol in the pool while the calling component is mounted.
+// Joining the pool restarts its poll, so the first price arrives after one
+// full round trip; that is the accepted cost of a single shared poll.
 export function usePoolExtra(symbol) {
+  const sym = symbol ? String(symbol).trim().toUpperCase() : null;
   useEffect(() => {
-    if (!symbol) return undefined;
-    retainSymbol(symbol);
-    return () => releaseSymbol(symbol);
-  }, [symbol]);
+    if (!sym) return undefined;
+    retainSymbol(sym);
+    return () => releaseSymbol(sym);
+  }, [sym]);
 }
 ```
 
@@ -2222,7 +2233,7 @@ git commit -m "data: quote pool, feed status, interval scaling, freshness on pol
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
-**Post-review amendments (applied in the fix commit after Tasks 6-7):** the quote pool orders user-owned symbols before the tracked 250 and exposes `equities` (index rows filtered out) for screens; `useQuotes` treats an empty payload as a failed poll, ignores stale in-flight responses, clears `refetch` on an empty symbol list, and re-paces on a refresh change without an immediate fetch (`useNews` and `useCryptoMarkets` likewise); `usePoolQuotes` keys on the joined uppercase symbols; `POOL_FIXED` lives in `src/data/symbols.js`; `normalizeSymbol` and `TICKER_RE` live in `src/lib/ticker.js`; `buildQuery` is shared by `buildPath` and `updateQuery`; `Link` respects `target`; the `portfolio` store no longer migrates automatically (P3 does it at cutover). Later tasks that read these modules should rely on the code in the repository.
+**Post-review amendments (applied in the fix commit after Tasks 6-7):** the quote pool orders user-owned symbols before the tracked 250 and exposes `equities` (index rows filtered out) for screens; `useQuotes` treats an empty payload as a failed poll, ignores stale in-flight responses, clears `refetch` on an empty symbol list, and re-paces on a refresh change without an immediate fetch (`useNews` and `useCryptoMarkets` likewise); `usePoolQuotes` keys on the joined uppercase symbols; `POOL_FIXED` lives in `src/data/symbols.js`; `normalizeSymbol` and `TICKER_RE` live in `src/lib/ticker.js`; `buildQuery` is shared by `buildPath` and `updateQuery`; `Link` respects `target`; the `portfolio` store no longer migrates automatically (P3 does it at cutover). Later tasks that read these modules should rely on the code in the repository. A later fix made `useNews` reset on a symbol change and keep previous rows only after its first successful poll, gave `useRepace` a mount guard, and made `nyseSession` return `tableStale`, `nextTradingDay` never return null, and `evaluateAlerts` arm (not fire) on the first price when there is no reference and rewrite `lastPrice` only when the price changes sides.
 
 ---
 
@@ -2563,13 +2574,17 @@ Expected: FAIL with `Cannot find module`.
 
 ```js
 // Alert evaluation. An alert fires when its condition holds for the current
-// price and did not hold for the last price we saw (or the baseline recorded
-// at creation or re-arm). That is crossing semantics: an alert created while
-// already above its target waits for a dip and a return.
+// price and did not hold for the reference price: the last price we recorded
+// on the other side of the threshold, or the baseline captured at creation or
+// re-arm. That is crossing semantics: an alert created while already above its
+// target waits for a dip and a return. The reference is only rewritten when
+// the price changes sides, so a quiet poll leaves the store untouched.
 
 export function conditionHolds(op, price, target) {
   return op === "below" ? price <= target : price >= target;
 }
+
+const usable = (price) => Number.isFinite(price) && price > 0;
 
 // items: alert store items. getPrice: (symbol) => number | null.
 // Returns { fired, next }; `next` is the same array when nothing changed.
@@ -2578,17 +2593,23 @@ export function evaluateAlerts(items, getPrice, now = Date.now()) {
   let changed = false;
   const next = items.map((a) => {
     const price = getPrice(a.symbol);
-    if (!(price > 0) || a.triggeredAt) return a;
+    if (!usable(price) || a.triggeredAt != null) return a;
     const ref = a.lastPrice ?? a.baseline;
+    if (ref == null) {
+      // No reference yet (created without a live quote): arm on this price.
+      changed = true;
+      return { ...a, lastPrice: price };
+    }
     const holdsNow = conditionHolds(a.op, price, a.price);
-    const heldBefore = ref != null && conditionHolds(a.op, ref, a.price);
+    const heldBefore = conditionHolds(a.op, ref, a.price);
     if (holdsNow && !heldBefore) {
       changed = true;
       const t = { ...a, triggeredAt: now, triggeredPrice: price, lastPrice: price };
       fired.push(t);
       return t;
     }
-    if (a.lastPrice !== price) {
+    if (holdsNow !== heldBefore) {
+      // Crossed back to the far side: remember it so the next return fires.
       changed = true;
       return { ...a, lastPrice: price };
     }

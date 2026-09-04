@@ -1,4 +1,4 @@
-import { NYSE_HOLIDAYS, NYSE_EARLY_CLOSES } from "./marketHolidays.js";
+import { NYSE_HOLIDAYS, NYSE_EARLY_CLOSES, HOLIDAY_TABLE_THROUGH } from "./marketHolidays.js";
 
 // NYSE session state from wall-clock time. Uses Intl for the New York zone so
 // DST needs no tables; holidays and early closes come from marketHolidays.js.
@@ -44,6 +44,8 @@ export function etOffsetMinutes(date) {
 
 // The instant at `minutes` past New York midnight on `ymd`. Two passes so the
 // offset in force at the target time is used on DST switch days.
+// A wall time that does not exist on spring-forward day (02:00 to 02:59) maps
+// to the hour before; no session boundary falls in that gap.
 export function etInstant(ymd, minutes) {
   const [y, m, d] = ymd.split("-").map(Number);
   const naive = Date.UTC(y, m - 1, d, Math.floor(minutes / 60), minutes % 60, 0);
@@ -60,13 +62,22 @@ export function isTradingDay(ymd) {
 export function nextTradingDay(ymd) {
   const [y, m, d] = ymd.split("-").map(Number);
   let t = Date.UTC(y, m - 1, d);
+  let firstWeekday = null;
   for (let i = 0; i < 14; i += 1) {
     t += 86_400_000;
-    const s = new Date(t).toISOString().slice(0, 10);
-    if (isTradingDay(s)) return s;
+    const dt = new Date(t);
+    const s = dt.toISOString().slice(0, 10);
+    const wd = dt.getUTCDay();
+    if (wd === 0 || wd === 6) continue;
+    if (!NYSE_HOLIDAYS.has(s)) return s;
+    if (!firstWeekday) firstWeekday = s;
   }
-  return null;
+  // The exchange never closes for two weeks; if the table says otherwise,
+  // trust the weekday calendar over the table so callers never get null.
+  return firstWeekday;
 }
+
+let warnedStaleTable = false;
 
 export function nyseSession(now = new Date()) {
   const p = etParts(now);
@@ -74,6 +85,11 @@ export function nyseSession(now = new Date()) {
   const early = NYSE_EARLY_CLOSES.has(p.ymd);
   const closeMin = early ? EARLY_CLOSE_MIN : CLOSE_MIN;
   const t = p.hour * 60 + p.minute + p.second / 60;
+  const tableStale = p.ymd > HOLIDAY_TABLE_THROUGH;
+  if (tableStale && !warnedStaleTable) {
+    warnedStaleTable = true;
+    console.warn(`[session] NYSE holiday table ends ${HOLIDAY_TABLE_THROUGH}; extend src/lib/marketHolidays.js`);
+  }
 
   let state = "closed";
   if (trading) {
@@ -87,7 +103,7 @@ export function nyseSession(now = new Date()) {
   else if (state === "pre" || (trading && t < PRE_MIN)) countdownTo = etInstant(p.ymd, OPEN_MIN);
   else countdownTo = etInstant(nextTradingDay(p.ymd), OPEN_MIN);
 
-  return { state, early, ymd: p.ymd, countdownTo, countdownLabel: state === "open" ? "closes" : "opens" };
+  return { state, early, ymd: p.ymd, countdownTo, countdownLabel: state === "open" ? "closes" : "opens", tableStale };
 }
 
 // Yahoo's marketState on ^GSPC, when present, is the ground truth for the label.

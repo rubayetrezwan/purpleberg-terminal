@@ -20,7 +20,7 @@ export const api = {
     get(`/financials/${encodeURIComponent(symbol)}`),
 
   news: (symbols) =>
-    get(`/news${symbols ? `?symbols=${symbols.join(",")}` : ""}`),
+    get(`/news${symbols ? `?symbols=${encodeURIComponent(symbols.join(","))}` : ""}`),
 
   econCalendar: () => get("/econ-calendar"),
 

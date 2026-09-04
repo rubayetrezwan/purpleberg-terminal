@@ -39,7 +39,7 @@ export function QuotePoolProvider({ children }) {
   }, [q.data]);
 
   // Index rows (^GSPC) are for the shell only; screens read `equities`.
-  const equities = useMemo(() => q.data.filter((row) => !row.symbol.startsWith("^")), [q.data]);
+  const equities = useMemo(() => q.data.filter((row) => !String(row.symbol || "").startsWith("^")), [q.data]);
 
   const value = useMemo(
     () => ({ bySymbol, list: q.data, equities, loading: q.loading, error: q.error, updatedAt: q.updatedAt, intervalMs: q.intervalMs, refetch: q.refetch, symbols }),

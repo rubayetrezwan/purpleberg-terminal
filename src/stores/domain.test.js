@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { memoryStorage } from "./createStore.js";
 import { migrateSettings, sanitizeSettings, SETTINGS_DEFAULTS, setSetting } from "./settings.js";
 import { addToList, removeFromList, moveInList, normalizeSymbol, WATCHLIST_MAX, sanitizeWatchlist } from "./watchlist.js";
-import { sanitizeAlerts } from "./alerts.js";
+import { sanitizeAlerts, addAlert, rearmAlert, replaceAlertItems, alerts as alertsStore } from "./alerts.js";
 import { migratePortfolio, sanitizePortfolio, localYmd } from "./portfolio.js";
 import { STORES, exportAll, importAll, validateExport, resetAll } from "./index.js";
 
@@ -116,4 +116,17 @@ test("domain sanitizers repair corrupt shapes", () => {
   assert.equal(sanitizeAlerts({ items: [{ id: "a", symbol: "NVDA", op: "above", price: 1 }, { id: "b" }] }).items.length, 1);
   assert.equal(sanitizePortfolio({ transactions: [{ id: "t", date: "2026-09-04", symbol: "AAPL", side: "buy", shares: 1, price: 10, fees: 0 }, { id: "u", date: "bad" }] }).transactions.length, 1);
   assert.equal(localYmd(new Date(2026, 0, 5, 21)), "2026-01-05");
+});
+
+test("re-arming an alert resets its reference so crossing detection restarts", () => {
+  alertsStore.reset();
+  const a = addAlert({ symbol: "NVDA", op: "above", price: 100, baseline: 90 });
+  replaceAlertItems(alertsStore.get().items.map((x) => (x.id === a.id ? { ...x, lastPrice: 120, triggeredAt: 5, triggeredPrice: 120 } : x)));
+  rearmAlert(a.id, 95);
+  const item = alertsStore.get().items.find((x) => x.id === a.id);
+  assert.equal(item.baseline, 95);
+  assert.equal(item.lastPrice, 95);
+  assert.equal(item.triggeredAt, null);
+  assert.equal(item.triggeredPrice, null);
+  alertsStore.reset();
 });

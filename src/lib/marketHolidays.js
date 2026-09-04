@@ -12,3 +12,7 @@ export const NYSE_EARLY_CLOSES = new Set([
   "2026-11-27", "2026-12-24",
   "2027-11-26",
 ]);
+
+// Last day the tables above are known to be complete. nyseSession() flags
+// dates past this so the shell can say the calendar needs extending.
+export const HOLIDAY_TABLE_THROUGH = "2027-12-31";

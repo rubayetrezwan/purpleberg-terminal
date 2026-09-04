@@ -1,6 +1,6 @@
-import { test } from "node:test";
+import { test, mock } from "node:test";
 import assert from "node:assert/strict";
-import { nyseSession, etOffsetMinutes, etInstant, nextTradingDay, isTradingDay, stateFromMarketState } from "./session.js";
+import { nyseSession, etParts, etOffsetMinutes, etInstant, nextTradingDay, isTradingDay, stateFromMarketState } from "./session.js";
 
 const at = (iso) => new Date(iso);
 const iso = (d) => d.toISOString();
@@ -81,4 +81,27 @@ test("Yahoo marketState mapping", () => {
   assert.equal(stateFromMarketState("CLOSED"), "closed");
   assert.equal(stateFromMarketState("POSTPOST"), "closed");
   assert.equal(stateFromMarketState(undefined), null);
+});
+
+test("session boundaries are half-open at 04:00, 16:00, and 20:00 ET", () => {
+  assert.equal(nyseSession(at("2026-09-04T08:00:00Z")).state, "pre");
+  assert.equal(nyseSession(at("2026-09-04T07:59:59Z")).state, "closed");
+  assert.equal(nyseSession(at("2026-09-04T20:00:00Z")).state, "post");
+  assert.equal(nyseSession(at("2026-09-04T19:59:59Z")).state, "open");
+  assert.equal(nyseSession(at("2026-09-05T00:00:00Z")).state, "closed");
+  assert.equal(nyseSession(at("2026-09-04T23:59:59Z")).state, "post");
+});
+
+test("midnight in New York reports hour 0, not 24", () => {
+  assert.equal(etParts(at("2026-09-04T04:00:00Z")).hour, 0);
+});
+
+test("dates past the holiday table still resolve and are flagged", () => {
+  const warn = mock.method(console, "warn", () => {});
+  const s = nyseSession(at("2028-12-25T15:00:00Z"));
+  assert.equal(s.tableStale, true);
+  assert.ok(s.countdownTo instanceof Date && !Number.isNaN(s.countdownTo.getTime()));
+  assert.equal(nyseSession(at("2026-09-04T14:00:00Z")).tableStale, false);
+  warn.mock.restore();
+  assert.equal(nextTradingDay("2027-12-24"), "2027-12-27");
 });
