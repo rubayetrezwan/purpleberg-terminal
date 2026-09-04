@@ -307,6 +307,43 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-chart .recharts-cartesian-axis-tick-value { font-family: inherit; }
 .pb-chart .recharts-tooltip-wrapper { outline: none; }
 
+/* ============================================================
+   Features - ticker, quick-look, alert form
+   ============================================================ */
+.pb-ticker { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
+.pb-ticker__sym { font-weight: 600; color: var(--c-text); }
+.pb-ticker__sym:hover { color: var(--c-accent-text); text-decoration: underline; }
+.pb-ticker__star { display: inline-flex; color: var(--c-text-muted); opacity: 0; padding: 2px; transition: opacity var(--t-fast); }
+.pb-ticker:hover .pb-ticker__star, .pb-ticker__star:focus-visible, .pb-ticker__star--on { opacity: 1; }
+.pb-ticker__star--on { color: var(--c-accent-text); }
+@media (hover: none) { .pb-ticker__star { opacity: 1; } }
+
+.pb-ql { display: flex; flex-direction: column; }
+.pb-ql__head { gap: 8px; }
+.pb-ql__sym { font-size: var(--fs-lg); font-weight: 600; }
+.pb-ql__name { font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.pb-ql__tools { display: inline-flex; gap: 2px; margin-left: auto; }
+.pb-ql__price { display: flex; align-items: baseline; gap: 10px; padding: var(--sec-pad) var(--cell-px) 4px; flex-wrap: wrap; }
+.pb-ql__last { font-size: var(--fs-xl); font-weight: 600; }
+.pb-ql__tags { display: inline-flex; gap: 4px; margin-left: auto; }
+.pb-ql__spark { padding: 4px var(--cell-px) var(--cell-py); border-bottom: 1px solid var(--c-line); min-height: 64px; display: flex; align-items: center; }
+.pb-ql__alert { padding: var(--cell-py) var(--cell-px); border-bottom: 1px solid var(--c-line); background: var(--c-selected); }
+.pb-ql__range { padding: var(--cell-py) var(--cell-px); border-bottom: 1px solid var(--c-line); }
+.pb-ql__rangebar { position: relative; height: 4px; background: var(--c-line-strong); }
+.pb-ql__rangebar span { position: absolute; top: -3px; width: 2px; height: 10px; background: var(--c-accent); }
+.pb-ql__rangelbl { display: flex; justify-content: space-between; margin-top: 4px; }
+.pb-ql__news { padding: var(--cell-py) var(--cell-px); border-bottom: 1px solid var(--c-line); }
+.pb-ql__newshead { margin-bottom: 4px; }
+.pb-ql__headline { display: block; padding: 4px 0; color: var(--c-text); font-size: var(--fs-sm); border-bottom: 1px solid var(--c-line); }
+.pb-ql__headline:last-child { border-bottom: 0; }
+.pb-ql__headline:hover { color: var(--c-accent-text); text-decoration: none; }
+.pb-ql__nonews { font-size: var(--fs-sm); }
+.pb-ql__actions { display: flex; gap: 6px; padding: var(--sec-pad) var(--cell-px); }
+
+.pb-alertform__row { display: flex; gap: 6px; align-items: center; }
+.pb-alertform__row .pb-input { width: 110px; }
+.pb-alertform__note { font-size: var(--fs-sm); margin-top: 6px; }
+
 /* === LEGACY:BEGIN (delete in Plan P2 with the last old screen) === */
 /* ============================================================
    LEGACY - flat stand-ins for classes src/shared.jsx and the old
