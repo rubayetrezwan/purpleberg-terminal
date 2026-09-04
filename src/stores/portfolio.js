@@ -1,15 +1,15 @@
 import { createStore } from "./createStore.js";
 import { newId } from "../lib/id.js";
+import { localYmd } from "../lib/portfolio.js";
 
 // transactions: [{ id, date: "YYYY-MM-DD", symbol, side: "buy"|"sell",
 //                  shares, price, fees, note? }]
 // The old app stored holdings ({symbol, name, shares, avgCost}) under
 // purpleberg_portfolio; each becomes one buy dated on migration day.
-// Local calendar day, so a 21:00 migration in New York is not dated tomorrow.
-export function localYmd(d) {
-  const p = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
+// One implementation of the local calendar day, in the lib, so a 21:00
+// migration in New York is not dated tomorrow. Re-exported for callers that
+// already import it from here.
+export { localYmd } from "../lib/portfolio.js";
 
 export function migratePortfolio(storage, today = new Date()) {
   if (!storage) return null;
