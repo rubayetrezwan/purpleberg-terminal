@@ -2222,6 +2222,8 @@ git commit -m "data: quote pool, feed status, interval scaling, freshness on pol
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
+**Post-review amendments (applied in the fix commit after Tasks 6-7):** the quote pool orders user-owned symbols before the tracked 250 and exposes `equities` (index rows filtered out) for screens; `useQuotes` treats an empty payload as a failed poll, ignores stale in-flight responses, clears `refetch` on an empty symbol list, and re-paces on a refresh change without an immediate fetch (`useNews` and `useCryptoMarkets` likewise); `usePoolQuotes` keys on the joined uppercase symbols; `POOL_FIXED` lives in `src/data/symbols.js`; `normalizeSymbol` and `TICKER_RE` live in `src/lib/ticker.js`; `buildQuery` is shared by `buildPath` and `updateQuery`; `Link` respects `target`; the `portfolio` store no longer migrates automatically (P3 does it at cutover). Later tasks that read these modules should rely on the code in the repository.
+
 ---
 
 ### Task 8: NYSE session clock
@@ -4687,8 +4689,8 @@ export function CommandLine() {
   const searchQuery = parsed.kind === "search" && parsed.query.length >= 2 ? parsed.query : "";
   const { results: yahoo, loading: searching } = useSearch(searchQuery, 400);
   const items = useMemo(
-    () => buildSuggestions({ value, parsed, poolList: pool.list, watch, yahoo }),
-    [value, parsed, pool.list, watch, yahoo]
+    () => buildSuggestions({ value, parsed, poolList: pool.equities, watch, yahoo }),
+    [value, parsed, pool.equities, watch, yahoo]
   );
 
   useEffect(() => { setActive(0); }, [value]);
@@ -5072,7 +5074,7 @@ import { fmtNum } from "../lib/format.js";
 export function BottomTape() {
   const pool = useQuotePool();
   const tape = useMemo(
-    () => pool.list.filter((q) => q.price > 0 && !q.symbol.startsWith("^")).sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0)).slice(0, 20),
+    () => pool.equities.filter((q) => q.price > 0).sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0)).slice(0, 20),
     [pool.list]
   );
   return (
@@ -5362,8 +5364,8 @@ function useDefaultScreen() {
 function Screen({ route, params }) {
   const pool = useQuotePool();
   const { news, loading: newsLoading } = useNewsFeed();
-  // Old screens expect the tracked-equity list only; indices and extras stay out.
-  const list = useMemo(() => pool.list.filter((q) => !q.symbol.startsWith("^")), [pool.list]);
+  // Old screens expect the tracked-equity list only; the pool excludes index rows.
+  const list = pool.equities;
   switch (route ? route.name : "dashboard") {
     case "equities": return <EquityAnalysis allStockQuotes={list} initialSymbol={params.symbol || null} onSymbolConsumed={noop} />;
     case "screener": return <StockScreener allStockQuotes={list} />;
@@ -5857,4 +5859,4 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ## What comes next
 
 - **Plan P2 (market screens):** Dashboard, Equities, Screener (presets, saved screens), Compare, FX, Rates & Macro, Commodities, Crypto, IPOs, News, plus `src/data/sparklines.js`, `src/lib/screener.js`, deletion of `src/shared.jsx`, `src/chartTheme.jsx`, `src/hooks.js`, `src/api.js`, the `config.js` re-exports, `ThemeContext.jsx`, and the LEGACY CSS block.
-- **Plan P3 (portfolio and finish):** `src/lib/portfolio.js` with tests, the Portfolio screen (transactions, performance versus S&P 500, allocation, risk), README rewrite, bundle comparison, code-reviewer pass, merge.
+- **Plan P3 (portfolio and finish):** `src/lib/portfolio.js` with tests, the Portfolio screen (transactions, performance versus S&P 500, allocation, risk), README rewrite, bundle comparison, code-reviewer pass, merge. P3 must call `migratePortfolio()` once at the cutover from the old Portfolio screen, only when the new store is still empty.

@@ -18,6 +18,8 @@ function safeDecode(s) {
   try { return decodeURIComponent(s); } catch { return s; }
 }
 
+// Optional params must be trailing: matching does not backtrack, so a pattern
+// like "/a/:id?/b" would never match "/a/b".
 export function matchPath(pattern, path) {
   const segs = compilePattern(pattern);
   const parts = String(path || "/").split("/").filter(Boolean).map(safeDecode);
@@ -54,6 +56,13 @@ export function matchRoute(routes, path, search) {
   return null;
 }
 
+export function buildQuery(query = {}) {
+  return Object.entries(query)
+    .filter(([, v]) => v != null && v !== "")
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+    .join("&");
+}
+
 export function buildPath(pattern, params = {}, query = {}) {
   const parts = [];
   for (const seg of compilePattern(pattern)) {
@@ -68,9 +77,6 @@ export function buildPath(pattern, params = {}, query = {}) {
     }
     parts.push(encodeURIComponent(String(v)));
   }
-  const qs = Object.entries(query)
-    .filter(([, v]) => v != null && v !== "")
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
-    .join("&");
+  const qs = buildQuery(query);
   return "/" + parts.join("/") + (qs ? "?" + qs : "");
 }

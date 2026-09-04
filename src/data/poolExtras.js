@@ -11,9 +11,10 @@ export function retainSymbol(symbol) {
 }
 
 export function releaseSymbol(symbol) {
-  const s = String(symbol).trim().toUpperCase();
+  const s = String(symbol ?? "").trim().toUpperCase();
+  if (!s || !(poolExtras.get().counts[s] > 0)) return;
   poolExtras.update((st) => {
-    const n = (st.counts[s] || 0) - 1;
+    const n = st.counts[s] - 1;
     const counts = { ...st.counts };
     if (n <= 0) delete counts[s]; else counts[s] = n;
     return { counts };

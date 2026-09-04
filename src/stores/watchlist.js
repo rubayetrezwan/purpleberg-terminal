@@ -1,16 +1,12 @@
 import { createStore } from "./createStore.js";
+import { normalizeSymbol } from "../lib/ticker.js";
+
+export { normalizeSymbol };
 
 export const WATCHLIST_MAX = 50;
 export const WATCHLIST_DEFAULTS = {
   symbols: ["NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "TSLA", "JPM"],
 };
-
-const TICKER_RE = /^[A-Z0-9^][A-Z0-9.\-^=]{0,14}$/;
-
-export function normalizeSymbol(s) {
-  const t = String(s ?? "").trim().toUpperCase();
-  return TICKER_RE.test(t) ? t : null;
-}
 
 export function addToList(list, symbol) {
   const t = normalizeSymbol(symbol);

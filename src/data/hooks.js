@@ -4,6 +4,16 @@ import { useStore } from "../stores/useStore.js";
 import { settings } from "../stores/settings.js";
 import { scaleInterval } from "./polling.js";
 
+// Re-pace a running poll when the refresh setting changes, without firing an
+// immediate fetch. The fetch effect owns start/stop; this only swaps the period.
+function useRepace(timerRef, fetchRef, ms) {
+  useEffect(() => {
+    if (timerRef.current == null || !fetchRef.current) return;
+    clearInterval(timerRef.current);
+    timerRef.current = setInterval(fetchRef.current, ms);
+  }, [ms]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 // ── Responsive breakpoint hook ──────────────────────────
 // Every mounted screen calls this, so the naive `window.resize` listener
 // version spawns N listeners that all fire every pixel of a drag. We cache
@@ -57,36 +67,48 @@ export function useQuotes(symbols, intervalMs = 15000) {
   const [state, setState] = useState({ data: [], loading: true, error: null, updatedAt: null, pollSeq: 0, lastPollOk: null });
   const symbolsKey = symbols.join(",");
   const refetchRef = useRef(null);
+  const timerRef = useRef(null);
+  const msRef = useRef(effectiveMs);
+  msRef.current = effectiveMs;
 
   useEffect(() => {
     // No symbols to fetch: clear the loading flag so a caller that starts with
     // an empty list (e.g. an empty portfolio) doesn't hang on "loading" forever.
-    if (!symbols.length) { setState((s) => ({ ...s, loading: false })); return undefined; }
+    if (!symbols.length) {
+      refetchRef.current = null;
+      setState((s) => ({ ...s, loading: false }));
+      return undefined;
+    }
     let cancelled = false;
-    let iv = null;
+    let attempt = 0;
+    setState((s) => ({ ...s, loading: s.data.length === 0 }));
 
     const fetchData = async () => {
+      const myAttempt = ++attempt; // only the latest attempt may write state
       try {
         const result = await api.quotes(symbols);
-        if (cancelled) return;
+        if (cancelled || myAttempt !== attempt) return;
+        // The proxy answers 200 with [] on a total upstream failure, so an
+        // empty payload is a failed poll: keep the rows and the old timestamp.
+        const empty = !Array.isArray(result) || result.length === 0;
         setState((s) => ({
           ...s,
-          data: result.length > 0 ? result : s.data, // keep previous rows on an empty payload
+          data: empty ? s.data : result,
           loading: false,
-          error: null,
-          updatedAt: Date.now(),
+          error: empty ? "empty payload" : null,
+          updatedAt: empty ? s.updatedAt : Date.now(),
           pollSeq: s.pollSeq + 1,
-          lastPollOk: true,
+          lastPollOk: !empty,
         }));
       } catch (e) {
-        if (cancelled) return;
+        if (cancelled || myAttempt !== attempt) return;
         setState((s) => ({ ...s, loading: false, error: e.message, pollSeq: s.pollSeq + 1, lastPollOk: false }));
       }
     };
     refetchRef.current = fetchData;
 
-    const start = () => { if (iv != null) return; fetchData(); iv = setInterval(fetchData, effectiveMs); };
-    const stop = () => { if (iv != null) { clearInterval(iv); iv = null; } };
+    const stop = () => { if (timerRef.current != null) { clearInterval(timerRef.current); timerRef.current = null; } };
+    const start = () => { if (timerRef.current != null) return; fetchData(); timerRef.current = setInterval(fetchData, msRef.current); };
     const onVisibility = () => { if (document.visibilityState === "hidden") stop(); else start(); };
 
     if (document.visibilityState !== "hidden") start();
@@ -96,7 +118,9 @@ export function useQuotes(symbols, intervalMs = 15000) {
       stop();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [symbolsKey, effectiveMs]);
+  }, [symbolsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useRepace(timerRef, refetchRef, effectiveMs);
 
   const refetch = useCallback(() => { if (refetchRef.current) refetchRef.current(); }, []);
   return { ...state, refetch, intervalMs: effectiveMs };
@@ -109,11 +133,12 @@ export function useHistorical(symbol, range = "3mo") {
   const [updatedAt, setUpdatedAt] = useState(null);
 
   useEffect(() => {
-    if (!symbol) { setLoading(false); setData([]); return undefined; }
+    if (!symbol) { setLoading(false); setData([]); setUpdatedAt(null); return undefined; }
     let cancelled = false;
     setLoading(true);
+    setUpdatedAt(null); // the previous series must not be attributed to the new symbol
     api.historical(symbol, range).then((result) => {
-      if (!cancelled) { setData(result); setLoading(false); setUpdatedAt(Date.now()); }
+      if (!cancelled) { setData(Array.isArray(result) ? result : []); setLoading(false); setUpdatedAt(Date.now()); }
     }).catch(() => {
       if (!cancelled) setLoading(false);
     });
@@ -155,26 +180,42 @@ export function useNews(symbols, intervalMs = 120000) {
   const effectiveMs = scaleInterval(intervalMs, refreshSec);
   const [state, setState] = useState({ data: [], loading: true, error: null, updatedAt: null });
   const symbolsKey = symbols ? symbols.join(",") : "";
+  const fetchRef = useRef(null);
+  const timerRef = useRef(null);
+  const msRef = useRef(effectiveMs);
+  msRef.current = effectiveMs;
 
   useEffect(() => {
     let cancelled = false;
-    let iv = null;
+    let attempt = 0;
     const fetchData = async () => {
+      const myAttempt = ++attempt;
       try {
         const result = await api.news(symbols);
-        if (!cancelled) setState({ data: result, loading: false, error: null, updatedAt: Date.now() });
+        if (cancelled || myAttempt !== attempt) return;
+        const rows = Array.isArray(result) ? result : [];
+        // Keep the previous headlines on an empty payload, matching useQuotes.
+        setState((s) => ({
+          data: rows.length ? rows : s.data,
+          loading: false,
+          error: rows.length ? null : "empty payload",
+          updatedAt: rows.length ? Date.now() : s.updatedAt,
+        }));
       } catch (e) {
-        if (!cancelled) setState((s) => ({ ...s, loading: false, error: e.message }));
+        if (cancelled || myAttempt !== attempt) return;
+        setState((s) => ({ ...s, loading: false, error: e.message }));
       }
     };
-    const start = () => { if (iv != null) return; fetchData(); iv = setInterval(fetchData, effectiveMs); };
-    const stop = () => { if (iv != null) { clearInterval(iv); iv = null; } };
+    fetchRef.current = fetchData;
+    const stop = () => { if (timerRef.current != null) { clearInterval(timerRef.current); timerRef.current = null; } };
+    const start = () => { if (timerRef.current != null) return; fetchData(); timerRef.current = setInterval(fetchData, msRef.current); };
     const onVisibility = () => { if (document.visibilityState === "hidden") stop(); else start(); };
     if (document.visibilityState !== "hidden") start();
     document.addEventListener("visibilitychange", onVisibility);
     return () => { cancelled = true; stop(); document.removeEventListener("visibilitychange", onVisibility); };
-  }, [symbolsKey, effectiveMs]);
+  }, [symbolsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useRepace(timerRef, fetchRef, effectiveMs);
   return { ...state, intervalMs: effectiveMs };
 }
 
@@ -193,47 +234,57 @@ export function useCryptoMarkets(intervalMs = 60000) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(null);
+  const fetchRef = useRef(null);
+  const timerRef = useRef(null);
+  const msRef = useRef(effectiveMs);
+  msRef.current = effectiveMs;
 
   useEffect(() => {
     let cancelled = false;
-    let iv = null;
+    let paused = false;
     let retryTimer = null;
+    let attempt = 0;
 
     // First-load retry: an empty stampede (our own limiter on a page-load
     // burst, or an upstream 429) should not leave the screen empty for a full
     // poll interval. Two short retries before declaring the dashboard empty.
-    const fetchData = async (attempt = 0) => {
+    const fetchData = async (retry = 0) => {
+      const myAttempt = ++attempt;
       try {
         const result = await api.cryptoMarkets();
-        if (!cancelled) {
-          if (Array.isArray(result) && result.length > 0) setData(result);
-          setLoading(false);
-          setError(null);
-          setUpdatedAt(Date.now());
-        }
+        if (cancelled || myAttempt !== attempt) return;
+        if (Array.isArray(result) && result.length > 0) setData(result);
+        setLoading(false);
+        setError(null);
+        setUpdatedAt(Date.now());
       } catch (e) {
-        if (cancelled) return;
+        if (cancelled || paused || myAttempt !== attempt) return;
         setError(e.message);
-        if (attempt < 2) {
-          retryTimer = setTimeout(() => fetchData(attempt + 1), 1200 * (attempt + 1));
-        } else {
-          setLoading(false);
-        }
+        if (retry < 2) retryTimer = setTimeout(() => fetchData(retry + 1), 1200 * (retry + 1));
+        else setLoading(false);
       }
     };
+    fetchRef.current = () => fetchData(0);
 
-    const start = () => { if (iv != null) return; fetchData(); iv = setInterval(fetchData, effectiveMs); };
     const stop = () => {
-      if (iv != null) { clearInterval(iv); iv = null; }
+      paused = true;
+      if (timerRef.current != null) { clearInterval(timerRef.current); timerRef.current = null; }
       if (retryTimer != null) { clearTimeout(retryTimer); retryTimer = null; }
+    };
+    const start = () => {
+      paused = false;
+      if (timerRef.current != null) return;
+      fetchData(0);
+      timerRef.current = setInterval(fetchRef.current, msRef.current);
     };
     const onVisibility = () => { if (document.visibilityState === "hidden") stop(); else start(); };
 
     if (document.visibilityState !== "hidden") start();
     document.addEventListener("visibilitychange", onVisibility);
     return () => { cancelled = true; stop(); document.removeEventListener("visibilitychange", onVisibility); };
-  }, [effectiveMs]);
+  }, []);
 
+  useRepace(timerRef, fetchRef, effectiveMs);
   return { data, loading, error, updatedAt, intervalMs: effectiveMs };
 }
 

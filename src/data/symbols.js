@@ -1,8 +1,13 @@
+import { TICKER_RE } from "../lib/ticker.js";
+
 export const POOL_CAP = 300; // the proxy's per-request hard cap
-const TICKER_RE = /^[A-Z0-9^][A-Z0-9.\-^=]{0,14}$/;
+
+// Symbols the shell always needs: ^GSPC drives the session clock's market state.
+export const POOL_FIXED = ["^GSPC"];
 
 // Flatten any nesting of arrays and strings into a unique, validated,
-// uppercase symbol list in first-seen order.
+// uppercase symbol list in first-seen order. Callers put user-owned symbols
+// before the static tracked list so the cap never drops the user's own data.
 export function dedupeSymbols(lists) {
   const out = [];
   const seen = new Set();
@@ -15,5 +20,9 @@ export function dedupeSymbols(lists) {
     out.push(s);
   };
   walk(lists);
-  return out.slice(0, POOL_CAP);
+  if (out.length > POOL_CAP) {
+    console.warn(`[quotes] symbol pool capped at ${POOL_CAP}; ${out.length - POOL_CAP} symbols dropped`);
+    return out.slice(0, POOL_CAP);
+  }
+  return out;
 }

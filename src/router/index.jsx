@@ -1,5 +1,5 @@
 import { useMemo, useSyncExternalStore } from "react";
-import { matchRoute, parseQuery } from "./match.js";
+import { matchRoute, parseQuery, buildQuery } from "./match.js";
 import { ROUTES } from "./routes.js";
 
 // History API router. One module-level location snapshot, subscribers, and a
@@ -30,6 +30,8 @@ export function subscribeLocation(fn) {
   return () => listeners.delete(fn);
 }
 
+// Navigating to the current location is a no-op, including with `replace`.
+// Only pathname and search are tracked; hashes are ignored.
 export function navigate(to, { replace = false } = {}) {
   if (to === snapshot.path + snapshot.search) return;
   window.history[replace ? "replaceState" : "pushState"](null, "", to);
@@ -44,7 +46,7 @@ export function updateQuery(patch, { replace = true } = {}) {
     if (v == null || v === "") delete q[k];
     else q[k] = String(v);
   }
-  const qs = new URLSearchParams(q).toString();
+  const qs = buildQuery(q);
   navigate(loc.path + (qs ? "?" + qs : ""), { replace });
 }
 
@@ -64,14 +66,15 @@ export function useRoute() {
 export function Link({ to, replace = false, onClick, children, ...rest }) {
   return (
     <a
+      {...rest}
       href={to}
       onClick={(e) => {
         if (onClick) onClick(e);
         if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        if (rest.target && rest.target !== "_self") return;
         e.preventDefault();
         navigate(to, { replace });
       }}
-      {...rest}
     >
       {children}
     </a>

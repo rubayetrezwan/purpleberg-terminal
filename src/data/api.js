@@ -11,7 +11,7 @@ async function get(url) {
 
 export const api = {
   quotes: (symbols) =>
-    get(`/quotes?symbols=${symbols.join(",")}`),
+    get(`/quotes?symbols=${encodeURIComponent(symbols.join(","))}`),
 
   historical: (symbol, range = "3mo", interval = "1d") =>
     get(`/historical/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`),

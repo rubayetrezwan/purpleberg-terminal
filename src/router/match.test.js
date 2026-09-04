@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { matchPath, matchRoute, parseQuery, buildPath } from "./match.js";
+import { matchPath, matchRoute, parseQuery, buildPath, buildQuery } from "./match.js";
 import { ROUTES, routeByMnemonic, routeByName, pathFor, isMnemonic } from "./routes.js";
 
 test("matchPath: static, params, optional params, trailing slash", () => {
@@ -37,6 +37,13 @@ test("buildPath encodes params and drops empty query values", () => {
   assert.equal(buildPath("/compare", {}, { a: "AAPL", b: "MSFT", range: "" }), "/compare?a=AAPL&b=MSFT");
   assert.equal(buildPath("/", {}), "/");
   assert.throws(() => buildPath("/x/:id", {}), /missing param id/);
+});
+
+test("buildQuery encodes reserved characters and drops empties; optional params must be trailing", () => {
+  assert.equal(buildQuery({ q: "a&b", empty: "", n: null, sym: "^GSPC" }), "q=a%26b&sym=%5EGSPC");
+  assert.equal(buildPath("/screener", {}, { q: "hello world" }), "/screener?q=hello%20world");
+  assert.deepEqual(matchPath("/a/:id?", "/a/"), {});
+  assert.equal(matchPath("/a/:id?/b", "/a/b"), null);
 });
 
 test("route table helpers", () => {

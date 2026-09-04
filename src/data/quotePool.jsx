@@ -5,15 +5,14 @@ import { watchlist } from "../stores/watchlist.js";
 import { alerts } from "../stores/alerts.js";
 import { portfolio } from "../stores/portfolio.js";
 import { poolExtras, retainSymbol, releaseSymbol } from "./poolExtras.js";
-import { dedupeSymbols } from "./symbols.js";
+import { dedupeSymbols, POOL_FIXED } from "./symbols.js";
 import { reportPoll } from "./feedStatus.js";
 import { useQuotes } from "./hooks.js";
 
-// One poll for everything equity-shaped the app needs: the tracked 250, the
-// watchlist, alert and portfolio symbols, and ad-hoc extras. Screens read
-// quotes from here instead of polling on their own.
-export const POOL_FIXED = ["^GSPC"]; // drives the session clock's market state
-
+// One poll for everything equity-shaped the app needs: the shell's fixed
+// symbols, the user's watchlist, alert and portfolio symbols, ad-hoc extras,
+// and finally the tracked 250. User-owned symbols come first so the proxy's
+// 300-symbol cap can only ever trim the tail of the static list.
 const PoolContext = createContext(null);
 
 export function QuotePoolProvider({ children }) {
@@ -23,7 +22,7 @@ export function QuotePoolProvider({ children }) {
   const extras = useStore(poolExtras, (s) => s.counts);
 
   const symbols = useMemo(
-    () => dedupeSymbols([POOL_FIXED, US_STOCKS, watch, alertItems.map((a) => a.symbol), txs.map((t) => t.symbol), Object.keys(extras)]),
+    () => dedupeSymbols([POOL_FIXED, watch, alertItems.map((a) => a.symbol), txs.map((t) => t.symbol), Object.keys(extras), US_STOCKS]),
     [watch, alertItems, txs, extras]
   );
 
@@ -39,9 +38,12 @@ export function QuotePoolProvider({ children }) {
     return m;
   }, [q.data]);
 
+  // Index rows (^GSPC) are for the shell only; screens read `equities`.
+  const equities = useMemo(() => q.data.filter((row) => !row.symbol.startsWith("^")), [q.data]);
+
   const value = useMemo(
-    () => ({ bySymbol, list: q.data, loading: q.loading, error: q.error, updatedAt: q.updatedAt, intervalMs: q.intervalMs, refetch: q.refetch, symbols }),
-    [bySymbol, q.data, q.loading, q.error, q.updatedAt, q.intervalMs, q.refetch, symbols]
+    () => ({ bySymbol, list: q.data, equities, loading: q.loading, error: q.error, updatedAt: q.updatedAt, intervalMs: q.intervalMs, refetch: q.refetch, symbols }),
+    [bySymbol, q.data, equities, q.loading, q.error, q.updatedAt, q.intervalMs, q.refetch, symbols]
   );
 
   return <PoolContext.Provider value={value}>{children}</PoolContext.Provider>;
@@ -56,19 +58,28 @@ export function useQuotePool() {
 export function useQuote(symbol) {
   const pool = useQuotePool();
   if (!symbol) return null;
-  return pool.bySymbol.get(String(symbol).toUpperCase()) ?? null;
+  return pool.bySymbol.get(String(symbol).trim().toUpperCase()) ?? null;
 }
 
+// Rows for the given symbols, in order, skipping any not yet in the pool.
+// Keyed on the joined string so callers may pass a fresh array literal.
 export function usePoolQuotes(symbols) {
   const pool = useQuotePool();
-  return useMemo(() => (symbols || []).map((s) => pool.bySymbol.get(s)).filter(Boolean), [pool.bySymbol, symbols]);
+  const key = (symbols || []).map((s) => String(s).trim().toUpperCase()).join(",");
+  return useMemo(
+    () => (key ? key.split(",") : []).map((s) => pool.bySymbol.get(s)).filter(Boolean),
+    [pool.bySymbol, key]
+  );
 }
 
 // Keep an ad-hoc symbol in the pool while the calling component is mounted.
+// Joining the pool restarts its poll, so the first price arrives after one
+// full round trip; that is the accepted cost of a single shared poll.
 export function usePoolExtra(symbol) {
+  const sym = symbol ? String(symbol).trim().toUpperCase() : null;
   useEffect(() => {
-    if (!symbol) return undefined;
-    retainSymbol(symbol);
-    return () => releaseSymbol(symbol);
-  }, [symbol]);
+    if (!sym) return undefined;
+    retainSymbol(sym);
+    return () => releaseSymbol(sym);
+  }, [sym]);
 }
