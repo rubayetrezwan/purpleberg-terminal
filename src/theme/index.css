@@ -345,6 +345,31 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-alertform__row .pb-input { width: 110px; }
 .pb-alertform__note { font-size: var(--fs-sm); margin-top: 6px; }
 
+/* ============================================================
+   Command line, shortcut sheet
+   ============================================================ */
+.pb-cmd { position: relative; display: flex; align-items: center; flex: 1; min-width: 0; max-width: 420px; height: calc(var(--top-h) - 8px); border: 1px solid var(--c-line-strong); background: var(--c-raised); }
+.pb-cmd--open, .pb-cmd:focus-within { border-color: var(--c-accent); }
+.pb-cmd__input { flex: 1; min-width: 0; height: 100%; padding: 0 8px; color: var(--c-accent-text); font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: 0.04em; }
+.pb-cmd__input::placeholder { color: var(--c-text-muted); text-transform: uppercase; }
+.pb-cmd__go { padding: 0 8px; font-size: var(--fs-xs); color: var(--c-text-muted); letter-spacing: 0.06em; border-left: 1px solid var(--c-line); height: 100%; display: inline-flex; align-items: center; }
+.pb-cmd__pop { position: absolute; top: calc(100% + 1px); left: -1px; right: -1px; max-height: min(60vh, 480px); overflow: auto; background: var(--c-raised); border: 1px solid var(--c-line-strong); z-index: var(--z-layer); }
+.pb-cmd__grouplbl { padding: 4px 8px; font-size: var(--fs-xs); letter-spacing: 0.08em; color: var(--c-text-muted); border-bottom: 1px solid var(--c-line); background: var(--c-bg); position: sticky; top: 0; }
+.pb-cmd__opt { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: var(--row-h); padding: 0 8px; cursor: pointer; border-bottom: 1px solid var(--c-line); font-size: var(--fs-sm); }
+.pb-cmd__opt--on { background: var(--c-selected); box-shadow: inset 2px 0 0 var(--c-accent); }
+.pb-cmd__optlbl { font-weight: 600; }
+.pb-cmd__optsub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pb-cmd__optright { display: inline-flex; gap: 8px; align-items: center; white-space: nowrap; }
+.pb-cmd__hint { font-size: var(--fs-xs); letter-spacing: 0.06em; }
+.pb-cmd__empty { padding: 8px; font-size: var(--fs-sm); }
+@media (max-width: 767px) {
+  .pb-cmd { max-width: none; }
+  .pb-cmd__pop { position: fixed; left: 0; right: 0; top: var(--top-h); max-height: 70vh; }
+  .pb-cmd__hint { display: none; }
+}
+.pb-sheet { width: 480px; max-width: calc(100vw - 24px); max-height: 80vh; overflow: auto; background: var(--c-raised); border: 1px solid var(--c-line-strong); animation: pb-rise var(--t-fast); }
+.pb-sheet__body { padding: var(--cell-py) 0; }
+
 /* === LEGACY:BEGIN (delete in Plan P2 with the last old screen) === */
 /* ============================================================
    LEGACY - flat stand-ins for classes src/shared.jsx and the old
