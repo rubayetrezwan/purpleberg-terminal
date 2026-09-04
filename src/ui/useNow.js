@@ -7,10 +7,11 @@ const listeners = new Set();
 
 function tick() {
   now = Date.now();
-  for (const fn of listeners) fn();
+  for (const fn of [...listeners]) fn();
 }
 
 function subscribe(fn) {
+  now = Date.now();
   listeners.add(fn);
   if (!timer) timer = setInterval(tick, 1000);
   return () => {

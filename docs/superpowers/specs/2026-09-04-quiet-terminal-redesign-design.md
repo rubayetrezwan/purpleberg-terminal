@@ -162,13 +162,13 @@ under `.pb-*` classes; components carry no inline colours.
 |---|---|
 | `Section` | `title`, `mnemonic?`, `meta` (node, right side), `actions` (node), `flush` (no inner padding, for tables), `children`. Renders a hairline-bordered region with the uppercase accent-coloured title header, mnemonic first when given. |
 | `Stat` | `label`, `value`, `sub`, `tone` (`up`, `down`, `warn`, default). Label over mono value. `StatRow` lays Stats in a hairline grid. |
-| `DataTable` | `columns: [{key, label, align, width, sortable, sortValue(row), render(row)}]`, `rows`, `rowKey`, `sort {key, dir}`, `onSort`, `selectedKey`, `onRowClick`, `navigable` (roving tabindex, arrows, Enter, Space, digits 1 to 9 open the nth visible row), `numbered` (muted "1)" first column), `virtualize` (fixed `--row-h` windowing for > 60 rows), `loading` (skeleton rows), `empty` (node). Numeric columns right-aligned. Headers expose `aria-sort`. |
+| `DataTable` | `columns: [{key, label, align, width, sortable, sortValue(row), render(row)}]`, `rows`, `rowKey`, `sort {key, dir}`, `onSort`, `selectedKey`, `onRowClick`, `navigable` (roving tabindex, arrows, Enter, Space, digits 1 to 9 open the nth visible row), `numbered` (muted "1)" first column), `virtualize` (fixed `--row-h` windowing for > 60 rows), `loading` (skeleton rows), `empty` (node). Numeric columns right-aligned. Headers expose `aria-sort`. Rows are keyboard-navigable whenever `onRowClick` is set; with `virtualize`, numbering and digit keys are relative to the first visible row; the table carries `role="grid"` when navigable. |
 | `Sparkline` | `values: number[]`, `width`, `height`; colour from sign of last minus first. Pure SVG polyline. |
 | `ChartFrame` | Wraps a Recharts chart with the theme, fixed height, loading skeleton, empty state, and `useChartColors()`. |
 | `Segmented` | `options: [{value, label}]`, `value`, `onChange`, `aria-label`. Used for chart type, range, list mode, tabs of secondary importance. |
 | `Tabs` | `tabs`, `active`, `onChange`; `role="tablist"`, underline marker. |
-| `Button` | `variant: primary | ghost | danger`, `size`, `icon`, `loading`. |
-| `Input`, `Select`, `Kbd` | Form controls on `--r-ctl`; `Input` supports `mono`. |
+| `Button` | `variant: primary | ghost | danger`, `size`, `loading` (disables the button and sets `aria-busy`); icons are passed as children. |
+| `Input`, `Select`, `Kbd` | Square form controls at `--ctl-h`; `Input` supports `mono`; `Select` calls `onChange(value)`. |
 | `ListDetail` | `list` (node), `detail` (node), `listWidth`, `mobile: {title, summary, items, onSelect}`. Desktop: list left with hairline, detail right. Mobile: a selector dropdown above the detail. |
 | `Ticker` | `symbol`, `name?`, `starred?`. Mono bold symbol; click opens quick-look; Space toggles star when focused. |
 | `Change` | `value`, `suffix ("%"\|"bp"\|"")`, `decimals`. Signed, coloured, mono. Replaces `ChgVal`. |
@@ -179,7 +179,7 @@ under `.pb-*` classes; components carry no inline colours.
 | `Dialog` | Confirmations (reset data, delete transactions). |
 | `EmptyState` | Icon-free message plus optional action. |
 | `Skeleton` | Row placeholders used by tables and charts while loading. |
-| `Badge` | Square outline, uppercase, muted; used only for exchange, market state, IPO status, impact. |
+| `Tag` | Square outline, uppercase, muted; used only for exchange, market state, IPO status, impact. Named `Tag` because the old screens keep a `pb-badge` class until P2. |
 
 Deleted once the kit lands: `src/shared.jsx`, `src/chartTheme.jsx`, `src/components/*`,
 `src/ThemeContext.jsx` (replaced by `stores/settings` plus a theme applier).

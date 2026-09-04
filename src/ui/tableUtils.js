@@ -1,13 +1,15 @@
 // Pure helpers behind DataTable.
 
 const isMissing = (v) => v == null || v === "" || (typeof v === "number" && Number.isNaN(v));
+const collator = new Intl.Collator("en", { sensitivity: "base", numeric: true });
 
 export function compareValues(a, b) {
   if (typeof a === "number" && typeof b === "number") return a - b;
-  return String(a).localeCompare(String(b), "en", { sensitivity: "base", numeric: true });
+  return collator.compare(String(a), String(b));
 }
 
-// Stable sort by one column. Missing values always sink to the bottom.
+// Stable sort by one column. Missing values always sink to the bottom. Never
+// mutates `rows`; returns it unchanged when there is nothing to sort by.
 export function sortRows(rows, columns, sort) {
   if (!sort || !sort.key) return rows;
   const col = columns.find((c) => c.key === sort.key);
@@ -21,7 +23,7 @@ export function sortRows(rows, columns, sort) {
       const ym = isMissing(y.v);
       if (xm || ym) return xm && ym ? x.i - y.i : xm ? 1 : -1;
       const c = compareValues(x.v, y.v);
-      return c !== 0 ? c * dir : x.i - y.i;
+      return c ? c * dir : x.i - y.i; // NaN and 0 both fall through to the stable tiebreak
     })
     .map((x) => x.row);
 }

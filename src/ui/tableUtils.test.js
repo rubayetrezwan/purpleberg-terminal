@@ -39,3 +39,17 @@ test("digitIndex maps 1-9 to 0-8", () => {
   assert.equal(digitIndex("a"), -1);
   assert.equal(digitIndex("Enter"), -1);
 });
+
+test("sortRows: NaN and undefined count as missing, input is not mutated, dir defaults to desc", () => {
+  const data = [{ sym: "A", px: NaN }, { sym: "B", px: 3 }, { sym: "C", px: undefined }, { sym: "D", px: 1 }];
+  const snapshot = JSON.stringify(data);
+  assert.deepEqual(syms(sortRows(data, cols, { key: "px", dir: "asc" })), ["D", "B", "A", "C"]);
+  assert.deepEqual(syms(sortRows(data, cols, { key: "px" })), ["B", "D", "A", "C"]);
+  assert.equal(JSON.stringify(data), snapshot);
+  const inf = [{ sym: "X", px: Infinity }, { sym: "Y", px: Infinity }, { sym: "Z", px: 1 }];
+  assert.deepEqual(syms(sortRows(inf, cols, { key: "px", dir: "desc" })), ["X", "Y", "Z"]);
+});
+
+test("visibleWindow with no rows", () => {
+  assert.deepEqual(visibleWindow(0, 24, 0, 480, 8), { start: 0, end: 0 });
+});

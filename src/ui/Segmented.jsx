@@ -1,5 +1,5 @@
 // options: [{ value, label, disabled? }]
-export function Segmented({ options, value, onChange, label, size = "md", className = "" }) {
+export function Segmented({ options = [], value, onChange, label, size = "md", className = "" }) {
   return (
     <div className={`pb-seg pb-seg--${size}${className ? " " + className : ""}`} role="group" aria-label={label}>
       {options.map((o) => (

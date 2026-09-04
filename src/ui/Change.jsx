@@ -1,6 +1,6 @@
 // Signed, coloured change. Replaces the old ChgVal.
 export function Change({ value, suffix = "%", decimals = 2, arrow = false, className = "" }) {
-  if (value == null || value === "" || Number.isNaN(Number(value))) {
+  if (value == null || value === "" || !Number.isFinite(Number(value))) {
     return <span className={`pb-muted${className ? " " + className : ""}`}>—</span>;
   }
   const v = Object.is(Number(value), -0) ? 0 : Number(value);

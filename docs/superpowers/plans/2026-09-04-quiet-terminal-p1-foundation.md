@@ -881,7 +881,7 @@ export function useStore(store, selector = identity) {
 - [ ] **Step 5: Run the tests to see them pass**
 
 Run: `node --test src/stores/createStore.test.js`
-Expected: `ℹ pass 7`, `ℹ fail 0`.
+Expected: `ℹ pass 11`, `ℹ fail 0`.
 
 - [ ] **Step 6: Commit**
 
@@ -1252,7 +1252,7 @@ export { settings, ui, watchlist, alerts, savedScreens, portfolio };
 - [ ] **Step 10: Run the tests to see them pass**
 
 Run: `node --test src/stores/domain.test.js`
-Expected: `ℹ pass 5`, `ℹ fail 0`.
+Expected: `ℹ pass 9`, `ℹ fail 0`.
 
 - [ ] **Step 11: Commit**
 
@@ -1660,7 +1660,7 @@ export function pathFor(name, params = {}, query = {}) {
 - [ ] **Step 5: Run the tests to see them pass**
 
 Run: `node --test src/router/match.test.js`
-Expected: `ℹ pass 5`, `ℹ fail 0`.
+Expected: `ℹ pass 6`, `ℹ fail 0`.
 
 - [ ] **Step 6: Create `src/router/index.jsx`**
 
@@ -2480,7 +2480,7 @@ export const WORLD_CLOCKS = [
 - [ ] **Step 5: Run the tests to see them pass**
 
 Run: `node --test src/lib/session.test.js`
-Expected: `ℹ pass 8`, `ℹ fail 0`.
+Expected: `ℹ pass 11`, `ℹ fail 0`.
 
 - [ ] **Step 6: Commit**
 
@@ -2622,7 +2622,7 @@ export function evaluateAlerts(items, getPrice, now = Date.now()) {
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `node --test src/lib/alerts.test.js`
-Expected: `ℹ pass 7`, `ℹ fail 0`.
+Expected: `ℹ pass 8`, `ℹ fail 0`.
 
 - [ ] **Step 5: Commit**
 
@@ -3219,13 +3219,15 @@ Expected: FAIL with `Cannot find module`.
 // Pure helpers behind DataTable.
 
 const isMissing = (v) => v == null || v === "" || (typeof v === "number" && Number.isNaN(v));
+const collator = new Intl.Collator("en", { sensitivity: "base", numeric: true });
 
 export function compareValues(a, b) {
   if (typeof a === "number" && typeof b === "number") return a - b;
-  return String(a).localeCompare(String(b), "en", { sensitivity: "base", numeric: true });
+  return collator.compare(String(a), String(b));
 }
 
-// Stable sort by one column. Missing values always sink to the bottom.
+// Stable sort by one column. Missing values always sink to the bottom. Never
+// mutates `rows`; returns it unchanged when there is nothing to sort by.
 export function sortRows(rows, columns, sort) {
   if (!sort || !sort.key) return rows;
   const col = columns.find((c) => c.key === sort.key);
@@ -3239,7 +3241,7 @@ export function sortRows(rows, columns, sort) {
       const ym = isMissing(y.v);
       if (xm || ym) return xm && ym ? x.i - y.i : xm ? 1 : -1;
       const c = compareValues(x.v, y.v);
-      return c !== 0 ? c * dir : x.i - y.i;
+      return c ? c * dir : x.i - y.i; // NaN and 0 both fall through to the stable tiebreak
     })
     .map((x) => x.row);
 }
@@ -3264,15 +3266,19 @@ export function digitIndex(key) {
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `node --test src/ui/tableUtils.test.js`
-Expected: `ℹ pass 5`, `ℹ fail 0`.
+Expected: `ℹ pass 7`, `ℹ fail 0`.
 
 - [ ] **Step 5: Create `src/ui/DataTable.jsx`**
 
 ```jsx
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { useDensity } from "../theme/useResolvedTheme.js";
 import { sortRows, visibleWindow, digitIndex } from "./tableUtils.js";
 import { Skeleton } from "./Skeleton.jsx";
 import { EmptyState } from "./EmptyState.jsx";
+
+const INTERACTIVE = "input,select,textarea,button,a,[contenteditable]";
 
 function rowHeightPx() {
   if (typeof window === "undefined") return 24;
@@ -3282,87 +3288,109 @@ function rowHeightPx() {
 
 // columns: [{ key, label, align?: "left"|"right", width?, sortable?, sortValue?(row), render?(row, i) }]
 // sort: { key, dir: "asc"|"desc" } | null
+// Rows are keyboard-navigable whenever `navigable` or `onRowClick` is set, so
+// a clickable row always has a keyboard path. `selectedKey` is compared with
+// `rowKey(row)` using strict equality, so keep both the same type. With
+// `virtualize`, the row numbers and the digit keys are both relative to the
+// first visible row, so "3)" and the 3 key always agree.
 export function DataTable({
   columns, rows, rowKey, sort = null, onSort, selectedKey, onRowClick, onRowSpace,
   navigable = false, numbered = false, virtualize = false, height = 480,
   loading = false, empty = "NO DATA", skeletonRows = 8, label, className = "",
 }) {
+  const keyboard = navigable || Boolean(onRowClick);
+  const density = useDensity();
+  const rowH = useMemo(() => rowHeightPx(), [density]);
   const sorted = useMemo(() => sortRows(rows, columns, sort), [rows, columns, sort]);
   const keyOf = (row, i) => (rowKey ? rowKey(row) : i);
   const [focusIdx, setFocusIdx] = useState(-1);
   const [scrollTop, setScrollTop] = useState(0);
   const scrollRef = useRef(null);
-  const rowH = rowHeightPx();
-  const win = virtualize ? visibleWindow(scrollTop, rowH, sorted.length, height, 8) : { start: 0, end: sorted.length };
+  const movedByKey = useRef(false);
+
+  const maxScroll = Math.max(0, sorted.length * rowH - height);
+  const top = virtualize ? Math.min(scrollTop, maxScroll) : 0;
+  const win = virtualize ? visibleWindow(top, rowH, sorted.length, height, 8) : { start: 0, end: sorted.length };
   const slice = sorted.slice(win.start, win.end);
+  const firstVisible = virtualize ? Math.min(Math.floor(top / rowH), Math.max(0, sorted.length - 1)) : 0;
+  // The one row that carries tabIndex 0 must be rendered, or Tab skips the table.
+  const rovingIdx = focusIdx >= win.start && focusIdx < win.end ? focusIdx : win.start;
 
   useEffect(() => {
     if (focusIdx >= sorted.length) setFocusIdx(sorted.length ? sorted.length - 1 : -1);
   }, [sorted.length, focusIdx]);
 
-  // After a keyboard move the target row may only exist after re-render (virtualised).
+  // After a keyboard move the target row may only exist after re-render
+  // (virtualised) and the previously focused row may have unmounted, which
+  // drops focus to <body>. Never steal focus from an in-cell control.
   useEffect(() => {
-    if (!navigable || focusIdx < 0 || !scrollRef.current) return;
+    if (!keyboard || focusIdx < 0 || !scrollRef.current) return;
+    const active = document.activeElement;
+    const inside = scrollRef.current.contains(active);
+    const onControl = inside && active !== scrollRef.current && active.tagName !== "TR";
+    if (onControl) return;
+    if (!movedByKey.current && !inside) return;
     const el = scrollRef.current.querySelector(`[data-row-index="${focusIdx}"]`);
-    if (el && document.activeElement !== el && scrollRef.current.contains(document.activeElement)) {
-      el.focus({ preventScroll: true });
-    }
-  }, [focusIdx, win.start, navigable]);
+    if (el && active !== el) el.focus({ preventScroll: true });
+    movedByKey.current = false;
+  }, [focusIdx, win.start, keyboard]);
 
   const ensureVisible = (idx) => {
     const s = scrollRef.current;
     if (!s) return;
     if (virtualize) {
-      const top = idx * rowH;
-      const bottom = top + rowH;
-      if (top < s.scrollTop) s.scrollTop = top;
-      else if (bottom > s.scrollTop + s.clientHeight) s.scrollTop = bottom - s.clientHeight;
+      const rowTop = idx * rowH;
+      const rowBottom = rowTop + rowH;
+      const headerH = rowH; // the sticky header covers the top of the scrollport
+      if (rowTop - headerH < s.scrollTop) s.scrollTop = Math.max(0, rowTop - headerH);
+      else if (rowBottom > s.scrollTop + s.clientHeight) s.scrollTop = rowBottom - s.clientHeight;
       setScrollTop(s.scrollTop);
     } else {
       const el = s.querySelector(`[data-row-index="${idx}"]`);
-      if (el) el.scrollIntoView({ block: "nearest" });
+      if (el) el.scrollIntoView({ block: "nearest" }); // scroll-margin-top clears the sticky header
     }
   };
 
   const onKeyDown = (e) => {
-    if (!navigable || !sorted.length) return;
-    const tag = e.target.tagName;
-    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
-    const page = Math.max(1, Math.floor(height / rowH) - 1);
+    if (!keyboard || !sorted.length) return;
+    if (e.target.closest(INTERACTIVE)) return; // in-cell controls own their own keys
+    const viewportH = virtualize ? height : (scrollRef.current ? scrollRef.current.clientHeight : height);
+    const page = Math.max(1, Math.floor(viewportH / rowH) - 1);
+    const current = focusIdx < 0 ? -1 : focusIdx;
     let next = null;
-    if (e.key === "ArrowDown") next = Math.min(sorted.length - 1, focusIdx + 1);
-    else if (e.key === "ArrowUp") next = Math.max(0, focusIdx - 1);
+    if (e.key === "ArrowDown") next = Math.min(sorted.length - 1, current + 1);
+    else if (e.key === "ArrowUp") next = Math.max(0, current - 1);
     else if (e.key === "Home") next = 0;
     else if (e.key === "End") next = sorted.length - 1;
-    else if (e.key === "PageDown") next = Math.min(sorted.length - 1, focusIdx + page);
-    else if (e.key === "PageUp") next = Math.max(0, focusIdx - page);
-    else if (e.key === "Enter" && focusIdx >= 0) {
+    else if (e.key === "PageDown") next = Math.min(sorted.length - 1, current + page);
+    else if (e.key === "PageUp") next = Math.max(0, current - page);
+    else if (e.key === "Enter" && current >= 0) {
       e.preventDefault();
       e.stopPropagation();
-      if (onRowClick) onRowClick(sorted[focusIdx], focusIdx);
+      if (onRowClick) onRowClick(sorted[current], current);
       return;
-    } else if (e.key === " " && focusIdx >= 0) {
+    } else if (e.key === " " && current >= 0) {
       e.preventDefault();
       e.stopPropagation();
-      if (onRowSpace) onRowSpace(sorted[focusIdx], focusIdx);
+      if (onRowSpace) onRowSpace(sorted[current], current);
       return;
     } else {
       const d = digitIndex(e.key);
-      if (d >= 0) {
-        const first = virtualize ? Math.floor(scrollTop / rowH) : 0;
-        const idx = first + d;
-        if (idx < sorted.length) {
-          e.preventDefault();
-          e.stopPropagation();
-          setFocusIdx(idx);
-          if (onRowClick) onRowClick(sorted[idx], idx);
-        }
+      if (d < 0) return;
+      e.preventDefault();
+      e.stopPropagation(); // digits belong to the list, never to the command line
+      const idx = firstVisible + d;
+      if (idx < sorted.length) {
+        movedByKey.current = true;
+        setFocusIdx(idx);
+        if (onRowClick) onRowClick(sorted[idx], idx);
       }
       return;
     }
     if (next != null) {
       e.preventDefault();
       e.stopPropagation();
+      movedByKey.current = true;
       setFocusIdx(next);
       ensureVisible(next);
     }
@@ -3381,7 +3409,9 @@ export function DataTable({
             onClick={() => onSort && onSort({ key: c.key, dir: active && sort.dir === "desc" ? "asc" : "desc" })}
           >
             {c.label}
-            {active && <span className="pb-dt__caret" aria-hidden="true">{sort.dir === "asc" ? "▲" : "▼"}</span>}
+            {active && (sort.dir === "asc"
+              ? <ChevronUp size={12} strokeWidth={1.5} aria-hidden="true" />
+              : <ChevronDown size={12} strokeWidth={1.5} aria-hidden="true" />)}
           </button>
         ) : c.label}
       </th>
@@ -3391,14 +3421,19 @@ export function DataTable({
   return (
     <div
       ref={scrollRef}
-      className={`pb-dt${virtualize ? " pb-dt--virtual" : ""}${navigable ? " pb-dt--nav" : ""}${className ? " " + className : ""}`}
+      className={`pb-dt${virtualize ? " pb-dt--virtual" : ""}${keyboard ? " pb-dt--nav" : ""}${className ? " " + className : ""}`}
       style={virtualize ? { height, overflow: "auto" } : undefined}
       onScroll={virtualize ? (e) => setScrollTop(e.currentTarget.scrollTop) : undefined}
       onKeyDown={onKeyDown}
-      role="group"
-      aria-label={label}
+      tabIndex={virtualize && !keyboard ? 0 : undefined}
     >
-      <table className="pb-dt__table">
+      <table
+        className="pb-dt__table"
+        role={keyboard ? "grid" : undefined}
+        aria-label={label}
+        aria-rowcount={virtualize ? sorted.length + 1 : undefined}
+        aria-busy={loading || undefined}
+      >
         <thead>
           <tr>
             {numbered && <th className="pb-dt__th pb-dt__num" aria-label="Row number" />}
@@ -3409,7 +3444,7 @@ export function DataTable({
           {loading && !sorted.length ? (
             <tr><td colSpan={colCount}><Skeleton rows={skeletonRows} /></td></tr>
           ) : !sorted.length ? (
-            <tr><td colSpan={colCount}><EmptyState>{empty}</EmptyState></td></tr>
+            <tr><td colSpan={colCount}>{typeof empty === "string" ? <EmptyState>{empty}</EmptyState> : empty}</td></tr>
           ) : (
             <>
               {virtualize && win.start > 0 && (
@@ -3419,18 +3454,20 @@ export function DataTable({
                 const i = win.start + j;
                 const key = keyOf(row, i);
                 const selected = selectedKey != null && key === selectedKey;
-                const tabIndex = navigable ? (i === (focusIdx < 0 ? 0 : focusIdx) ? 0 : -1) : undefined;
+                const tabIndex = keyboard ? (i === rovingIdx ? 0 : -1) : undefined;
+                const number = virtualize ? i - firstVisible + 1 : i + 1;
                 return (
                   <tr
                     key={key}
                     data-row-index={i}
                     tabIndex={tabIndex}
+                    aria-rowindex={virtualize ? i + 2 : undefined}
                     className={`pb-dt__tr${selected ? " pb-dt__tr--selected" : ""}${onRowClick ? " pb-dt__tr--click" : ""}`}
-                    aria-selected={selected || undefined}
+                    aria-selected={keyboard ? selected : undefined}
                     onClick={onRowClick ? () => { setFocusIdx(i); onRowClick(row, i); } : undefined}
-                    onFocus={navigable ? () => setFocusIdx(i) : undefined}
+                    onFocus={keyboard ? (e) => { if (e.target === e.currentTarget) setFocusIdx(i); } : undefined}
                   >
-                    {numbered && <td className="pb-dt__td pb-dt__num">{i + 1})</td>}
+                    {numbered && <td className="pb-dt__td pb-dt__num">{number > 0 ? `${number})` : ""}</td>}
                     {columns.map((c) => (
                       <td key={c.key} className={`pb-dt__td pb-dt__td--${c.align || "right"}`}>
                         {c.render ? c.render(row, i) : row[c.key]}
@@ -3466,7 +3503,6 @@ Insert before the LEGACY block in `src/theme/index.css`:
 .pb-dt__th--left { text-align: left; }
 .pb-dt__sort { display: inline-flex; align-items: center; gap: 4px; text-transform: inherit; letter-spacing: inherit; color: inherit; }
 .pb-dt__sort:hover { color: var(--c-text); }
-.pb-dt__caret { font-size: 8px; }
 .pb-dt__th[aria-sort="ascending"] .pb-dt__sort, .pb-dt__th[aria-sort="descending"] .pb-dt__sort { color: var(--c-text); }
 .pb-dt__td { height: var(--row-h); padding: 0 var(--cell-px); white-space: nowrap; border-bottom: 1px solid var(--c-line); vertical-align: middle; }
 .pb-dt__td--right { text-align: right; }
@@ -3476,6 +3512,8 @@ Insert before the LEGACY block in `src/theme/index.css`:
 .pb-dt__tr:hover > .pb-dt__td { background: var(--c-hover); }
 .pb-dt__tr--selected > .pb-dt__td { background: var(--c-selected); }
 .pb-dt__tr--selected > .pb-dt__td:first-child { box-shadow: inset 2px 0 0 var(--c-accent); }
+.pb-dt__tr--selected:hover > .pb-dt__td { background: var(--c-selected); }
+.pb-dt__tr { scroll-margin-top: var(--row-h); }
 .pb-dt__tr:focus-visible { outline: 1px solid var(--c-accent); outline-offset: -1px; }
 ```
 
@@ -3964,6 +4002,8 @@ git commit -m "ui: layers, focus trap, drawer, toasts, confirm dialog, list-deta
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
+
+**Post-review amendments (applied after Tasks 10-12):** `DataTable` was reworked (see the updated Task 11 blocks): keyboard focus survives virtualised jumps, the roving tab stop is always rendered, in-cell controls keep their own keys, digits never leak to the command line, `role="grid"` with `aria-rowcount`/`aria-rowindex`, header-aware scrolling, Lucide chevrons for sort, viewport-relative numbering under `virtualize`. Kit A: nested grids keep hairlines, `Section` drops `span` below 1024px and renders a mnemonic-only header, `Button` has `loading`, `Tabs` moves with arrow keys, `Change` rejects non-finite values, `useNow` refreshes on subscribe, coarse pointers get 28px controls. The files in the repository are authoritative for Tasks 10 and 12.
 
 ---
 ### Task 13: Ticker, watchlist actions, quick-look drawer, alerts engine, news feed
@@ -5817,7 +5857,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - [ ] **Step 1: Unit tests and build**
 
 Run: `npm test`
-Expected: every suite passes (`fail 0`). Expected count: the 22 pre-existing tests plus 8 format, 7 store, 5 domain, 2 theme, 5 router, 4 data, 8 session, 7 alerts, 2 kit, 5 table, 1 layers, 1 toasts, 1 watch actions, 5 command = 83.
+Expected: every suite passes (`fail 0`). Expected count: 22 pre-existing plus every test file added since; the number in the final run is the record (the counts inside earlier tasks were updated as reviews added tests).
 
 Run: `npx vite build`
 Expected: `✓ built in`. Note the gzip size of the largest `dist/assets/index-*.js` chunk in the plan's commit message for P3 to compare against the baseline commit (`git stash`-free method: `git show 73cb96e --stat` is not needed; run `git checkout 73cb96e -- . && npx vite build` in a scratch worktree only if a comparison is wanted now; otherwise defer to P3).
