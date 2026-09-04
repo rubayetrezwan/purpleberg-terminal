@@ -12,7 +12,7 @@ import ErrorBoundary from "./ErrorBoundary";
 
 // Screens are code-split. The ones marked "old" are the pre-redesign screens,
 // replaced one by one in Plans P2 and P3.
-const MarketDashboard = lazy(() => import("./screens/MarketDashboard")); // old
+const Dashboard = lazy(() => import("./screens/Dashboard.jsx"));
 const EquityAnalysis = lazy(() => import("./screens/EquityAnalysis")); // old
 const FXDashboard = lazy(() => import("./screens/FXDashboard")); // old
 const FixedIncome = lazy(() => import("./screens/FixedIncome")); // old
@@ -58,7 +58,7 @@ function Screen({ route, params }) {
     case "portfolio": return <PortfolioManager />;
     case "news": return <NewsCenter news={news} loading={newsLoading} />;
     case "settings": return <Settings />;
-    default: return <MarketDashboard allStockQuotes={list} news={news} />;
+    default: return <Dashboard />;
   }
 }
 

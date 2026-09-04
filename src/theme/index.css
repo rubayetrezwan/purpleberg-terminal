@@ -468,6 +468,33 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-about__list li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--c-line); font-size: var(--fs-sm); }
 .pb-about__disclaimer { font-size: var(--fs-sm); line-height: 1.5; }
 
+/* ============================================================
+   Screens
+   ============================================================ */
+.pb-idx { padding: var(--cell-py) var(--cell-px); min-width: 0; }
+.pb-idx__sym { font-size: var(--fs-label); letter-spacing: 0.06em; color: var(--c-text-dim); }
+.pb-idx__name { font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pb-idx__val { font-size: var(--fs-lg); font-weight: 600; margin-top: 1px; }
+
+.pb-moverow { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.pb-moverow__bar { display: inline-block; width: 56px; height: 4px; background: var(--c-line); }
+.pb-moverow__fill { display: block; height: 100%; background: var(--c-up); }
+.pb-moverow__fill--down { background: var(--c-down); margin-left: auto; }
+
+.pb-newslist { list-style: none; }
+.pb-newslist__row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 6px; align-items: start; padding: var(--cell-py) var(--cell-px); border-bottom: 1px solid var(--c-line); }
+.pb-newslist__row:last-child { border-bottom: 0; }
+.pb-newslist__num { font-size: var(--fs-sm); }
+.pb-newslist__body { display: block; min-width: 0; color: var(--c-text); }
+.pb-newslist__body:hover { text-decoration: none; color: var(--c-accent-text); }
+.pb-newslist__meta { display: block; font-size: var(--fs-xs); letter-spacing: 0.04em; }
+.pb-newslist__title { display: block; font-size: var(--fs-sm); line-height: 1.35; }
+
+.pb-range { min-width: 0; }
+.pb-range__track { position: relative; height: 4px; background: var(--c-line-strong); }
+.pb-range__mark { position: absolute; top: -3px; width: 2px; height: 10px; background: var(--c-accent); }
+.pb-range__labels { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; }
+
 /* === LEGACY:BEGIN (delete in Plan P2 with the last old screen) === */
 /* ============================================================
    LEGACY - flat stand-ins for classes src/shared.jsx and the old
