@@ -25,6 +25,11 @@ const DATA_SOURCES = [
 ];
 
 const VERSION = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev";
+// Release name follows the package version, so it cannot drift: 3.0.0 reads
+// "TERMINAL V3.0". An unbuilt dev server has no version to derive from.
+const RELEASE = /^\d+\.\d+/.test(VERSION)
+  ? `TERMINAL V${VERSION.split(".").slice(0, 2).join(".")}`
+  : "TERMINAL (DEV)";
 
 export default function Settings() {
   const s = useStore(settings);
@@ -175,6 +180,7 @@ export default function Settings() {
 
         <Section title="About">
           <KVList>
+            <KV k="RELEASE" v={RELEASE} />
             <KV k="VERSION" v={VERSION} />
             <KV k="BUILT BY" v="Rubayet Rezwan" />
             <KV k="FINNHUB KEY" v={keyTag(status && status.finnhub, "NOT SET")} />

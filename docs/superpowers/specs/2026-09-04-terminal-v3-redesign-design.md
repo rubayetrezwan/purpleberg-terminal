@@ -1,7 +1,7 @@
-# Purpleberg Terminal: Quiet Terminal redesign
+# Purpleberg Terminal: Terminal v3.0 redesign
 
 **Date:** 2026-09-04
-**Branch:** `redesign/quiet-terminal`
+**Branch:** `redesign/terminal-v3`
 **Supersedes:** `2026-06-26-glass-terminal-redesign-design.md` (Glass Fintech)
 **Approach:** Primitive-first rebuild. Build a small component kit, a dependency-free router,
 persistent stores, and a shared data layer first; then re-implement every screen on that kit,
@@ -12,7 +12,7 @@ deleting the old screen as each one lands; then thread the new features through.
 - **Purpose is unchanged.** Purpleberg stays a Bloomberg-style market terminal: dense,
   multi-panel, live, mnemonic-driven, spanning equities, FX, rates, commodities, crypto, IPOs,
   a screener, a portfolio, and news. "Minimal" means removing decoration, not data.
-- **Direction A, "Quiet Terminal".** Flat, one surface tone, hairline separation, one accent
+- **Direction A, "Terminal v3.0".** Flat, one surface tone, hairline separation, one accent
   colour, terminal density. Chosen over "Calm Dashboard" (cards, icon rail) and "Editorial"
   (borderless, big numbers), which was rejected for losing the terminal.
 - **Typography follows the Bloomberg Terminal:** one monospaced family for every piece of
@@ -460,7 +460,7 @@ Bundle size: `vite build` output compared against the baseline commit.
 ## 11. Rollout
 
 - `npm install`; `git init` with a baseline commit of the received code (done on 2026-09-04);
-  work on `redesign/quiet-terminal`, one commit per task; `.superpowers/` ignored.
+  work on `redesign/terminal-v3`, one commit per task; `.superpowers/` ignored.
 - **P0 Foundation:** tokens and CSS, kit, router, stores, data layer, shell. The old screens
   stay mounted behind the new router until each is replaced, so the app runs at every commit.
 - **P1 Screens**, one at a time, deleting the old file as each lands: Dashboard, Equities,

@@ -8,7 +8,7 @@ side-by-side stock compare view, and an IPO center (curated top-25 IPOs of 2026
 with live quotes, plus a live IPO calendar). The market screens track the top
 250 US equities by market cap.
 
-> **Redesign in progress on `redesign/quiet-terminal`.** The "Quiet Terminal"
+> **Redesign in progress on `redesign/terminal-v3`.** The "Terminal v3.0"
 > rebuild has landed its foundation: a flat monospaced design system, a
 > component kit under `src/ui/`, an in-house router (`src/router/`), persistent
 > stores (`src/stores/`), a single shared quote pool (`src/data/`), and a new
@@ -16,7 +16,7 @@ with live quotes, plus a live IPO calendar). The market screens track the top
 > price alerts, a market-session clock, and a Settings screen. The twelve
 > screens themselves are still the pre-redesign ones, wrapped by the new shell,
 > and are rebuilt next. Design:
-> [docs/superpowers/specs/2026-09-04-quiet-terminal-redesign-design.md](docs/superpowers/specs/2026-09-04-quiet-terminal-redesign-design.md).
+> [docs/superpowers/specs/2026-09-04-terminal-v3-redesign-design.md](docs/superpowers/specs/2026-09-04-terminal-v3-redesign-design.md).
 > The sections below still describe the pre-redesign architecture where they
 > differ; they are rewritten when the screens land.
 

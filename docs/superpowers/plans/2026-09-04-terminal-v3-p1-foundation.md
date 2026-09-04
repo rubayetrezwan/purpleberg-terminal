@@ -1,20 +1,20 @@
-# Quiet Terminal P1: Foundation and Shell Implementation Plan
+# Terminal v3.0 P1: Foundation and Shell Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace Purpleberg Terminal's visual system and shell with the Quiet Terminal foundation (tokens, component kit, in-house router, persistent stores, quote pool, command line, quick-look drawer, alerts, session clock, Settings) while every existing screen keeps running underneath.
+**Goal:** Replace Purpleberg Terminal's visual system and shell with the Terminal v3.0 foundation (tokens, component kit, in-house router, persistent stores, quote pool, command line, quick-look drawer, alerts, session clock, Settings) while every existing screen keeps running underneath.
 
 **Architecture:** New code lives in `src/theme`, `src/lib`, `src/stores`, `src/router`, `src/data`, `src/ui`, `src/shell`, `src/features`. The old screens stay mounted through adapter routes until Plans P2 and P3 replace them; `src/hooks.js`, `src/api.js`, and `src/config.js` become re-export shims so untouched screens keep importing what they import today. Pure logic is in `.js` files with `node:test` tests; React components are `.jsx` and are verified in the browser at the end.
 
 **Tech Stack:** React 18, Vite 5, Recharts 2, Lucide, Express 4, `node --test`. No new dependencies.
 
-**Spec:** `docs/superpowers/specs/2026-09-04-quiet-terminal-redesign-design.md`. This plan covers spec sections 3, 4, 5, 6, 7.1, 7.2, 7.4, 7.5, 7.7, 7.8, 7.10, 7.11, and the foundation half of 9 and 10. Plan P2 covers the market screens (8) and 7.3, 7.6; Plan P3 covers Portfolio (7.9), old-code deletion, README, and the final verification.
+**Spec:** `docs/superpowers/specs/2026-09-04-terminal-v3-redesign-design.md`. This plan covers spec sections 3, 4, 5, 6, 7.1, 7.2, 7.4, 7.5, 7.7, 7.8, 7.10, 7.11, and the foundation half of 9 and 10. Plan P2 covers the market screens (8) and 7.3, 7.6; Plan P3 covers Portfolio (7.9), old-code deletion, README, and the final verification.
 
 ---
 
 ## Conventions for every task
 
-- Work on branch `redesign/quiet-terminal` (created in Task 1). Commit after every task with the message shown; every commit message ends with the trailer `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
+- Work on branch `redesign/terminal-v3` (created in Task 1). Commit after every task with the message shown; every commit message ends with the trailer `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
 - Run tests with `npm test`. It runs `node --test src/**/*.test.js server/**/*.test.js`; Node 24 expands the globs itself, so new tests anywhere under `src/` are picked up.
 - Tests never import `.jsx`. Anything that must be unit-tested lives in a `.js` module without React.
 - Whenever a task touches a module the old screens import, run `npx vite build` before committing. Expected output ends with `✓ built in …s` and no red errors.
@@ -83,9 +83,9 @@ Deleted: `src/index.css`, `src/components/*`, `src/navConfig.jsx`, `src/screens/
 
 Run:
 ```bash
-git checkout -b redesign/quiet-terminal
+git checkout -b redesign/terminal-v3
 ```
-Expected: `Switched to a new branch 'redesign/quiet-terminal'`
+Expected: `Switched to a new branch 'redesign/terminal-v3'`
 
 - [ ] **Step 2: Replace `index.html`**
 
@@ -131,7 +131,7 @@ Full new content:
 
 ```css
 /* ============================================================
-   Purpleberg Terminal - Quiet Terminal design system
+   Purpleberg Terminal - Terminal v3.0 design system
    One monospaced family, one canvas tone, hairline separation,
    one accent. Tokens flip on <html data-theme> and
    <html data-density>. Kit and shell classes are appended in
@@ -433,7 +433,7 @@ Expected: the last lines contain `dist/index.html` and `✓ built in` with no er
 
 ```bash
 git add -A
-git commit -m "theme: Quiet Terminal tokens, IBM Plex Mono, flat legacy stand-ins
+git commit -m "theme: Terminal v3.0 tokens, IBM Plex Mono, flat legacy stand-ins
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```

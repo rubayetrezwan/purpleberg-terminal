@@ -1,4 +1,4 @@
-# Quiet Terminal P2: Screens Implementation Plan
+# Terminal v3.0 P2: Screens Implementation Plan
 
 > **For agentic workers:** this plan specifies contracts, layouts, and data sources per screen,
 > and gives complete code only for the shared pure modules. The component kit in `src/ui/`,
@@ -6,7 +6,7 @@
 > authority for prop names: read the actual files before writing a screen. Steps use checkbox
 > (`- [ ]`) syntax.
 
-**Goal:** Rebuild all eleven market screens on the Quiet Terminal kit, delete every
+**Goal:** Rebuild all eleven market screens on the Terminal v3.0 kit, delete every
 pre-redesign module, and leave the terminal with one design system end to end.
 
 **Architecture:** Each screen is a route component under `src/screens/` composed only from
@@ -16,14 +16,14 @@ Pure per-screen logic goes in `src/lib/` with `node:test` coverage. Portfolio is
 
 **Tech Stack:** React 18, Vite 5, Recharts 2, Lucide, `node --test`. No new dependencies.
 
-**Prerequisite:** Plan P1 (`2026-09-04-quiet-terminal-p1-foundation.md`) complete at commit
+**Prerequisite:** Plan P1 (`2026-09-04-terminal-v3-p1-foundation.md`) complete at commit
 `76deed2`, 104 tests passing.
 
 ---
 
 ## Conventions
 
-- Branch `redesign/quiet-terminal`, one commit per task, trailer
+- Branch `redesign/terminal-v3`, one commit per task, trailer
   `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
 - Never use Bash heredocs to write files (apostrophes break in this shell); use Write/Edit,
   and `git commit -F <file>` for messages.
