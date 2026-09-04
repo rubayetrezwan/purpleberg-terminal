@@ -15,8 +15,8 @@ const Dashboard = lazy(() => import("./screens/Dashboard.jsx"));
 const Equities = lazy(() => import("./screens/Equities.jsx"));
 const Fx = lazy(() => import("./screens/Fx.jsx"));
 const Rates = lazy(() => import("./screens/Rates.jsx"));
-const CommoditiesDashboard = lazy(() => import("./screens/CommoditiesDashboard")); // old
-const CryptoDashboard = lazy(() => import("./screens/CryptoDashboard")); // old
+const Commodities = lazy(() => import("./screens/Commodities.jsx"));
+const Crypto = lazy(() => import("./screens/Crypto.jsx"));
 const Screener = lazy(() => import("./screens/Screener.jsx"));
 const PortfolioManager = lazy(() => import("./screens/PortfolioManager")); // old
 const NewsCenter = lazy(() => import("./screens/NewsCenter")); // old
@@ -45,8 +45,8 @@ function Screen({ route }) {
     case "compare": return <Compare />;
     case "fx": return <Fx />;
     case "rates": return <Rates />;
-    case "commodities": return <CommoditiesDashboard />;
-    case "crypto": return <CryptoDashboard />;
+    case "commodities": return <Commodities />;
+    case "crypto": return <Crypto />;
     case "ipos": return <IpoCenter />;
     case "portfolio": return <PortfolioManager />;
     case "news": return <NewsCenter news={news} loading={newsLoading} />;

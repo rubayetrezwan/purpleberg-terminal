@@ -557,6 +557,15 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-econ__event { font-size: var(--fs-sm); margin: 3px 0; }
 .pb-econ__vals { display: flex; gap: 12px; font-size: var(--fs-xs); }
 
+.pb-per { display: flex; flex-direction: column; gap: 10px; }
+.pb-per__head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 3px; }
+.pb-per__val { font-weight: 600; }
+.pb-per__track { position: relative; height: 5px; background: var(--c-line); }
+.pb-per__zero { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--c-line-strong); }
+.pb-per__fill { position: absolute; top: 0; bottom: 0; background: var(--c-up); }
+.pb-per__fill--down { background: var(--c-down); }
+.pb-eq__rangewrap { margin-top: 10px; }
+
 /* === LEGACY:BEGIN (delete in Plan P2 with the last old screen) === */
 /* ============================================================
    LEGACY - flat stand-ins for classes src/shared.jsx and the old

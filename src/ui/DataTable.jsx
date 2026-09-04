@@ -29,7 +29,9 @@ export function DataTable({
   const density = useDensity();
   const rowH = useMemo(() => rowHeightPx(), [density]);
   const sorted = useMemo(() => sortRows(rows, columns, sort), [rows, columns, sort]);
-  const keyOf = (row, i) => (rowKey ? rowKey(row) : i);
+  // rowKey receives the index too, so a caller whose rows have no natural
+  // unique field (an event feed, say) can fall back to position.
+  const keyOf = (row, i) => (rowKey ? rowKey(row, i) : i);
   const [focusIdx, setFocusIdx] = useState(-1);
   const [scrollTop, setScrollTop] = useState(0);
   const scrollRef = useRef(null);

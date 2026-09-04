@@ -193,7 +193,7 @@ function CalendarTab() {
         loading && !rows.length ? <EmptyState>LOADING…</EmptyState> : !rows.length ? <EmptyState>NO EVENTS</EmptyState> : (
           <ol className="pb-econ">
             {rows.map((e, i) => (
-              <li key={`${e.date}-${e.time}-${e.event}-${i}`} className="pb-econ__row">
+              <li key={`${e.date}-${e.time}-${e.country}-${e.event}-${i}`} className="pb-econ__row">
                 <div className="pb-econ__head">
                   <span className="pb-muted">{i + 1})</span>
                   <Tag>{e.country}</Tag>
@@ -215,7 +215,7 @@ function CalendarTab() {
           label="Economic events"
           columns={columns}
           rows={rows}
-          rowKey={(r, i) => `${r.date}-${r.time}-${r.event}-${i}`}
+          rowKey={(r, i) => `${r.date}-${r.time}-${r.country}-${r.event}-${i}`}
           numbered
           loading={loading && !rows.length}
           empty="NO EVENTS IN THE CURRENT WINDOW"
