@@ -13,7 +13,7 @@ import ErrorBoundary from "./ErrorBoundary";
 // Screens are code-split. The ones marked "old" are the pre-redesign screens,
 // replaced one by one in Plans P2 and P3.
 const Dashboard = lazy(() => import("./screens/Dashboard.jsx"));
-const EquityAnalysis = lazy(() => import("./screens/EquityAnalysis")); // old
+const Equities = lazy(() => import("./screens/Equities.jsx"));
 const FXDashboard = lazy(() => import("./screens/FXDashboard")); // old
 const FixedIncome = lazy(() => import("./screens/FixedIncome")); // old
 const CommoditiesDashboard = lazy(() => import("./screens/CommoditiesDashboard")); // old
@@ -25,8 +25,6 @@ const NewsCenter = lazy(() => import("./screens/NewsCenter")); // old
 const CompareStocks = lazy(() => import("./screens/CompareStocks")); // old
 const IpoCenter = lazy(() => import("./screens/IpoCenter")); // old
 const Settings = lazy(() => import("./screens/Settings.jsx"));
-
-const noop = () => {};
 
 function useDefaultScreen() {
   const booted = useRef(false);
@@ -41,13 +39,13 @@ function useDefaultScreen() {
   }, []);
 }
 
-function Screen({ route, params }) {
+function Screen({ route }) {
   const pool = useQuotePool();
   const { news, loading: newsLoading } = useNewsFeed();
   // Old screens expect the tracked-equity list only; the pool excludes index rows.
   const list = pool.equities;
   switch (route ? route.name : "dashboard") {
-    case "equities": return <EquityAnalysis allStockQuotes={list} initialSymbol={params.symbol || null} onSymbolConsumed={noop} />;
+    case "equities": return <Equities />;
     case "screener": return <StockScreener allStockQuotes={list} />;
     case "compare": return <CompareStocks allStockQuotes={list} news={news} />;
     case "fx": return <FXDashboard />;
@@ -63,7 +61,7 @@ function Screen({ route, params }) {
 }
 
 export default function App() {
-  const { route, params, path } = useRoute();
+  const { route, path } = useRoute();
   useAlertsEngine();
   useDefaultScreen();
   useEffect(() => installKeyboard(), []);
@@ -75,7 +73,7 @@ export default function App() {
     <AppShell>
       <ErrorBoundary key={route ? route.name : "unknown"} screen={route ? route.mnemonic : ""}>
         <Suspense fallback={<Loading />}>
-          <Screen route={route} params={params} />
+          <Screen route={route} />
         </Suspense>
       </ErrorBoundary>
     </AppShell>
