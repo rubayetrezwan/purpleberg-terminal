@@ -450,6 +450,24 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-error__msg { font-size: var(--fs-sm); color: var(--c-text-dim); margin-bottom: 10px; }
 .pb-error__stack { font-size: var(--fs-xs); color: var(--c-text-muted); background: var(--c-raised); border: 1px solid var(--c-line); padding: 8px; max-height: 180px; overflow: auto; white-space: pre-wrap; margin-bottom: 10px; }
 
+/* ============================================================
+   Settings
+   ============================================================ */
+.pb-form { display: flex; flex-direction: column; gap: 10px; }
+.pb-form__row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pb-form__label { min-width: 150px; font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.06em; color: var(--c-text-muted); }
+.pb-form__hint { font-size: var(--fs-sm); }
+.pb-watchlist { list-style: none; margin-top: 8px; }
+.pb-watchlist__row { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 8px; min-height: var(--row-h); border-bottom: 1px solid var(--c-line); }
+.pb-watchlist__row:last-child { border-bottom: 0; }
+.pb-watchlist__sym { font-weight: 600; }
+.pb-watchlist__tools { display: inline-flex; gap: 4px; }
+.pb-watchlist__empty { padding: 8px 0; font-size: var(--fs-sm); }
+.pb-about { margin-top: 10px; }
+.pb-about__list { list-style: none; margin: 4px 0 10px; }
+.pb-about__list li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--c-line); font-size: var(--fs-sm); }
+.pb-about__disclaimer { font-size: var(--fs-sm); line-height: 1.5; }
+
 /* === LEGACY:BEGIN (delete in Plan P2 with the last old screen) === */
 /* ============================================================
    LEGACY - flat stand-ins for classes src/shared.jsx and the old
@@ -508,13 +526,4 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-overlay { position: fixed; inset: 0; background: var(--c-scrim); }
 .pb-dialog { background: var(--c-raised); border: 1px solid var(--c-line-strong); }
 .pb-live-dot { display: inline-block; width: 6px; height: 6px; background: var(--c-up); }
-/* LEGACY SHELL - deleted in Task 16 with src/components */
-.pb-topbar { background: var(--c-bg); border-bottom: 1px solid var(--c-line); }
-.pb-sidebar { background: var(--c-bg); border-right: 1px solid var(--c-line); }
-.pb-bottombar { background: var(--c-bg); border-top: 1px solid var(--c-line); }
-.pb-nav-item { display: flex; align-items: center; gap: 8px; width: 100%; cursor: pointer; }
-.pb-nav-item:hover { background: var(--c-hover); }
-.pb-nav-item--active { background: var(--c-selected); box-shadow: inset 2px 0 0 var(--c-accent); }
-.pb-logo-mark { display: flex; align-items: center; justify-content: center; background: var(--c-accent); }
-.pb-search-pill { display: flex; align-items: center; gap: 8px; border: 1px solid var(--c-line-strong); }
 /* === LEGACY:END === */

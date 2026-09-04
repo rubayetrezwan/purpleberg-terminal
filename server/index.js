@@ -1093,6 +1093,17 @@ app.get("/api/ipo-calendar", apiLimiter, async (req, res) => {
 // ── Serve static files (built frontend) ─────────────────
 import fs from "fs";
 
+// ── GET /api/status ─────────────────────────────────────
+// Which optional integrations are configured. Booleans only, never the keys.
+const APP_VERSION = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8")).version;
+app.get("/api/status", apiLimiter, (req, res) => {
+  res.json({
+    version: APP_VERSION,
+    finnhub: Boolean(FINNHUB_API_KEY),
+    coingecko: Boolean(CG_API_KEY),
+  });
+});
+
 const distPath = path.resolve(__dirname, "../dist");
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
