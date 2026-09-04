@@ -53,17 +53,19 @@ export const fmtPct = (n, d = 2) => (missing(n) ? "—" : fmtSigned(n, d) + "%")
 // clock calls this every second for three zones.
 const clockFormatters = new Map();
 export const fmtClock = (date, timeZone) => {
-  const key = timeZone || "local";
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "—";
+  const tz = timeZone || undefined;
+  const key = tz || "local";
   let f = clockFormatters.get(key);
-  if (!f) {
+  if (f === undefined) {
     try {
-      f = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", hour: "2-digit", minute: "2-digit", second: "2-digit" });
     } catch {
-      return "—";
+      f = null; // unknown zone: remembered so a live clock does not retry every second
     }
     clockFormatters.set(key, f);
   }
-  return f.format(date);
+  return f ? f.format(date) : "—";
 };
 
 export const ts = () => fmtClock(new Date());

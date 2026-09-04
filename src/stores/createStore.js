@@ -39,7 +39,13 @@ export function createStore(key, initial, options = {}) {
 
   const finish = (obj) => {
     const merged = { ...clone(initial), ...obj };
-    return sanitize ? sanitize(merged) : merged;
+    if (!sanitize) return merged;
+    try {
+      return sanitize(merged);
+    } catch (e) {
+      console.error(`[store ${fullKey}] sanitize failed, using defaults`, e);
+      return clone(initial);
+    }
   };
 
   function write(value) {
@@ -89,7 +95,10 @@ export function createStore(key, initial, options = {}) {
     }
   }
   function set(next) {
-    if (!isPlainObject(next)) return;
+    if (!isPlainObject(next)) {
+      console.error(`[store ${fullKey}] set ignored a non-object`, next);
+      return;
+    }
     state = next;
     schedulePersist();
     emit();
@@ -114,9 +123,12 @@ export function createStore(key, initial, options = {}) {
   };
 
   if (typeof window !== "undefined" && usingBrowserStorage) {
+    const flushIfDirty = () => { if (timer) flush(); };
     window.addEventListener("storage", (e) => { if (e.key === fullKey) store.rehydrate(); });
-    window.addEventListener("pagehide", flush);
-    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
+    window.addEventListener("pagehide", flushIfDirty);
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushIfDirty(); });
+    }
   }
   return store;
 }

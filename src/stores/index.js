@@ -1,4 +1,4 @@
-import { settings, sanitizeSettings } from "./settings.js";
+import { settings } from "./settings.js";
 import { ui } from "./ui.js";
 import { watchlist } from "./watchlist.js";
 import { alerts } from "./alerts.js";
@@ -42,7 +42,7 @@ export function importAll(data) {
   if (error) return { ok: false, error };
   for (const [name, store] of Object.entries(STORES)) {
     if (!(name in data.stores)) continue;
-    store.replace(name === "settings" ? sanitizeSettings(data.stores[name]) : data.stores[name]);
+    store.replace(data.stores[name]); // each store's sanitizer runs inside replace()
   }
   return { ok: true };
 }

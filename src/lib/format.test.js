@@ -72,5 +72,9 @@ test("fmtClock: 24-hour clock in a given zone", () => {
   assert.equal(fmtClock(d, "UTC"), "14:18:53");
   assert.equal(fmtClock(d, "Asia/Tokyo"), "23:18:53");
   assert.equal(fmtClock(d, "Not/AZone"), "—");
+  assert.equal(fmtClock(d, "Not/AZone"), "—");
+  assert.equal(fmtClock(new Date(NaN), "UTC"), "—");
+  assert.equal(fmtClock("2026-09-04", "UTC"), "—");
+  assert.equal(fmtClock(d, ""), fmtClock(d));
   assert.match(ts(), /^\d{2}:\d{2}:\d{2}$/);
 });
