@@ -163,11 +163,25 @@ table, so it is not worth making at the end of the project.
 
 ## Task 5: Release
 
-- [ ] README rewritten for the redesign: the twelve screens and their mnemonics, the command
-  line, keyboard map, storage and privacy, data sources and their honesty caveats, the optional
-  Finnhub key, scripts, and deployment. No feature claims the code does not support.
-- [ ] Final bundle measurement recorded in this plan.
-- [ ] `superpowers:code-reviewer` over the whole branch against the spec and both plans; fix
+- [x] README rewritten (`2a52dd9`). Every claim checked against the code: mnemonics against
+  `router/routes.js`, the 2027 holiday horizon against `marketHolidays.js`, the rate limit, body
+  limit and cache ceiling against `server/index.js`, 250 tickers and 25 IPOs against
+  `config.js`, the build command against `render.yaml`.
+- [x] Final bundle measurement recorded in Task 3 above.
+- [x] Deployment path exercised, which nothing had done before: `npx vite build` then the
+  Express server alone on `:3001` serves the built app, resolves the SPA deep link
+  `/portfolio?tab=risk`, and answers `/api/*` same-origin — the treasury screen renders live
+  yields with basis-point changes and a clean console. Storage is origin-scoped, so the
+  portfolio on `:3001` is correctly separate from the one on `:5173`.
+- [x] Guardrails 1, 2, 3 and 5 hold; guardrail 4 does not (Task 3). Guardrail 3 spot-checked in
+  the DOM: `aria-current="page"` on the active nav item, `role="grid"` with labels on the
+  navigable tables, `aria-sort` flipping between ascending and descending on the sorted column,
+  an `aria-live="polite"` toast region, `:focus-visible` and `prefers-reduced-motion` rules
+  present. No emoji, no spinners, no radius, no gradients, no blur, and one font family in the
+  stylesheet; the only `box-shadow` uses are hard inset accent bars for selection.
+- [x] Fixed while checking guardrail 3: an unknown `?sort=` key left the screener in raw pool
+  order with no header marked sorted (`73c92f7`).
+- [ ] `superpowers:code-reviewer` over the whole branch against the spec and the plans; fix
   what it finds, or record why not.
 - [ ] Report to the user: what shipped, what was declined, the bundle number, and the merge
   decision for `redesign/terminal-v3` into `main`. Do not merge without a decision.
