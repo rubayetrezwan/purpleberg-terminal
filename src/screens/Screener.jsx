@@ -33,6 +33,13 @@ const NUMERIC_FIELDS = [
 ];
 const BOUND_LABEL = { peMin: "MIN", peMax: "MAX", priceMin: "MIN", priceMax: "MAX", capMin: "MIN", yieldMin: "MIN", betaMin: "MIN", betaMax: "MAX", posMin: "MIN", posMax: "MAX" };
 
+// Every sortable column key, so a `?sort=` from the URL can be validated
+// before it reaches the table.
+const SORT_KEYS = new Set([
+  "symbol", "name", "price", "changePercent", "marketCap", "pe", "volume",
+  "beta", "dividendYield", "pos52", "offHigh", "exchange",
+]);
+
 export default function Screener() {
   const { query } = useRoute();
   const pool = useQuotePool();
@@ -43,7 +50,11 @@ export default function Screener() {
 
   const filters = useMemo(() => filtersFromQuery(query), [query]);
   const preset = presetById(query.preset);
-  const sort = query.sort ? { key: query.sort, dir: query.dir === "asc" ? "asc" : "desc" } : { key: "marketCap", dir: "desc" };
+  // A sort key that matches no column would leave the table in raw pool order
+  // (alphabetical) with no header marked sorted, so an old bookmark or a typo
+  // falls back to the default instead of looking unsorted.
+  const sortKey = SORT_KEYS.has(query.sort) ? query.sort : "marketCap";
+  const sort = { key: sortKey, dir: query.sort === sortKey && query.dir === "asc" ? "asc" : "desc" };
 
   const exchanges = useMemo(() => {
     const set = new Set(pool.equities.map((r) => r.exchange).filter(Boolean));
