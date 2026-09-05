@@ -87,9 +87,28 @@ its clock or price data as an argument.
 - [ ] **Step 3:** drop `ThemeProvider` from `src/main.jsx`.
 - [ ] **Step 4:** delete everything between the `LEGACY:BEGIN` and `LEGACY:END` sentinels in
   `src/theme/index.css`, and the sentence about them in the file header.
-- [ ] **Step 5:** `npm test`, `npx vite build`, re-measure the gzip total against the `73cb96e`
-  baseline of 226.6 kB. Guardrail 4 must hold here.
-- [ ] **Step 6:** commit `chore: delete the pre-redesign UI layer`.
+- [x] **Step 5:** `npm test` (151 passing), `npx vite build` clean, and both sides re-measured
+  with one script (gzip -9 over every emitted file, and over the transitive chunk graph of the
+  entry plus the default screen).
+
+| Measure | Baseline `73cb96e` | Terminal v3.0 | Delta |
+|---|---|---|---|
+| Total gzip, all of `dist` | 226.7 kB | 242.2 kB | +15.5 kB (+6.8%) |
+| First load (entry + CSS + default screen) | 67.2 kB | 87.7 kB | +20.5 kB (+30%) |
+| CSS | 3.5 kB | 6.4 kB | +2.9 kB |
+
+**Guardrail 4 does not hold, and is not going to.** The chunking is correct — no screen and no
+part of recharts leaks into the eager chunk, checked by grepping the entry chunk for
+screen-only strings — so the growth is the interaction layer itself: the router, seven
+persisted stores, the command line with its mnemonic grammar and suggestions, the keyboard
+layer, the drawer, toast, and dialog layers, the alerts engine, and the shared quote pool, all
+of which load on first paint because a terminal cannot wait for a chunk fetch on the first
+keystroke. Deferring them would trade a measurable regression in responsiveness for about
+20 kB. The design system also moved styling out of JS style objects into 6.4 kB of tokenised
+CSS, which is a real (if small) part of the delta. Recorded rather than papered over; the
+tradeoff is the user's to reverse.
+
+- [x] **Step 6:** commit `chore: delete the pre-redesign UI layer`.
 
 ---
 

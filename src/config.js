@@ -1,5 +1,5 @@
-// Theme colours are the single source of truth in ./ThemeContext.jsx —
-// do not re-add them here. Screens pull palette via `useColors()`.
+// Ticker lists and reference data only. Colours live in src/theme/index.css as
+// tokens, and formatters in src/lib/format.js — do not re-add either here.
 
 // ═══════════════════════════════════════════
 // STOCK TICKERS
@@ -84,12 +84,6 @@ export const BOND_SYMBOLS = [
   { symbol: "^TNX", name: "US 10Y Treasury", tenor: "10Y" },
   { symbol: "^TYX", name: "US 30Y Treasury", tenor: "30Y" },
 ];
-
-// ═══════════════════════════════════════════
-// UTILITIES - moved to src/lib/format.js; re-exported so the
-// untouched screens keep importing them from here until P2.
-// ═══════════════════════════════════════════
-export { fmt, fmtK, fmtPct, ts, MONTHS_SHORT, fmtAxisDate, fmtTooltipDate } from "./lib/format.js";
 
 export const SECTORS = [
   "Technology", "Healthcare", "Financial Services", "Energy",
