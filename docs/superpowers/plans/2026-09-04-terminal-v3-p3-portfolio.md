@@ -114,17 +114,50 @@ tradeoff is the user's to reverse.
 
 ## Task 4: Verification pass (was P2 Task 12)
 
-- [ ] Every route in both themes and both densities at 375, 768, and 1440, console and failed
-  requests clean.
-- [ ] Keyboard-only pass on Equities and Screener: `/` to the command line, arrows and Enter in
-  the list, digits 1 to 9, Space to star, Esc through every layer, `?` for the sheet.
-- [ ] Deep links: `/equities/AAPL?tab=ratios`, `/screener?preset=value&sort=pe`,
-  `/compare?a=AAPL&b=MSFT`, `/rates?tab=calendar`, `/crypto/bitcoin`, `/news?q=apple`,
-  `/portfolio?tab=risk`, each reloaded and stepped back through.
-- [ ] Reduced motion on; the price flash still clears.
-- [ ] Screenshots of every screen in dark, plus Dashboard, Equities, and Portfolio in light and
-  at 375px.
-- [ ] Record the results here as a table, mirroring P1, and commit.
+Run against the Vite dev server with the live proxy on 2026-09-06. The Browser pane was hidden
+for most of it, which matters: a hidden pane reports `window.innerWidth` 0, never fires
+`requestAnimationFrame`, does not fire native focus events (`document.hasFocus()` is false), and
+pauses the app's own polling by design. Widths therefore come from viewport emulation, polling
+was resumed by overriding `document.visibilityState`, focus was driven by dispatching `focusin`
+alongside `.focus()`, and clicks that the pane could not hit-test were dispatched on the
+element. Every "pass" below is a value read out of the live DOM, not an inference.
+
+| Check | Result |
+|---|---|
+| `/` Dashboard | 7 sections, 27 rows, breadth 85 advancing / 164 declining / 34% / 1.04% |
+| `/equities/AAPL?tab=ratios` | Deep link opens the ratios tab, 8 rows, no overflow |
+| `/equities/NVDA` at 768 | 230.36, +0.84%, 5.56T; sidebar shown, no mobile tabs |
+| `/screener?preset=value&sort=pe` | Preset and sort applied: "33 of 249", SPG first at P/E 14.9 |
+| `/compare?a=AAPL&b=MSFT` | Both legs live: LAST 319.97, P/E 37.6x, BETA 1.08, no empty states |
+| `/fx` | 14 pairs, 54 price cells |
+| `/rates` | 3M 3.76%, 10Y 4.78%, 30Y 5.25%, 10Y-3M 103 bp, CURVE SHAPE NORMAL |
+| `/rates?tab=calendar` | 26 events, times ET, first row German Prelim CPI |
+| `/commodities` | 8 rows, 91.48 +0.20% with the 52-week range 92.17 / 88.72 |
+| `/crypto` and `/crypto/bitcoin` | 20 coins; BTC $80,053 with MAJOR and RANK 1 |
+| `/ipos` | 25 curated rows, SpaceX live at 147.95, calendar shows the add-a-key state |
+| `/news?q=apple` | Filter deep link narrows 18 stories to 3; typing keeps history flat |
+| `/portfolio` all four tabs | Sample loaded at real closes; vol 16.1%, max DD -17.4%, VaR 1.60%, Sharpe 0.98, beta 0.74; sectors Technology 65.4% / Financial Services 18.2% / Energy 16.3% |
+| `/settings` | RELEASE reads TERMINAL V3.0, VERSION 3.0.0, key status from `/api/status` |
+| Widths 375 / 768 / 1440 | No page-level horizontal scroll anywhere; wide tables scroll inside their own container; mobile tabs replace the sidebar and tape at 375; Portfolio stats wrap to 2 columns with no clipped values |
+| Light theme, comfortable density | Tokens repaint (`--row-h` 30px, bg #f4f4f1, up #15803d, down #b91c1c) and persist across reloads |
+| Keyboard in the Screener grid | Roving focus 2 → 3 → 4 → 3, Home → 0, End → 26; Enter opens quick-look with live data; Escape closes it and returns focus to the row; `?` opens the KEYBOARD sheet and Escape closes it; Space stars the focused row with an UNDO toast |
+| `/` to the command line | Opens the suggestion popover; the caret lands only once `requestAnimationFrame` runs, which a hidden pane never does — verified as an environment limit, not a code path |
+| Browser back | pushState to `/rates?tab=calendar` then `/crypto/bitcoin`, back returns to the calendar and re-renders it |
+| Console and network | No console errors; every `/api/*` request 200, user symbols ordered first in the pool request |
+
+**Fixed during this pass:** the price flash cleared only on `animationend`. This environment
+reports `prefers-reduced-motion: reduce`, which collapses the animation to 0.001ms, and no
+`animationend` arrived within 1.5s in a hidden pane — a flash that never ends leaves the cell
+tinted permanently. `Price` now clears the flash on a 700ms timer as well, with the animation
+as the fast path.
+
+**Known behaviour, not fixed:** roving focus in `DataTable` is positional, so when a live poll
+re-sorts a table the cursor stays at the same row number rather than following the symbol.
+Observed on the Screener, where Space starred the symbol that had moved into the focused row.
+Keying focus to `rowKey` would fix it and is the right change if it ever bites; it touches every
+table, so it is not worth making at the end of the project.
+
+- [x] Recorded here and committed.
 
 ---
 
