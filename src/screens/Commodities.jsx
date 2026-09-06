@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { AreaChart, Area, LineChart, Line, ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { COMMODITY_SYMBOLS } from "../config.js";
-import { fmt, fmtK, fmtNum, fmtPct, fmtAxisDate, fmtTooltipDate } from "../lib/format.js";
+import { fmtK, fmtNum, fmtPct, fmtAxisDate, fmtTooltipDate } from "../lib/format.js";
 import { periodReturns, TRADING_DAY_OFFSETS } from "../lib/returns.js";
 import { useRoute, updateQuery, navigate, pathFor } from "../router/index.jsx";
 import { useQuotes, useHistorical, useIsMobile } from "../data/hooks.js";

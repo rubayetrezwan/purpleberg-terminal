@@ -7,7 +7,7 @@ import { KV, KVList } from "../ui/KV.jsx";
 import { Change } from "../ui/Change.jsx";
 import { Price } from "../ui/Price.jsx";
 import { Tag } from "../ui/Tag.jsx";
-import { Button } from "../ui/Button.jsx";
+import { Button, IconButton } from "../ui/Button.jsx";
 import { Loading } from "../ui/Loading.jsx";
 import { toggleWatch } from "../ui/watchActions.js";
 import { useStore } from "../stores/useStore.js";
@@ -58,15 +58,25 @@ function QuickLookDrawer({ symbol, onClose }) {
       <span className="pb-ql__sym">{symbol}</span>
       <span className="pb-ql__name pb-muted">{q ? q.name : ""}</span>
       <span className="pb-ql__tools">
-        <button type="button" className={`pb-reset pb-iconbtn${starred ? " pb-accent" : ""}`} aria-label={starred ? "Remove from watchlist" : "Add to watchlist"} aria-pressed={starred} onClick={() => toggleWatch(symbol)}>
+        <IconButton
+          label={starred ? `Remove ${symbol} from watchlist` : `Add ${symbol} to watchlist`}
+          className={starred ? "pb-accent" : ""}
+          aria-pressed={starred}
+          onClick={() => toggleWatch(symbol)}
+        >
           <Star size={13} strokeWidth={1.5} fill={starred ? "currentColor" : "none"} />
-        </button>
-        <button type="button" className={`pb-reset pb-iconbtn${alertOpen ? " pb-accent" : ""}`} aria-label="Set price alert" aria-expanded={alertOpen} onClick={() => setAlertOpen((v) => !v)}>
+        </IconButton>
+        <IconButton
+          label="Set price alert"
+          className={alertOpen ? "pb-accent" : ""}
+          aria-expanded={alertOpen}
+          onClick={() => setAlertOpen((v) => !v)}
+        >
           <Bell size={13} strokeWidth={1.5} />
-        </button>
-        <button type="button" className="pb-reset pb-iconbtn" aria-label="Close" onClick={onClose}>
+        </IconButton>
+        <IconButton label="Close" onClick={onClose}>
           <X size={14} strokeWidth={1.5} />
-        </button>
+        </IconButton>
       </span>
     </header>
   ) : null;

@@ -24,8 +24,8 @@ import { KV, KVList } from "../ui/KV.jsx";
 import { Change } from "../ui/Change.jsx";
 import { Price } from "../ui/Price.jsx";
 import { Tag } from "../ui/Tag.jsx";
+import { IconButton } from "../ui/Button.jsx";
 import { Input } from "../ui/Input.jsx";
-import { Button } from "../ui/Button.jsx";
 import { RangeBar } from "../ui/RangeBar.jsx";
 import { ChartFrame, useChartTheme } from "../ui/ChartFrame.jsx";
 import { EmptyState } from "../ui/EmptyState.jsx";
@@ -310,24 +310,22 @@ export default function Equities() {
         {quote && quote.exchange && <Tag>{quote.exchange}</Tag>}
         {quote && quote.marketState && <Tag tone={quote.marketState === "REGULAR" ? "up" : undefined}>{quote.marketState === "REGULAR" ? "OPEN" : quote.marketState}</Tag>}
         <span className="pb-eq__tools">
-          <button
-            type="button"
-            className={`pb-reset pb-iconbtn${isWatched ? " pb-accent" : ""}`}
-            aria-label={isWatched ? `Remove ${symbol} from watchlist` : `Add ${symbol} to watchlist`}
+          <IconButton
+            label={isWatched ? `Remove ${symbol} from watchlist` : `Add ${symbol} to watchlist`}
+            className={isWatched ? "pb-accent" : ""}
             aria-pressed={isWatched}
             onClick={() => toggleWatch(symbol)}
           >
             <Star size={13} strokeWidth={1.5} fill={isWatched ? "currentColor" : "none"} />
-          </button>
-          <button
-            type="button"
-            className={`pb-reset pb-iconbtn${alertOpen ? " pb-accent" : ""}`}
-            aria-label="Set price alert"
+          </IconButton>
+          <IconButton
+            label="Set price alert"
+            className={alertOpen ? "pb-accent" : ""}
             aria-expanded={alertOpen}
             onClick={() => setAlertOpen((v) => !v)}
           >
             <Bell size={13} strokeWidth={1.5} />
-          </button>
+          </IconButton>
         </span>
       </header>
 
