@@ -46,12 +46,14 @@ function CurveTab() {
   }, []);
 
   const bySym = new Map(data.map((d) => [d.symbol, d]));
-  const curve = BOND_SYMBOLS
-    .map((b) => {
-      const q = bySym.get(b.symbol);
-      return { tenor: b.tenor, yield: q && q.price > 0 ? q.price : null };
-    })
-    .filter((r) => r.yield != null);
+  // A tenor with no yield stays in the series as a null so the line breaks
+  // there. Filtering it out would draw a smooth 3M-to-10Y curve straight
+  // through the gap, which is a shape the market never quoted.
+  const curve = BOND_SYMBOLS.map((b) => {
+    const q = bySym.get(b.symbol);
+    return { tenor: b.tenor, yield: q && q.price > 0 ? q.price : null };
+  });
+  const curvePoints = curve.filter((r) => r.yield != null).length;
 
   const y = (sym) => {
     const q = bySym.get(sym);
@@ -76,7 +78,7 @@ function CurveTab() {
   return (
     <>
       <Section title="US treasury yield curve" meta={<Freshness updatedAt={updatedAt} intervalMs={intervalMs} />}>
-        <ChartFrame height={isMobile ? 220 : 280} loading={loading && !curve.length} empty={!loading && !curve.length ? "NO YIELD DATA" : null}>
+        <ChartFrame height={isMobile ? 220 : 280} loading={loading && !curvePoints} empty={!loading && !curvePoints ? "NO YIELD DATA" : null}>
           <AreaChart data={curve}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey="tenor" {...axisProps} />
@@ -141,7 +143,14 @@ function CalendarTab() {
   const load = useCallback(() => {
     setLoading(true);
     return api.econCalendar()
-      .then((d) => { setEvents(Array.isArray(d) ? d : []); setUpdatedAt(Date.now()); })
+      .then((d) => {
+        const rows = Array.isArray(d) ? d : [];
+        setEvents(rows);
+        // An empty answer means the scrape found nothing, which is not the
+        // same as a calendar that is up to date and empty. Keep the old
+        // timestamp so Freshness cannot read "2s ago" over nothing.
+        if (rows.length) setUpdatedAt(Date.now());
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

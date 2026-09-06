@@ -30,6 +30,8 @@ import { Freshness } from "../ui/Freshness.jsx";
 import { EmptyState } from "../ui/EmptyState.jsx";
 import { ChartFrame, useChartTheme } from "../ui/ChartFrame.jsx";
 import { TransactionForm } from "../features/TransactionForm.jsx";
+import { toggleWatch } from "../ui/watchActions.js";
+import { useQuickLook } from "../ui/quickLookContext.js";
 import { toast } from "../ui/toasts.js";
 import { confirm } from "../ui/dialog.js";
 
@@ -137,6 +139,7 @@ export default function Portfolio() {
   const tab = TAB_VALUES.includes(query.tab) ? query.tab : "holdings";
   const isMobile = useIsMobile(768);
   const { colors, gridProps, axisProps, tooltipProps, lineProps } = useChartTheme();
+  const { open: openQuickLook } = useQuickLook();
   useMigration();
 
   const transactions = useStore(portfolio, (s) => s.transactions);
@@ -155,11 +158,19 @@ export default function Portfolio() {
 
   // ── Performance ──
   const { data: benchRows, loading: benchLoading } = useHistorical(BENCH, "1y");
-  const { bySymbol: closes, loading: closesLoading } = useHistories(openSymbols, "1y");
   const accepted = useMemo(() => {
     const bad = new Set(rejected.map((r) => r.transaction && r.transaction.id));
     return transactions.filter((t) => !bad.has(t.id));
   }, [transactions, rejected]);
+  // Every symbol ever transacted, not just the open ones: a position that has
+  // been sold was still held on the days before the sale, and without its
+  // closes it would contribute nothing to the value on those days while its
+  // buy and sell still count as cash flows — which turns a gain into a loss.
+  const seriesSymbols = useMemo(
+    () => [...new Set(accepted.map((t) => t.symbol))].sort(),
+    [accepted]
+  );
+  const { bySymbol: closes, loading: closesLoading } = useHistories(seriesSymbols, "1y");
 
   const series = useMemo(() => {
     const benchDates = (benchRows || []).filter((r) => Number(r.close) > 0);
@@ -357,7 +368,13 @@ export default function Portfolio() {
       >
         <StatRow cols={isMobile ? "1fr 1fr" : "repeat(5, 1fr)"}>
           <Stat label="VALUE" value={money(totals.value, 0)} size="lg" />
-          <Stat label="DAY P&L" value={moneySigned(totals.dayPnl, 0)} tone={tone(totals.dayPnl)} size="lg" />
+          <Stat
+            label="DAY P&L"
+            value={moneySigned(totals.dayPnl, 0)}
+            sub={totals.dayPnlMissing > 0 ? `${totals.dayPnlMissing} without a previous close` : null}
+            tone={tone(totals.dayPnl)}
+            size="lg"
+          />
           <Stat
             label="TOTAL P&L"
             value={moneySigned(totalPnl, 0)}
@@ -412,6 +429,8 @@ export default function Portfolio() {
             rowKey={(r) => r.symbol}
             numbered
             navigable
+            onRowClick={(r) => openQuickLook(r.symbol)}
+            onRowSpace={(r) => toggleWatch(r.symbol)}
             empty="NO OPEN POSITIONS"
           />
           {rows.some((r) => r.shares === 0) && (
@@ -508,10 +527,21 @@ export default function Portfolio() {
           ) : (
             <KVList>
               <KV k="ANNUALISED VOLATILITY" v={`${fmtNum(risk.vol * 100, 1)}%`} />
-              <KV k="MAX DRAWDOWN" v={<span className="pb-down">{fmtNum(risk.maxDrawdown * 100, 1)}%</span>} />
+              <KV
+                k="MAX DRAWDOWN"
+                v={risk.maxDrawdown < 0
+                  ? <span className="pb-down">{fmtNum(risk.maxDrawdown * 100, 1)}%</span>
+                  : "0.0%"}
+              />
               <KV k="BEST DAY" v={<span className="pb-up">{fmtPct(risk.best * 100)}</span>} />
               <KV k="WORST DAY" v={<span className="pb-down">{fmtPct(risk.worst * 100)}</span>} />
-              <KV k="1-DAY 95% VAR" v={`${fmtNum(risk.var95 * 100, 2)}%`} />
+              {/* VaR is a loss, so it reads positive. A negative one means the
+                  5th-percentile day was itself a gain, which is worth saying
+                  rather than printing as "-0.42%". */}
+              <KV
+                k="1-DAY 95% VAR"
+                v={risk.var95 > 0 ? `${fmtNum(risk.var95 * 100, 2)}%` : "NO LOSS AT THE 5TH PERCENTILE"}
+              />
               <KV k="SHARPE" v={risk.sharpe == null ? "—" : fmtNum(risk.sharpe, 2)} />
               <KV k="BETA TO S&P 500" v={portBeta == null ? "—" : fmtNum(portBeta, 2)} />
             </KVList>

@@ -114,15 +114,20 @@ function FinancialsTab({ fin, loading }) {
         {loading && !margins.length ? <Loading /> : !margins.length ? <EmptyState>NO MARGIN DATA</EmptyState> : (
           <div className="pb-bars">
             {margins.map(([k, v]) => {
-              const pct = parseFloat(v) || 0;
+              // The proxy sends the string "0" for every margin it could not
+              // source, including from its own catch block, so a real 0.0%
+              // and "unknown" arrive identically. An em dash and no bar is the
+              // honest reading, the same guard the ratios table uses.
+              const n = parseFloat(v);
+              const pct = Number.isFinite(n) && n !== 0 ? n : null;
               return (
                 <div key={k} className="pb-bars__row">
                   <div className="pb-bars__head">
                     <span className="pb-label">{k.toUpperCase()}</span>
-                    <span className="pb-bars__val">{fmt(pct, 1)}%</span>
+                    <span className="pb-bars__val">{pct == null ? "—" : `${fmt(pct, 1)}%`}</span>
                   </div>
                   <div className="pb-bars__track">
-                    <i style={{ width: `${Math.min(Math.max(pct, 0), 100)}%` }} />
+                    <i style={{ width: pct == null ? 0 : `${Math.min(Math.max(pct, 0), 100)}%` }} />
                   </div>
                 </div>
               );
@@ -334,7 +339,7 @@ export default function Equities() {
 
       <StatRow>
         <Stat label="Last" value={quote && quote.price > 0 ? fmtNum(quote.price) : "—"} size="lg" />
-        <Stat label="Chg" value={quote ? fmtPct(quote.changePercent) : "—"} tone={quote && quote.changePercent >= 0 ? "up" : "down"} />
+        <Stat label="Chg" value={quote ? fmtPct(quote.changePercent) : "—"} tone={!quote || quote.changePercent == null ? undefined : quote.changePercent >= 0 ? "up" : "down"} />
         <Stat label="Mkt cap" value={quote && quote.marketCap > 0 ? fmtK(quote.marketCap) : "—"} />
         <Stat label="P/E" value={quote && quote.pe > 0 ? `${fmt(quote.pe, 1)}x` : "—"} />
         <Stat label="Vol" value={quote && quote.volume > 0 ? fmtK(quote.volume) : "—"} />

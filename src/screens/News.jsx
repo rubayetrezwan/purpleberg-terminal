@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRoute, updateQuery } from "../router/index.jsx";
 import { useNewsFeed } from "../features/newsFeed.jsx";
 import { Page } from "../ui/Grid.jsx";
@@ -55,7 +55,14 @@ function Group({ title, items, offset }) {
 export default function News() {
   const { query } = useRoute();
   const { news, loading, updatedAt, intervalMs } = useNewsFeed();
+  // Seeded from the URL and kept in step with it, so Back and Forward across a
+  // ?q= change move the input and the list together with the address bar.
   const [filter, setFilter] = useState(query.q || "");
+  const lastQ = useRef(query.q || "");
+  useEffect(() => {
+    const q = query.q || "";
+    if (q !== lastQ.current) { lastQ.current = q; setFilter(q); }
+  }, [query.q]);
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -85,7 +92,7 @@ export default function News() {
       >
         <Input
           value={filter}
-          onChange={(e) => { setFilter(e.target.value); updateQuery({ q: e.target.value || null }); }}
+          onChange={(e) => { lastQ.current = e.target.value; setFilter(e.target.value); updateQuery({ q: e.target.value || null }); }}
           placeholder="FILTER BY KEYWORD, PUBLISHER, OR SYMBOL"
           aria-label="Filter news"
         />

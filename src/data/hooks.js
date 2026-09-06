@@ -139,11 +139,16 @@ export function useHistorical(symbol, range = "3mo") {
     if (!symbol) { setLoading(false); setData([]); setUpdatedAt(null); return undefined; }
     let cancelled = false;
     setLoading(true);
-    setUpdatedAt(null); // the previous series must not be attributed to the new symbol
+    // The previous symbol's series and timestamp must both go: consumers gate
+    // on rows.length, not on loading, so a retained series would be drawn
+    // under the new symbol's header — and would stay there for good if the
+    // fetch fails.
+    setData([]);
+    setUpdatedAt(null);
     api.historical(symbol, range).then((result) => {
       if (!cancelled) { setData(Array.isArray(result) ? result : []); setLoading(false); setUpdatedAt(Date.now()); }
     }).catch(() => {
-      if (!cancelled) setLoading(false);
+      if (!cancelled) { setData([]); setLoading(false); }
     });
     return () => { cancelled = true; };
   }, [symbol, range]);
@@ -160,6 +165,7 @@ export function useFinancials(symbol) {
     if (!symbol) { setLoading(false); setData(null); return; }
     let cancelled = false;
     setLoading(true);
+    setData(null); // never show the previous company under a new symbol
 
     api.financials(symbol).then((result) => {
       if (!cancelled) {
@@ -264,10 +270,16 @@ export function useCryptoMarkets(intervalMs = 60000) {
       try {
         const result = await api.cryptoMarkets();
         if (cancelled || myAttempt !== attempt) return;
-        if (Array.isArray(result) && result.length > 0) setData(result);
+        // An empty payload means the poll failed (our limiter, an upstream
+        // 429, or the proxy serving nothing): keep the rows we have and keep
+        // their timestamp, or Freshness would read "2s ago" over old data.
+        const rows = Array.isArray(result) ? result : [];
+        if (rows.length > 0) {
+          setData(rows);
+          setUpdatedAt(Date.now());
+          setError(null);
+        }
         setLoading(false);
-        setError(null);
-        setUpdatedAt(Date.now());
       } catch (e) {
         if (cancelled || paused || myAttempt !== attempt) return;
         setError(e.message);
@@ -392,19 +404,27 @@ export function useSearch(query, delayMs = 300) {
 
     setLoading(true);
     if (timerRef.current) clearTimeout(timerRef.current);
+    // Clearing the debounce timer does not cancel a request already in flight,
+    // so a slow answer for an older query could land on top of a newer one.
+    let stale = false;
 
     timerRef.current = setTimeout(async () => {
       try {
         const data = await api.search(query);
+        if (stale) return;
         setResults(data || []);
       } catch {
+        if (stale) return;
         setResults([]);
       } finally {
         setLoading(false);
       }
     }, delayMs);
 
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    return () => {
+      stale = true;
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, [query, delayMs]);
 
   return { results, loading };
@@ -422,6 +442,10 @@ export function useFinancialsWithRetry(symbol, maxRetries = 2) {
     let attempt = 0;
     setLoading(true);
     setError(null);
+    // Clear the previous company too: the tabs fall through to their data
+    // whenever it is present, so Apple's profile would sit under MSFT for the
+    // length of the fetch, and for good if every retry fails.
+    setData(null);
 
     const tryFetch = async () => {
       while (attempt <= maxRetries && !cancelled) {

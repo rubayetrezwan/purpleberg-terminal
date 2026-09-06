@@ -25,10 +25,26 @@ export function periodReturns(rows, offsets = {}, options = {}) {
     out[key] = ((last - base) / base) * 100;
   }
 
-  const year = now.getUTCFullYear();
-  const first = series.find((d) => d && typeof d.date === "string" && d.date.startsWith(`${year}-`));
-  const firstClose = Number(first && first.close);
-  if (firstClose > 0) out.YTD = ((last - firstClose) / firstClose) * 100;
+  // YTD is measured from the last close of the previous year, which is the
+  // only base that makes it a year-to-date number. A window that does not
+  // reach back into last year cannot answer the question: the first row inside
+  // this year would just be the edge of the window, so a 3-month window would
+  // report its own 3-month return as YTD. Null in that case.
+  const prefix = `${now.getFullYear()}-`;
+  const lastDate = series[n - 1] && series[n - 1].date;
+  // The series also has to reach into this year. A window that ends before
+  // January has no year to date, and comparing its final close with itself
+  // would report a confident 0%.
+  if (typeof lastDate === "string" && lastDate >= prefix) {
+    let lastOfPrevYear = null;
+    for (const row of series) {
+      if (!row || typeof row.date !== "string") continue;
+      if (row.date >= prefix) break;
+      const c = Number(row.close);
+      if (c > 0) lastOfPrevYear = c;
+    }
+    if (lastOfPrevYear > 0) out.YTD = ((last - lastOfPrevYear) / lastOfPrevYear) * 100;
+  }
 
   return out;
 }

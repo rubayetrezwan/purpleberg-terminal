@@ -1,4 +1,4 @@
-import { closeTopLayer } from "../ui/layers.js";
+import { closeTopLayer, layerCount } from "../ui/layers.js";
 import { focusCommandLine } from "./commandLine.js";
 import { openHelp } from "./help.js";
 
@@ -17,6 +17,12 @@ export function installKeyboard() {
       if (closeTopLayer()) e.preventDefault();
       return;
     }
+    // A modal layer owns the keyboard while it is open. Without this, a letter
+    // key inside the quick-look drawer, a confirm dialog, or the shortcut sheet
+    // focused the command line behind the scrim — out of an aria-modal layer
+    // that the focus trap cannot pull it back into, since the trap only
+    // intercepts Tab. Escape above is the way out.
+    if (layerCount() > 0) return;
     if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") {
       e.preventDefault();
       focusCommandLine("");

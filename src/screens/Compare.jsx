@@ -35,7 +35,7 @@ function Row({ label, a, b, format, higherIsBetter, suffix = "" }) {
   const bv = toNum(b);
   const winner = winnerOf(av, bv, higherIsBetter);
   const cell = (v, win) => (
-    <span className={win ? "pb-cmp__win" : ""}>{!Number.isFinite(v) || v === 0 ? "—" : format(v) + suffix}</span>
+    <span className={win ? "pb-cmp__win" : ""}>{!Number.isFinite(v) ? "—" : format(v) + suffix}</span>
   );
   return (
     <div className="pb-cmp__row">

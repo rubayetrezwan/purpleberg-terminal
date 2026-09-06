@@ -129,7 +129,7 @@ export default function Commodities() {
 
       <StatRow>
         <Stat label={`Last (${selected.unit || ""})`} value={selected.price > 0 ? fmtNum(selected.price) : "—"} size="lg" />
-        <Stat label="Chg" value={selected.changePercent == null ? "—" : fmtPct(selected.changePercent)} tone={selected.changePercent >= 0 ? "up" : "down"} />
+        <Stat label="Chg" value={selected.changePercent == null ? "—" : fmtPct(selected.changePercent)} tone={selected.changePercent == null ? undefined : selected.changePercent >= 0 ? "up" : "down"} />
         <Stat label="Hi" value={selected.high > 0 ? fmtNum(selected.high) : "—"} />
         <Stat label="Lo" value={selected.low > 0 ? fmtNum(selected.low) : "—"} />
         <Stat label="Vol" value={selected.volume > 0 ? fmtK(selected.volume) : "—"} />
@@ -199,7 +199,7 @@ export default function Commodities() {
           <Section title="Period returns" meta="trading-day offsets">
             <PeriodReturns
               returns={returns}
-              note="Offsets are 5, 21, 63, 126, and 252 trading days from the loaded window. Extend the chart range to unlock longer periods."
+              note="Offsets are 5, 21, 63, 126, and 252 trading days from the loaded window. Extend the chart range to unlock longer periods. YTD measures from last year's final close and only appears once the range reaches back that far."
             />
           </Section>
         </div>

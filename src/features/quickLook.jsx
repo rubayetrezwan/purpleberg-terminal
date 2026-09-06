@@ -79,7 +79,7 @@ function QuickLookDrawer({ symbol, onClose }) {
             <>
               <div className="pb-ql__price">
                 <Price value={q.price} format={(v) => fmtNum(v, 2)} className="pb-ql__last" />
-                <span className={q.change >= 0 ? "pb-up" : "pb-down"}>{fmtSigned(q.change)} <Change value={q.changePercent} /></span>
+                <span className={q.change == null ? "" : q.change >= 0 ? "pb-up" : "pb-down"}>{fmtSigned(q.change)} <Change value={q.changePercent} /></span>
                 <span className="pb-ql__tags">
                   <Tag>{q.exchange || "—"}</Tag>
                   {q.marketState && <Tag tone={q.marketState === "REGULAR" ? "up" : undefined}>{q.marketState === "REGULAR" ? "OPEN" : q.marketState}</Tag>}

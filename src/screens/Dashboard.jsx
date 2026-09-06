@@ -95,6 +95,10 @@ function MoversPanel() {
   const movers = useMemo(() => {
     const withChg = pool.equities.filter((q) => q.price > 0 && Number.isFinite(Number(q.changePercent)));
     const sorted = [...withChg].sort((a, b) => b.changePercent - a.changePercent);
+    // Six gainers and five losers, unless there are not eleven usable rows —
+    // overlapping slices would list the same symbol as both, with a duplicate
+    // React key to match.
+    if (sorted.length <= 11) return sorted;
     return [...sorted.slice(0, 6), ...sorted.slice(-5)];
   }, [pool.equities]);
 
@@ -169,7 +173,7 @@ function BreadthPanel() {
   const pool = useQuotePool();
   const b = useMemo(() => breadth(pool.equities), [pool.equities]);
   return (
-    <Section title="Breadth" meta="cross-sectional, today">
+    <Section title="Breadth" meta={b.total ? `${b.total} of ${pool.equities.length} quoted, cross-sectional, today` : "cross-sectional, today"}>
       <StatRow>
         <Stat label="Advancing" value={b.total ? b.up : "—"} tone={b.up ? "up" : undefined} />
         <Stat label="Declining" value={b.total ? b.down : "—"} tone={b.down ? "down" : undefined} />
@@ -208,7 +212,7 @@ function RatesPanel() {
               v={
                 <span>
                   {q && q.price > 0 ? `${fmt(q.price)}%` : "—"}{" "}
-                  <Change value={q ? q.change * 100 : null} suffix="bp" decimals={0} />
+                  <Change value={q && q.change != null ? q.change * 100 : null} suffix="bp" decimals={0} />
                 </span>
               }
             />

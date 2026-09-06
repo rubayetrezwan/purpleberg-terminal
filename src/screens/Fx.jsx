@@ -46,6 +46,7 @@ export default function Fx() {
       return {
         ...f,
         price: q ? q.price : 0,
+        open: q ? q.open : 0,
         change: q ? q.change : null,
         changePercent: q ? q.changePercent : null,
         high: q ? q.high : 0,
@@ -106,7 +107,7 @@ export default function Fx() {
 
       <StatRow>
         <Stat label="Rate" value={selected.price > 0 ? fmt(selected.price, dp) : "—"} size="lg" />
-        <Stat label="Chg" value={selected.changePercent == null ? "—" : fmtPct(selected.changePercent)} tone={selected.changePercent >= 0 ? "up" : "down"} />
+        <Stat label="Chg" value={selected.changePercent == null ? "—" : fmtPct(selected.changePercent)} tone={selected.changePercent == null ? undefined : selected.changePercent >= 0 ? "up" : "down"} />
         <Stat label="Day range" value={pips == null ? "—" : `${pips} pips`} />
         <Stat label="Hi" value={selected.high > 0 ? fmt(selected.high, dp) : "—"} />
         <Stat label="Lo" value={selected.low > 0 ? fmt(selected.low, dp) : "—"} />
@@ -145,7 +146,7 @@ export default function Fx() {
         </Section>
         <Section title="Session">
           <KVList>
-            <KV k="OPEN" v={selected.price > 0 ? fmt(selected.price, dp) : "—"} />
+            <KV k="OPEN" v={selected.open > 0 ? fmt(selected.open, dp) : "—"} />
             <KV k="CHG ABS" v={selected.change == null ? "—" : fmt(selected.change, dp + 1)} />
             <KV k="DAY RANGE" v={dayRange == null ? "—" : `${fmt(dayRange, dp + 1)} (${pips} pips)`} />
             <KV k="PIP SIZE" v={fmt(pip, 4)} />

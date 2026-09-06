@@ -4,6 +4,7 @@ import { fmtK, fmtNum } from "../lib/format.js";
 import { mergeLiveQuotes, ipoMarketValue } from "../ipoUtils.js";
 import { useQuotes, useIpoCalendar } from "../data/hooks.js";
 import { useQuickLook } from "../ui/quickLookContext.js";
+import { toggleWatch } from "../ui/watchActions.js";
 import { Page } from "../ui/Grid.jsx";
 import { Section } from "../ui/Section.jsx";
 import { DataTable } from "../ui/DataTable.jsx";
@@ -71,6 +72,7 @@ export default function Ipos() {
           numbered
           navigable
           onRowClick={(r) => { if (r.ticker) open(r.ticker); }}
+          onRowSpace={(r) => { if (r.ticker) toggleWatch(r.ticker); }}
           empty="NO DATA"
         />
         <div className="pb-form__hint pb-muted pb-ipo__note">
@@ -96,6 +98,7 @@ export default function Ipos() {
             navigable
             loading={calLoading}
             onRowClick={(r) => { if (r.symbol) open(r.symbol); }}
+            onRowSpace={(r) => { if (r.symbol) toggleWatch(r.symbol); }}
             empty="NO IPOS IN THE CURRENT WINDOW"
           />
         )}

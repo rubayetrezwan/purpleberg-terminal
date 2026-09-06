@@ -100,6 +100,52 @@ test("totals report null rather than zero when nothing is live", () => {
   assert.equal(totals.hasLive, false);
 });
 
+test("a live row with no previous close is left out of day P&L and counted", () => {
+  // num(null) is 0, so a row like this used to be summed as a flat zero while
+  // the header still showed a confident day move and nothing said a third of
+  // the book was missing from it.
+  const rows = [
+    { symbol: "AAPL", shares: 10, cost: 1000, realised: 0, fees: 0, live: true, value: 1200, dayPnl: 100 },
+    { symbol: "MSFT", shares: 2, cost: 800, realised: 0, fees: 0, live: true, value: 1000, dayPnl: null },
+  ];
+  const totals = portfolioTotals(rows);
+  assert.equal(totals.dayPnl, 100);
+  assert.equal(totals.dayPnlMissing, 1);
+  assert.equal(totals.value, 2200, "value still covers both live rows");
+});
+
+test("day P&L is null, not zero, when no row has a previous close", () => {
+  const totals = portfolioTotals([
+    { symbol: "AAPL", shares: 1, cost: 10, realised: 0, fees: 0, live: true, value: 12, dayPnl: null },
+  ]);
+  assert.equal(totals.dayPnl, null);
+  assert.equal(totals.dayPnlMissing, 1);
+});
+
+test("a day the portfolio was empty is not recorded as a flat return", () => {
+  // Zero-base days used to be pushed in as r = 0, which padded the series past
+  // the risk gate and diluted volatility with sessions that never happened.
+  const series = [
+    { date: "d1", value: 0 },
+    { date: "d2", value: 0 },
+    { date: "d3", value: 100 },
+    { date: "d4", value: 110 },
+  ];
+  const { returns, index } = dietzSeries(series, { d3: 100 });
+  assert.deepEqual(returns.map((r) => r.date), ["d3", "d4"], "d2 had nothing to return on");
+  assert.equal(returns[0].r, 0, "the entry day is flat by the cost rule");
+  assert.equal(returns[1].r.toFixed(4), (0.1).toFixed(4));
+  assert.equal(index.length, series.length, "the index still has a point per session");
+});
+
+test("a symbol whose only transaction is a rejected sell leaves no position", () => {
+  const { positions, rejected } = positionsFrom([
+    tx({ date: "2026-01-05", symbol: "KO", side: "sell", shares: 5, price: 60 }),
+  ]);
+  assert.equal(rejected.length, 1);
+  assert.deepEqual(positions, [], "no phantom zero-share row");
+});
+
 test("allocation weights live rows and groups by the caller's key", () => {
   const rows = [
     { symbol: "A", shares: 1, live: true, value: 300, sector: "Tech" },
@@ -182,9 +228,10 @@ test("a Dietz day nets out the cash flow instead of counting it as a gain", () =
   assert.equal(index[1].value.toFixed(4), (100 * 1.05).toFixed(4));
 });
 
-test("a day whose base is zero is flat rather than infinite", () => {
-  const { returns } = dietzSeries([{ date: "d1", value: 0 }, { date: "d2", value: 0 }], {});
-  assert.equal(returns[0].r, 0);
+test("a day whose base is zero yields no return at all, never an infinity", () => {
+  const { returns, index } = dietzSeries([{ date: "d1", value: 0 }, { date: "d2", value: 0 }], {});
+  assert.deepEqual(returns, [], "nothing to divide by means nothing to report");
+  assert.deepEqual(index.map((p) => p.value), [100, 100], "the index still carries the level");
 });
 
 test("the benchmark normalises to 100 at its first usable close", () => {

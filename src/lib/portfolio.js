@@ -53,7 +53,13 @@ export function positionsFrom(transactions) {
     if (!(shares > 0) || !(price > 0) || fees < 0) { rejected.push({ transaction: t, reason: "bad amount" }); continue; }
     if (t.side !== "buy" && t.side !== "sell") { rejected.push({ transaction: t, reason: "bad side" }); continue; }
 
+    // The entry is created only once a transaction is actually applied, so a
+    // symbol whose only row is a rejected sell leaves no phantom position.
     let p = bySymbol.get(symbol);
+    if (t.side === "sell" && (!p || shares > p.shares + EPS)) {
+      rejected.push({ transaction: t, reason: "sell exceeds the position held on that date" });
+      continue;
+    }
     if (!p) {
       p = { symbol, shares: 0, cost: 0, realised: 0, fees: 0, buys: 0, sells: 0, first: t.date, last: t.date };
       bySymbol.set(symbol, p);
@@ -63,10 +69,6 @@ export function positionsFrom(transactions) {
       p.cost += shares * price + fees;
       p.buys += 1;
     } else {
-      if (shares > p.shares + EPS) {
-        rejected.push({ transaction: t, reason: "sell exceeds the position held on that date" });
-        continue;
-      }
       const avg = p.shares > 0 ? p.cost / p.shares : 0;
       p.realised += shares * (price - avg) - fees;
       p.cost -= shares * avg;
@@ -128,13 +130,17 @@ export function portfolioTotals(rows) {
   const sum = (f) => live.reduce((a, r) => a + num(f(r)), 0);
   const value = sum((r) => r.value);
   const cost = sum((r) => r.cost);
-  const hasDay = live.some((r) => r.dayPnl != null);
+  // A row can have a price but no previous close, which leaves it live with no
+  // day P&L. num(null) would fold it in as a flat zero, so day P&L covers only
+  // the rows that have one and reports how many it left out.
+  const withDay = live.filter((r) => r.dayPnl != null);
   return {
     value: live.length ? value : null,
     cost: live.length ? cost : null,
     unrealised: live.length ? value - cost : null,
     returnPct: live.length && cost > 0 ? ((value - cost) / cost) * 100 : null,
-    dayPnl: hasDay ? sum((r) => r.dayPnl) : null,
+    dayPnl: withDay.length ? withDay.reduce((a, r) => a + num(r.dayPnl), 0) : null,
+    dayPnlMissing: live.length - withDay.length,
     realised: all.reduce((a, r) => a + num(r.realised), 0),
     fees: all.reduce((a, r) => a + num(r.fees), 0),
     holdings: open.length,
@@ -270,7 +276,16 @@ export function dietzSeries(series, flows = {}) {
     const prev = list[i - 1];
     const cf = num(flows[cur.date]);
     const base = num(prev.value) + cf;
-    const r = base > EPS ? (num(cur.value) - num(prev.value) - cf) / base : 0;
+    // No base means the portfolio did not exist that day (before the first
+    // trade, or between a full exit and a later re-entry). Recording it as a
+    // flat return would pad the series past the risk gate and dilute
+    // volatility with sessions that never happened, so the index carries the
+    // level forward and the return is simply not reported.
+    if (base <= EPS) {
+      index.push({ date: cur.date, value: level });
+      continue;
+    }
+    const r = (num(cur.value) - num(prev.value) - cf) / base;
     returns.push({ date: cur.date, r });
     level *= 1 + r;
     index.push({ date: cur.date, value: level });

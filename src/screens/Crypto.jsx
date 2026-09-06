@@ -143,7 +143,7 @@ export default function Crypto() {
 
       <StatRow>
         <Stat label="Last (USD)" value={money(selected.price)} size="lg" />
-        <Stat label="24h chg" value={selected.changePercent24h == null ? "—" : fmtPct(selected.changePercent24h)} tone={selected.changePercent24h >= 0 ? "up" : "down"} />
+        <Stat label="24h chg" value={selected.changePercent24h == null ? "—" : fmtPct(selected.changePercent24h)} tone={selected.changePercent24h == null ? undefined : selected.changePercent24h >= 0 ? "up" : "down"} />
         <Stat label="24h hi" value={money(selected.high24h)} />
         <Stat label="24h lo" value={money(selected.low24h)} />
         <Stat label="24h vol" value={selected.volume24h > 0 ? `$${fmtK(selected.volume24h)}` : "—"} />
@@ -212,7 +212,7 @@ export default function Crypto() {
           <Section title="Period returns" meta="calendar-day offsets">
             <PeriodReturns
               returns={returns}
-              note="Crypto trades continuously, so offsets are 7, 30, 90, 180, and 365 calendar days from the loaded window."
+              note="Crypto trades continuously, so offsets are 7, 30, 90, 180, and 365 calendar days from the loaded window. YTD measures from last year's final close and only appears once the range reaches back that far."
             />
           </Section>
         </div>

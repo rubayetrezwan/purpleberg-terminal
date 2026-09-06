@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useDensity } from "../theme/useResolvedTheme.js";
 import { sortRows, visibleWindow, digitIndex } from "./tableUtils.js";
+import { GridContext } from "./gridContext.js";
 import { Skeleton } from "./Skeleton.jsx";
 import { EmptyState } from "./EmptyState.jsx";
 
@@ -32,10 +33,31 @@ export function DataTable({
   // rowKey receives the index too, so a caller whose rows have no natural
   // unique field (an event feed, say) can fall back to position.
   const keyOf = (row, i) => (rowKey ? rowKey(row, i) : i);
-  const [focusIdx, setFocusIdx] = useState(-1);
+  // The cursor is held by row identity, not by position. A live poll re-sorts
+  // these tables under the keyboard, and an index would leave the cursor on
+  // whatever row moved into that slot — so Enter opened, and Space starred, an
+  // instrument the user was not looking at.
+  const [focusKey, setFocusKey] = useState(null);
   const [scrollTop, setScrollTop] = useState(0);
   const scrollRef = useRef(null);
   const movedByKey = useRef(false);
+  const lastIdx = useRef(-1);
+  // True while the keyboard is in this table. Deleting the focused row
+  // unmounts it and drops focus to <body>, and only a table that had focus
+  // may take it back — otherwise a re-render would steal it on mount.
+  const hadFocus = useRef(false);
+
+  const foundIdx = useMemo(() => {
+    if (focusKey == null) return -1;
+    return sorted.findIndex((row, i) => keyOf(row, i) === focusKey);
+  }, [sorted, focusKey, rowKey]);
+  // A row that is gone (deleted, or filtered out) leaves the cursor where it
+  // was, clamped, so the keyboard lands on the neighbour rather than nowhere.
+  const focusIdx = foundIdx >= 0
+    ? foundIdx
+    : (focusKey == null ? -1 : Math.min(lastIdx.current, sorted.length - 1));
+  useEffect(() => { lastIdx.current = focusIdx; }, [focusIdx]);
+  const focusRowAt = (i) => setFocusKey(i >= 0 && i < sorted.length ? keyOf(sorted[i], i) : null);
 
   const maxScroll = Math.max(0, sorted.length * rowH - height);
   const top = virtualize ? Math.min(scrollTop, maxScroll) : 0;
@@ -44,10 +66,6 @@ export function DataTable({
   const firstVisible = virtualize ? Math.min(Math.floor(top / rowH), Math.max(0, sorted.length - 1)) : 0;
   // The one row that carries tabIndex 0 must be rendered, or Tab skips the table.
   const rovingIdx = focusIdx >= win.start && focusIdx < win.end ? focusIdx : win.start;
-
-  useEffect(() => {
-    if (focusIdx >= sorted.length) setFocusIdx(sorted.length ? sorted.length - 1 : -1);
-  }, [sorted.length, focusIdx]);
 
   // After a keyboard move the target row may only exist after re-render
   // (virtualised) and the previously focused row may have unmounted, which
@@ -58,11 +76,12 @@ export function DataTable({
     const inside = scrollRef.current.contains(active);
     const onControl = inside && active !== scrollRef.current && active.tagName !== "TR";
     if (onControl) return;
-    if (!movedByKey.current && !inside) return;
+    const orphaned = hadFocus.current && (active == null || active === document.body);
+    if (!movedByKey.current && !inside && !orphaned) return;
     const el = scrollRef.current.querySelector(`[data-row-index="${focusIdx}"]`);
     if (el && active !== el) el.focus({ preventScroll: true });
     movedByKey.current = false;
-  }, [focusIdx, win.start, keyboard]);
+  }, [focusIdx, win.start, keyboard, sorted.length]);
 
   const ensureVisible = (idx) => {
     const s = scrollRef.current;
@@ -98,10 +117,12 @@ export function DataTable({
       e.stopPropagation();
       if (onRowClick) onRowClick(sorted[current], current);
       return;
-    } else if (e.key === " " && current >= 0) {
+    } else if (e.key === " " && current >= 0 && onRowSpace) {
+      // Only claim Space where something is listening; otherwise it stays the
+      // browser's page-down for a focused table.
       e.preventDefault();
       e.stopPropagation();
-      if (onRowSpace) onRowSpace(sorted[current], current);
+      onRowSpace(sorted[current], current);
       return;
     } else {
       const d = digitIndex(e.key);
@@ -111,7 +132,7 @@ export function DataTable({
       const idx = firstVisible + d;
       if (idx < sorted.length) {
         movedByKey.current = true;
-        setFocusIdx(idx);
+        focusRowAt(idx);
         if (onRowClick) onRowClick(sorted[idx], idx);
       }
       return;
@@ -120,7 +141,7 @@ export function DataTable({
       e.preventDefault();
       e.stopPropagation();
       movedByKey.current = true;
-      setFocusIdx(next);
+      focusRowAt(next);
       ensureVisible(next);
     }
   };
@@ -154,8 +175,16 @@ export function DataTable({
       style={virtualize ? { height, overflow: "auto" } : undefined}
       onScroll={virtualize ? (e) => setScrollTop(e.currentTarget.scrollTop) : undefined}
       onKeyDown={onKeyDown}
+      onBlur={keyboard ? (e) => {
+        const to = e.relatedTarget;
+        // A null relatedTarget is the unmount case (or a click on the page
+        // chrome), which the effect above handles; anything else means focus
+        // deliberately went elsewhere.
+        if (to && scrollRef.current && !scrollRef.current.contains(to)) hadFocus.current = false;
+      } : undefined}
       tabIndex={virtualize && !keyboard ? 0 : undefined}
     >
+      <GridContext.Provider value={keyboard}>
       <table
         className="pb-dt__table"
         role={keyboard ? "grid" : undefined}
@@ -193,8 +222,8 @@ export function DataTable({
                     aria-rowindex={virtualize ? i + 2 : undefined}
                     className={`pb-dt__tr${selected ? " pb-dt__tr--selected" : ""}${onRowClick ? " pb-dt__tr--click" : ""}`}
                     aria-selected={keyboard ? selected : undefined}
-                    onClick={onRowClick ? () => { setFocusIdx(i); onRowClick(row, i); } : undefined}
-                    onFocus={keyboard ? (e) => { if (e.target === e.currentTarget) setFocusIdx(i); } : undefined}
+                    onClick={onRowClick ? () => { focusRowAt(i); onRowClick(row, i); } : undefined}
+                    onFocus={keyboard ? (e) => { if (e.target === e.currentTarget) { hadFocus.current = true; focusRowAt(i); } } : undefined}
                   >
                     {numbered && <td className="pb-dt__td pb-dt__num">{number > 0 ? `${number})` : ""}</td>}
                     {columns.map((c) => (
@@ -212,6 +241,7 @@ export function DataTable({
           )}
         </tbody>
       </table>
+      </GridContext.Provider>
     </div>
   );
 }
