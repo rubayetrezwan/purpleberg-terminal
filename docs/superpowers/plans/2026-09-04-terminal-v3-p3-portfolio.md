@@ -181,7 +181,31 @@ table, so it is not worth making at the end of the project.
   stylesheet; the only `box-shadow` uses are hard inset accent bars for selection.
 - [x] Fixed while checking guardrail 3: an unknown `?sort=` key left the screener in raw pool
   order with no header marked sorted (`73c92f7`).
-- [ ] `superpowers:code-reviewer` over the whole branch against the spec and the plans; fix
-  what it finds, or record why not.
+- [x] `superpowers:code-reviewer` over the whole branch. It read the spec, all three plans,
+  every file under `src/`, ran the suite, and probed the numeric claims against the real
+  modules. Findings and outcomes (`38692e4`):
+
+| Severity | Finding | Outcome |
+|---|---|---|
+| Critical | Portfolio closes were fetched for open symbols only while the value series covered every transacted symbol, so a closed position contributed nothing on the days it was held while its flows still counted | Fixed. Probed: +1236.8% where the truth is +33.9% on a book with one exit. The sample portfolio has no sells, which is why the earlier pass missed it |
+| High | `useHistorical`, `useFinancials` and `useFinancialsWithRetry` kept the previous symbol's data, so one company's profile, ratios and chart sat under another's header | Fixed; all three clear on a symbol change |
+| High | FX labelled the current rate as the session OPEN | Fixed; the quote's `open` is carried through |
+| High | Day P&L folded a live row with no previous close in as a flat zero and did not count it stale | Fixed; covers only rows that have one, and reports the rest |
+| Medium | YTD measured from the first row of the loaded window | Fixed; runs from last year's final close, null when unreachable |
+| Medium | Crypto stamped a fresh timestamp on an empty poll | Fixed |
+| Medium | Dashboard printed "0 bp" for a null yield change; margins printed "0.0%" for unsourced margins; Compare hid a real zero; the calendar restamped on an empty scrape; the curve bridged a missing tenor | All fixed |
+| Medium | Movers duplicated rows and React keys below eleven usable movers | Fixed |
+| Medium | A letter key inside a modal focused the command line behind the scrim | Fixed; an open layer owns the keyboard except Escape |
+| Medium | In-cell star buttons were invisible tab stops, two per row, defeating the roving tabindex | Fixed via a grid context; Space and Enter wired on the IPO and holdings tables so every symbol table matches |
+| Medium | A Dietz day with no base was recorded as a flat return, padding the risk gate | Fixed; no return is reported for a day the portfolio did not exist |
+| Low | Em dashes coloured green (`null >= 0`), negative VaR printed raw, zero drawdown in red, phantom position from a rejected-only sell, search race, Space swallowed with no listener, focus lost on row delete, no `h1`, News filter out of step with Back/Forward | All fixed |
+| — | Bundle size, and the SessionClock label that follows spec 7.8 as written | Not changed; recorded above and in the spec |
+
+  One reviewer claim did not survive checking: the "acts on the wrong row" symptom I had
+  recorded in Task 4 turned out to be a missing `await` in my own probe, not the app. The
+  identity-based cursor was still worth doing — tables sorted by a moving value do reshuffle
+  between polls — and it is verified to survive polling, keyboard navigation, Enter, Space,
+  and an off-screen tracked row falling back to a rendered one.
+
 - [ ] Report to the user: what shipped, what was declined, the bundle number, and the merge
   decision for `redesign/terminal-v3` into `main`. Do not merge without a decision.
