@@ -6,6 +6,13 @@
 > authority for prop names: read the actual files before writing a screen. Steps use checkbox
 > (`- [ ]`) syntax.
 
+> **Status: complete.** Every screen in this plan shipped, one commit per task
+> (`d0568df` back through the P2 series, with IPOs and News in `8f47be1`). Portfolio moved to
+> Plan P3 because it was the last file holding the legacy layer alive, and P3 also absorbed
+> this plan's Tasks 11 and 12 for the same reason. The checkboxes below were not ticked item by
+> item; the commits and the verification table in
+> [P3, Task 4](2026-09-04-terminal-v3-p3-portfolio.md) are the record.
+
 **Goal:** Rebuild all eleven market screens on the Terminal v3.0 kit, delete every
 pre-redesign module, and leave the terminal with one design system end to end.
 
