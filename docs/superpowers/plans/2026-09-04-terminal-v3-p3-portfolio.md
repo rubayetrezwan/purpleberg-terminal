@@ -37,12 +37,12 @@ its clock or price data as an argument.
 | `toCsv(transactions)` / `parseCsv(text)` | `date,symbol,side,shares,price,fees`. The parser returns `{ rows, errors }` with a 1-based line number per bad row and never throws. |
 | `SAMPLE_TRANSACTIONS(today)` | Eight buys across AAPL, MSFT, NVDA, JPM, XOM spread over the past year, dated relative to `today`, for the empty state. |
 
-- [ ] **Step 1:** tests first, covering average cost across two buys, a partial sell realising
+- [x] **Step 1:** tests first, covering average cost across two buys, a partial sell realising
   P&L, an oversized sell landing in `rejected`, a full exit keeping realised P&L, stale rows
   excluded from the totals but counted, a value series with a price gap, a Dietz day with a
   cash flow, a flat series giving zero volatility, `riskMetrics` returning null under 20
   points, beta of a series against itself being 1, and a CSV round trip with one bad line.
-- [ ] **Step 2:** implement, `npm test`, commit `lib: portfolio accounting, dietz returns, and risk metrics`.
+- [x] **Step 2:** implement, `npm test`, commit `lib: portfolio accounting, dietz returns, and risk metrics`.
 
 ---
 
@@ -68,10 +68,10 @@ its clock or price data as an argument.
 - **Empty state:** offers the sample portfolio and explains that everything stays in this
   browser.
 
-- [ ] **Step 1:** build the screen and the form, wire the route, run the cutover.
-- [ ] **Step 2:** verify in the browser: sample load, add and delete a transaction, an oversized
+- [x] **Step 1:** build the screen and the form, wire the route, run the cutover.
+- [x] **Step 2:** verify in the browser: sample load, add and delete a transaction, an oversized
   sell refused, CSV round trip, all four tabs, 375px.
-- [ ] **Step 3:** `npm test`, `npx vite build`, commit `screens: portfolio on transactions with returns and risk`.
+- [x] **Step 3:** `npm test`, `npx vite build`, commit `screens: portfolio on transactions with returns and risk`.
 
 ---
 
@@ -80,12 +80,12 @@ its clock or price data as an argument.
 **Files:** delete `src/shared.jsx`, `src/chartTheme.jsx`, `src/hooks.js`, `src/api.js`,
 `src/ThemeContext.jsx`; modify `src/config.js`, `src/main.jsx`, `src/theme/index.css`.
 
-- [ ] **Step 1:** `grep -rn "shared\|chartTheme\|ThemeContext\|from \"../hooks\"\|from \"../api\"" src`
+- [x] **Step 1:** `grep -rn "shared\|chartTheme\|ThemeContext\|from \"../hooks\"\|from \"../api\"" src`
   returns only the `src/data/**` self-references.
-- [ ] **Step 2:** drop the formatter re-exports from `src/config.js`, keeping the ticker lists,
+- [x] **Step 2:** drop the formatter re-exports from `src/config.js`, keeping the ticker lists,
   `SECTORS`, and `IPO_2026`.
-- [ ] **Step 3:** drop `ThemeProvider` from `src/main.jsx`.
-- [ ] **Step 4:** delete everything between the `LEGACY:BEGIN` and `LEGACY:END` sentinels in
+- [x] **Step 3:** drop `ThemeProvider` from `src/main.jsx`.
+- [x] **Step 4:** delete everything between the `LEGACY:BEGIN` and `LEGACY:END` sentinels in
   `src/theme/index.css`, and the sentence about them in the file header.
 - [x] **Step 5:** `npm test` (151 passing), `npx vite build` clean, and both sides re-measured
   with one script (gzip -9 over every emitted file, and over the transitive chunk graph of the
@@ -209,5 +209,8 @@ table, so it is not worth making at the end of the project.
   between polls — and it is verified to survive polling, keyboard navigation, Enter, Space,
   and an off-screen tracked row falling back to a rendered one.
 
-- [ ] Report to the user: what shipped, what was declined, the bundle number, and the merge
-  decision for `redesign/terminal-v3` into `main`. Do not merge without a decision.
+- [x] Reported, and the user asked for a final revision and the merge. `redesign/terminal-v3`
+  merged into `master` (the repo has no `main`) as `a761d75`, a `--no-ff` merge, after a last
+  revision pass: `IconButton` was unused because it lacked `pb-reset`, so five hand-rolled
+  copies in quick-look and Equities were folded into it (`91a4412`), and two unreferenced
+  imports were dropped. No remote exists, so nothing was pushed.
