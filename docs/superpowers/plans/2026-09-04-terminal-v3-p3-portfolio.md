@@ -93,9 +93,11 @@ its clock or price data as an argument.
 
 | Measure | Baseline `73cb96e` | Terminal v3.0 | Delta |
 |---|---|---|---|
-| Total gzip, all of `dist` | 226.7 kB | 242.2 kB | +15.5 kB (+6.8%) |
+| Total gzip, all of `dist` | 226.7 kB | 243.1 kB | +16.4 kB (+7.2%) |
 | First load (entry + CSS + default screen) | 67.2 kB | 87.7 kB | +20.5 kB (+30%) |
 | CSS | 3.5 kB | 6.4 kB | +2.9 kB |
+
+(Re-measured at the end of the branch, after the review fixes; it was 242.2 kB before them.)
 
 **Guardrail 4 does not hold, and is not going to.** The chunking is correct — no screen and no
 part of recharts leaks into the eager chunk, checked by grepping the entry chunk for
