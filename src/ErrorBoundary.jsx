@@ -35,58 +35,16 @@ export default class ErrorBoundary extends Component {
     const isDev = typeof import.meta !== "undefined" && import.meta.env && import.meta.env.DEV;
 
     return (
-      <div
-        style={{
-          padding: 24,
-          margin: 16,
-          background: "#1a0f1f",
-          border: "1px solid #ff4466",
-          borderRadius: 6,
-          fontFamily: "'Segoe UI','Helvetica Neue',Arial,sans-serif",
-          color: "#e6d5ff",
-        }}
-      >
-        <div style={{ fontSize: 14, fontWeight: 800, color: "#ff6699", letterSpacing: 1, marginBottom: 8 }}>
-          SCREEN ERROR {this.props.screen ? `— ${this.props.screen}` : ""}
+      <div className="pb-error" role="alert">
+        <div className="pb-error__title">SCREEN ERROR{this.props.screen ? ` · ${this.props.screen}` : ""}</div>
+        <div className="pb-error__msg">
+          This screen crashed while rendering. The rest of the terminal still works: pick another function or retry this one.
         </div>
-        <div style={{ fontSize: 12, color: "#e6d5ff", marginBottom: 12 }}>
-          This panel crashed while rendering. The rest of the terminal is still usable — pick
-          another function from the sidebar, or retry this one.
-        </div>
-        <div
-          style={{
-            fontSize: 11,
-            fontFamily: "'JetBrains Mono',monospace",
-            color: "#ff9bb3",
-            background: "#0f0614",
-            padding: 10,
-            borderRadius: 4,
-            border: "1px solid #4a1a33",
-            overflow: "auto",
-            maxHeight: 180,
-            whiteSpace: "pre-wrap",
-            marginBottom: 12,
-          }}
-        >
+        <div className="pb-error__stack">
           {String(error?.message || error)}
           {isDev && info?.componentStack ? "\n" + info.componentStack : ""}
         </div>
-        <button
-          onClick={this.handleReset}
-          style={{
-            padding: "6px 14px",
-            background: "#8b5cf6",
-            color: "#fff",
-            border: "none",
-            borderRadius: 3,
-            cursor: "pointer",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: 0.5,
-          }}
-        >
-          RETRY
-        </button>
+        <button type="button" className="pb-button pb-button--primary" onClick={this.handleReset}>RETRY</button>
       </div>
     );
   }

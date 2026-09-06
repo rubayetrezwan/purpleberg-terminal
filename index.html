@@ -6,10 +6,27 @@
     <title>Purpleberg Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <script>
+      // Paint the saved theme before the bundle loads so a light-theme user
+      // does not see a black flash. Mirrors src/theme/applyTheme.js (added in
+      // Task 5); until the settings store exists it also honours the old
+      // purpleberg_theme key.
+      try {
+        var s = JSON.parse(localStorage.getItem("purpleberg.settings") || "{}");
+        var theme = s.theme || localStorage.getItem("purpleberg_theme") || "dark";
+        var dark = theme === "light" ? false
+          : theme === "system" ? window.matchMedia("(prefers-color-scheme: dark)").matches
+          : true;
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        document.documentElement.dataset.density = s.density === "comfortable" ? "comfortable" : "compact";
+      } catch (e) {}
+    </script>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { background: #07070d; overflow: hidden; }
+      html { background: #000; }
+      html[data-theme="light"] { background: #f4f4f1; }
+      body { overflow: hidden; }
     </style>
   </head>
   <body>
