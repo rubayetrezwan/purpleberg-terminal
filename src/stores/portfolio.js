@@ -40,10 +40,9 @@ export function isTransaction(t) {
 }
 export const sanitizePortfolio = (s) => ({ transactions: Array.isArray(s.transactions) ? s.transactions.filter(isTransaction) : [] });
 
-// No automatic migration here: the old Portfolio screen still reads and writes
-// purpleberg_portfolio until Plan P3 replaces it. P3 calls migratePortfolio()
-// at that cutover, only when this store is still empty, so nothing the user
-// enters in the meantime is lost.
+// Migration is not automatic: the Portfolio screen calls migratePortfolio() on
+// first mount, and only while this store is still empty, so a stale
+// purpleberg_portfolio key can never overwrite transactions entered since.
 export const portfolio = createStore("portfolio", { transactions: [] }, { sanitize: sanitizePortfolio });
 
 export function replaceTransactions(transactions) {

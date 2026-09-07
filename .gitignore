@@ -4,5 +4,7 @@ dist
 *.log
 .claude/
 
-# brainstorming mockups (visual companion)
+# Working notes: design spec, implementation plans, and mockups. Kept next to
+# the project, not published with it.
+docs/internal/
 .superpowers/

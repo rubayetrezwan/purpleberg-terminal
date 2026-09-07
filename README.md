@@ -13,9 +13,10 @@ poll.
 > Read the [Data source disclaimer](#data-source-disclaimer) before running it
 > in front of anyone.
 
-Design and implementation record for the current UI (Terminal v3.0):
-[the design spec](docs/superpowers/specs/2026-09-04-terminal-v3-redesign-design.md)
-and the three plans under [docs/superpowers/plans/](docs/superpowers/plans/).
+The interface is deliberately plain: one monospaced family, a black canvas,
+hairline rules instead of cards, and a single accent colour used where a
+Bloomberg screen uses amber. Density over decoration, because the job is to
+read a lot of numbers at once.
 
 ---
 

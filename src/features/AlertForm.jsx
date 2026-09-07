@@ -7,7 +7,7 @@ import { addAlert } from "../stores/alerts.js";
 import { conditionHolds } from "../lib/alerts.js";
 import { fmtNum } from "../lib/format.js";
 
-// Inline alert form used by quick-look (and by screen headers in P2).
+// Inline alert form, used by the quick-look drawer and the Equities header.
 export function AlertForm({ symbol, currentPrice, onDone }) {
   const [op, setOp] = useState("above");
   const [price, setPrice] = useState(currentPrice > 0 ? currentPrice.toFixed(2) : "");

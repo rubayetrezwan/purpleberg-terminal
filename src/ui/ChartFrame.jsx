@@ -42,7 +42,8 @@ export function useChartTheme() {
       cursor: { stroke: colors.muted, strokeWidth: 1 },
     },
     lineProps: { strokeWidth: 1.5, dot: false, activeDot: { r: 3, strokeWidth: 0 }, isAnimationActive: false },
-    // Flat 8% fill, no gradient (spec 3.3 and rule 3).
+    // A flat 8% fill, never a gradient: a gradient under a line implies a
+    // magnitude the data does not carry, and it reads as decoration.
     areaProps: { strokeWidth: 1.5, dot: false, fillOpacity: 0.08, activeDot: { r: 3, strokeWidth: 0 }, isAnimationActive: false },
   }), [colors]);
 }

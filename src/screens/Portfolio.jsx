@@ -50,8 +50,9 @@ const moneySigned = (n, d = 2) => (n == null ? "—" : `${n < 0 ? "-" : "+"}$${f
 const tone = (n) => (n == null ? undefined : n > 0 ? "up" : n < 0 ? "down" : undefined);
 const shareStr = (n) => fmtNum(n, n % 1 === 0 ? 0 : 4);
 
-// One-time cutover from the pre-redesign holdings list. Only runs while the
-// transaction store is empty, so nothing entered since is overwritten.
+// One-time import of the older {symbol, shares, avgCost} holdings list. Only
+// runs while the transaction store is empty, so nothing entered since is
+// overwritten.
 function useMigration() {
   const done = useRef(false);
   useEffect(() => {
