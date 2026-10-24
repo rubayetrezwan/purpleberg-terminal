@@ -32,6 +32,25 @@ test("a failing upstream falls back to the last good answer after it went stale"
   assert.deepEqual(out, ["AAPL"]);
 });
 
+test("the fallback also holds when the freshness window is longer than the grace period", async () => {
+  // FX rates, financials and the IPO calendar are cached for 30 min to 6 h.
+  // Their grace period has to come on top of that window, not instead of it.
+  const { cached } = createCache({ staleMs: 30 });
+  await cached("fx", 50, async () => ({ EUR: 0.92 }));
+  await sleep(70);
+  const out = await cached("fx", 50, async () => { throw new Error("rates down"); });
+  assert.deepEqual(out, { EUR: 0.92 });
+});
+
+test("put stores an answer under the same freshness and grace rules", async () => {
+  const { cached, put } = createCache({ staleMs: 5_000 });
+  put("fin:AAPL", { pe: 30 }, 60_000);
+  let calls = 0;
+  const out = await cached("fin:AAPL", 60_000, async () => { calls += 1; return {}; });
+  assert.deepEqual(out, { pe: 30 });
+  assert.equal(calls, 0);
+});
+
 test("with nothing cached, the upstream error reaches the caller", async () => {
   const { cached } = createCache();
   await assert.rejects(cached("none", 1_000, async () => { throw new Error("down"); }), /down/);

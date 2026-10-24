@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sortRows, visibleWindow, digitIndex, maxScrollTop, firstVisibleRow } from "./tableUtils.js";
+import { sortRows, visibleWindow, digitIndex, maxScrollTop, firstVisibleRow, revealRow } from "./tableUtils.js";
 
 const cols = [{ key: "sym" }, { key: "px" }, { key: "name", sortValue: (r) => r.name.toLowerCase() }];
 const rows = [
@@ -67,4 +67,15 @@ test("firstVisibleRow skips a row that is mostly under the header", () => {
   assert.equal(firstVisibleRow(5401, 24, 248), 225, "1px of row 225 is hidden");
   assert.equal(firstVisibleRow(999_999, 24, 5), 4);
   assert.equal(firstVisibleRow(100, 24, 0), 0);
+});
+
+test("revealRow brings a row fully into view below the header and no further", () => {
+  // End on the screener: the last row has to sit on the bottom edge, which is
+  // the browser's own maximum, not 24px below it.
+  assert.equal(revealRow(247, 24, 0, 560), maxScrollTop(248, 24, 560));
+  assert.equal(revealRow(0, 24, 500, 560), 0, "back to the top");
+  assert.equal(revealRow(30, 24, 720, 560), 720, "row 30 is the first under the header: already in view");
+  assert.equal(revealRow(29, 24, 720, 560), 696, "one row up scrolls by exactly one row");
+  assert.equal(revealRow(51, 24, 720, 560), 720, "row 51 is the last fully shown");
+  assert.equal(revealRow(52, 24, 720, 560), 736, "row 52 is 16px short of the bottom edge");
 });

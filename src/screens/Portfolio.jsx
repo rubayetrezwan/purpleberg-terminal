@@ -455,10 +455,10 @@ export default function Portfolio() {
             meta={`${transactions.length}`}
             actions={
               <>
-                <Button size="sm" onClick={doExport}>EXPORT CSV</Button>
+                <Button size="sm" disabled={!transactions.length} onClick={doExport}>EXPORT CSV</Button>
                 <Button size="sm" onClick={() => fileRef.current && fileRef.current.click()}>IMPORT CSV</Button>
                 <input ref={fileRef} type="file" accept="text/csv,.csv,.txt" className="pb-sr-only" onChange={(e) => doImport(e.target.files && e.target.files[0])} aria-label="Import transactions CSV" />
-                <Button size="sm" variant="danger" onClick={doClear}>CLEAR</Button>
+                <Button size="sm" variant="danger" disabled={!transactions.length} onClick={doClear}>CLEAR</Button>
               </>
             }
             flush

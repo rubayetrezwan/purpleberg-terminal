@@ -191,18 +191,18 @@ export function valueSeries(transactions, closesBySymbol, dates) {
   const closes = new Map(symbols.map((s) => [s, (closesBySymbol && closesBySymbol[s]) || []]));
   const cursor = new Map(symbols.map((s) => [s, { i: 0, last: null }]));
   const held = new Map(symbols.map((s) => [s, 0]));
+  const list = Array.isArray(dates) ? dates : [];
   let ti = 0;
-  let prevDate = null;
   const out = [];
-  for (const date of Array.isArray(dates) ? dates : []) {
+  for (const date of list) {
     // Per symbol, what was traded since the previous session.
     const session = new Map();
     while (ti < txs.length && txs[ti].date <= date) {
       const t = txs[ti++];
       const s = String(t.symbol || "").toUpperCase();
       const q = num(t.shares);
-      const isNew = prevDate == null ? t.date === date : t.date > prevDate;
-      if (isNew) {
+      // A trade dated before the window is already in its opening value.
+      if (t.date >= list[0]) {
         const e = session.get(s) || { bought: 0, cost: 0, sold: 0 };
         if (t.side === "buy") {
           e.bought += q;
@@ -214,7 +214,6 @@ export function valueSeries(transactions, closesBySymbol, dates) {
       }
       held.set(s, (held.get(s) || 0) + (t.side === "sell" ? -q : q));
     }
-    prevDate = date;
     let value = 0;
     for (const s of symbols) {
       const c = cursor.get(s);

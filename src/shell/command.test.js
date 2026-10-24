@@ -54,8 +54,17 @@ test("buildSuggestions: a ticker typed in full comes first, ahead of longer matc
   assert.equal(items[1].label, "MSFT", "the watchlist follows");
 });
 
+test("buildSuggestions: an exact Yahoo hit leads too, for a ticker nobody tracks", () => {
+  const items = buildSuggestions({
+    value: "AA", parsed: parseCommand("AA"), poolList: pool, watch: ["AAPL"],
+    yahoo: [{ symbol: "AA", name: "Alcoa Corporation", type: "EQUITY", exchange: "NYQ" }, { symbol: "AAPL", name: "dup" }],
+  });
+  assert.deepEqual(items.slice(0, 2).map((i) => `${i.kind}:${i.label}`), ["exact:AA", "watch:AAPL"]);
+  assert.equal(items.filter((i) => i.symbol === "AA").length, 1, "not repeated under SEARCH");
+});
+
 test("buildSuggestions: no exact row for a partial ticker or an index", () => {
-  const partial = buildSuggestions({ value: "AA", parsed: parseCommand("AA"), poolList: pool });
+  const partial = buildSuggestions({ value: "AAP", parsed: parseCommand("AAP"), poolList: pool });
   assert.ok(!partial.some((i) => i.kind === "exact"));
   const index = buildSuggestions({ value: "^GSPC", parsed: parseCommand("^GSPC"), poolList: pool });
   assert.ok(!index.some((i) => i.kind === "exact"));

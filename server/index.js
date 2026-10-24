@@ -66,7 +66,7 @@ const INTERVAL_ALLOW = new Set(["1m", "5m", "15m", "30m", "1h", "1d", "1wk", "1m
 const isTicker = (s) => typeof s === "string" && TICKER_RE.test(s);
 
 // ── Bounded LRU cache ───────────────────────────────────
-const { cache, cached } = createCache();
+const { cache, cached, put } = createCache();
 
 // ── Yahoo Finance API with crumb-based auth ─────────────
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -587,7 +587,7 @@ app.get("/api/financials/:symbol", apiLimiter, async (req, res) => {
       crumbExpiry = 0;
       try {
         data = await yahooSummary(symbol);
-        cache.set(cacheKey, { data, ts: Date.now() }, { ttl: 1800_000 });
+        put(cacheKey, data, 1800_000);
       } catch (e2) {
         console.error(`Financials retry failed for ${symbol}:`, e2.message);
         data = {};
@@ -754,10 +754,8 @@ app.get("/api/econ-calendar", apiLimiter, async (req, res) => {
 
     res.json(data);
   } catch (e) {
+    // cached() has already fallen back to any stale copy before throwing.
     console.error("Economic calendar error:", e.message);
-    // Check if we have stale cached data to return
-    const stale = cache.get("econ:calendar", { allowStale: true });
-    if (stale) return res.json(stale.data);
     res.json([]);
   }
 });
@@ -946,9 +944,9 @@ app.get("/api/crypto/markets", apiLimiter, async (req, res) => {
     });
     res.json(data);
   } catch (e) {
+    // cached() has already fallen back to any stale CoinGecko copy before
+    // throwing, so reaching here means there is none.
     console.error("Crypto markets (CoinGecko) error:", e.message);
-    const stale = cache.get("crypto:markets:top20", { allowStale: true });
-    if (stale) return res.json(stale.data);
     // Last resort: an independent upstream. Separate cache key so a warm
     // Paprika response doesn't suppress the primary CoinGecko retry.
     try {
@@ -1086,8 +1084,8 @@ app.get("/api/status", apiLimiter, (req, res) => {
   });
 });
 
-// Any /api path no route above claimed. Without this, in production the SPA
-// fallback below swallowed it and never answered.
+// Any /api path no route above claimed gets a JSON 404 here, before it can
+// reach the SPA fallback below. Keep this after the last API route.
 app.use("/api", (req, res) => res.status(404).json({ error: "not found" }));
 
 const distPath = path.resolve(__dirname, "../dist");

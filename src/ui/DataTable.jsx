@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useDensity } from "../theme/useResolvedTheme.js";
-import { sortRows, visibleWindow, digitIndex, maxScrollTop, firstVisibleRow } from "./tableUtils.js";
+import { sortRows, visibleWindow, digitIndex, maxScrollTop, firstVisibleRow, revealRow } from "./tableUtils.js";
 import { GridContext } from "./gridContext.js";
 import { Skeleton } from "./Skeleton.jsx";
 import { EmptyState } from "./EmptyState.jsx";
@@ -93,11 +93,7 @@ export function DataTable({
     const s = scrollRef.current;
     if (!s) return;
     if (virtualize) {
-      const rowTop = idx * rowH;
-      const rowBottom = rowTop + rowH;
-      const headerH = rowH; // the sticky header covers the top of the scrollport
-      if (rowTop - headerH < s.scrollTop) s.scrollTop = Math.max(0, rowTop - headerH);
-      else if (rowBottom > s.scrollTop + s.clientHeight) s.scrollTop = rowBottom - s.clientHeight;
+      s.scrollTop = revealRow(idx, rowH, s.scrollTop, s.clientHeight);
       syncScroll(s);
     } else {
       const el = s.querySelector(`[data-row-index="${idx}"]`);
@@ -108,8 +104,8 @@ export function DataTable({
   const onKeyDown = (e) => {
     if (!keyboard || !sorted.length) return;
     if (e.target.closest(INTERACTIVE)) return; // in-cell controls own their own keys
-    const viewportH = virtualize ? height : (scrollRef.current ? scrollRef.current.clientHeight : height);
-    const page = Math.max(1, Math.floor(viewportH / rowH) - 1);
+    const pageH = scrollRef.current ? scrollRef.current.clientHeight : height;
+    const page = Math.max(1, Math.floor(pageH / rowH) - 1);
     const current = focusIdx < 0 ? -1 : focusIdx;
     let next = null;
     if (e.key === "ArrowDown") next = Math.min(sorted.length - 1, current + 1);

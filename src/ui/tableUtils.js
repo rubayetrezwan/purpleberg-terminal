@@ -37,11 +37,23 @@ export function visibleWindow(scrollTop, rowH, total, viewportH, overscan = 8) {
   return { start, end: Math.max(start, end) };
 }
 
-// Largest scrollTop a virtual table can reach. The sticky header is a row of
-// its own inside the scrollport, so the content is one row taller than the
-// body; leaving it out clamped the bottom of the list a row short.
+// Virtual-table geometry. The sticky header is a row of its own inside the
+// scrollport, so row i spans (i + 1) * rowH to (i + 2) * rowH of the content
+// and the content is one row taller than the body.
+
+// Largest scrollTop a virtual table can reach.
 export function maxScrollTop(total, rowH, viewportH) {
   return Math.max(0, (total + 1) * rowH - viewportH);
+}
+
+// The scrollTop that shows row `idx` in full below the header, moving as
+// little as possible; the current one if the row is already in view.
+export function revealRow(idx, rowH, scrollTop, viewportH) {
+  const top = (idx + 1) * rowH;
+  const bottom = top + rowH;
+  if (top - rowH < scrollTop) return Math.max(0, top - rowH);
+  if (bottom > scrollTop + viewportH) return bottom - viewportH;
+  return scrollTop;
 }
 
 // The first row a reader actually sees below the sticky header, which is what

@@ -34,10 +34,12 @@ export function buildSuggestions({ value, parsed, poolList = [], watch = [], yah
 
   // A ticker typed in full leads, so Enter on "MS" opens Morgan Stanley rather
   // than MSFT, which would otherwise come first as a watchlist or prefix hit.
-  // Indices stay out, as they do from the tracked list below.
-  if (!q.startsWith("^") && (watch.includes(q) || bySym.has(q))) {
-    pushSymbol(symItem("exact", bySym.get(q) || { symbol: q }));
-  }
+  // Yahoo's results count too, for tickers outside the tracked list ("AA"),
+  // though they arrive after the search debounce. Indices stay out, as they do
+  // from the tracked list below.
+  const exact = q.startsWith("^") ? null
+    : bySym.get(q) || yahoo.find((r) => r.symbol === q) || (watch.includes(q) ? { symbol: q } : null);
+  if (exact) pushSymbol(symItem("exact", exact));
 
   for (const s of watch) {
     const row = bySym.get(s) || { symbol: s };
