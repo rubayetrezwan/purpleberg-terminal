@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -232,7 +232,9 @@ export default function Equities() {
   const pool = useQuotePool();
   const watched = useStore(watchlist, (s) => s.symbols);
   const [filter, setFilter] = useState("");
-  const [alertOpen, setAlertOpen] = useState(false);
+  // The symbol the alert form was opened for. The form seeds its price once,
+  // so it only counts as open while that is still the symbol on screen.
+  const [alertFor, setAlertFor] = useState(null);
 
   const listMode = query.list === "all" || !watched.length ? "all" : "watch";
   const tab = TABS.includes((query.tab || "").toUpperCase()) ? query.tab.toUpperCase() : "CHART";
@@ -255,9 +257,7 @@ export default function Equities() {
   // retaining it puts it in the shared poll for as long as this screen is open.
   usePoolExtra(symbol);
   const quote = useQuote(symbol);
-  // The form seeds its price once, on mount. Left open across a symbol change
-  // it would arm the new symbol at the old one's price.
-  useEffect(() => { setAlertOpen(false); }, [symbol]);
+  const alertOpen = alertFor === symbol;
   const isWatched = watched.includes(symbol);
   const { data: fin, loading: finLoading } = useFinancialsWithRetry(symbol);
 
@@ -325,7 +325,7 @@ export default function Equities() {
             label="Set price alert"
             className={alertOpen ? "pb-accent" : ""}
             aria-expanded={alertOpen}
-            onClick={() => setAlertOpen((v) => !v)}
+            onClick={() => setAlertFor(alertOpen ? null : symbol)}
           >
             <Bell size={13} strokeWidth={1.5} />
           </IconButton>
@@ -334,7 +334,7 @@ export default function Equities() {
 
       {alertOpen && quote && (
         <div className="pb-eq__alert">
-          <AlertForm symbol={symbol} currentPrice={quote.price} onDone={() => setAlertOpen(false)} />
+          <AlertForm symbol={symbol} currentPrice={quote.price} onDone={() => setAlertFor(null)} />
         </div>
       )}
 

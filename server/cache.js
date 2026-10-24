@@ -13,7 +13,6 @@ export function createCache({ max = 2000, staleMs = STALE_MS } = {}) {
   const cache = new LRUCache({
     max,                    // hard ceiling on keys
     ttl: staleMs,           // per-entry TTL passed to set() wins
-    allowStale: true,       // serve stale on upstream error
     updateAgeOnGet: false,
   });
 

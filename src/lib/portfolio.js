@@ -195,21 +195,22 @@ export function valueSeries(transactions, closesBySymbol, dates) {
   let prevDate = null;
   const out = [];
   for (const date of Array.isArray(dates) ? dates : []) {
-    const boughtToday = new Map();
+    // Per symbol, what was traded since the previous session.
+    const session = new Map();
     while (ti < txs.length && txs[ti].date <= date) {
       const t = txs[ti++];
       const s = String(t.symbol || "").toUpperCase();
       const q = num(t.shares);
       const isNew = prevDate == null ? t.date === date : t.date > prevDate;
       if (isNew) {
-        const e = boughtToday.get(s) || { shares: 0, amount: 0, sold: 0 };
+        const e = session.get(s) || { bought: 0, cost: 0, sold: 0 };
         if (t.side === "buy") {
-          e.shares += q;
-          e.amount += q * num(t.price);
+          e.bought += q;
+          e.cost += q * num(t.price);
         } else {
           e.sold += q;
         }
-        boughtToday.set(s, e);
+        session.set(s, e);
       }
       held.set(s, (held.get(s) || 0) + (t.side === "sell" ? -q : q));
     }
@@ -223,14 +224,14 @@ export function valueSeries(transactions, closesBySymbol, dates) {
         if (Number.isFinite(v) && v > 0) c.last = v;
         c.i++;
       }
-      const fresh = boughtToday.get(s);
+      const traded = session.get(s);
       const total = held.get(s) || 0;
-      const freshHeld = fresh && fresh.shares > 0
-        ? Math.min(total, Math.max(0, fresh.shares - fresh.sold))
+      const atCost = traded && traded.bought > 0
+        ? Math.min(total, Math.max(0, traded.bought - traded.sold))
         : 0;
-      const marked = total - freshHeld;
+      const marked = total - atCost;
       if (marked > EPS && c.last != null) value += marked * c.last;
-      if (freshHeld > EPS) value += fresh.amount * (freshHeld / fresh.shares);
+      if (atCost > EPS) value += traded.cost * (atCost / traded.bought);
     }
     out.push({ date, value });
   }
@@ -278,11 +279,12 @@ export function flowsByDate(transactions) {
 /**
  * One-day Dietz, chained into an index starting at 100:
  *   r = (V(d) - V(d-1) - CF(d)) / (V(d-1) + max(CF(d), 0))
- * New money is in from the start of the day; money taken out leaves at the
- * close. Taking proceeds out of the opening base instead turns a full exit
- * into a base of almost nothing and the day into a -100% that the index can
- * never recover from. A day whose base is zero has no meaningful return, so
- * it is not reported.
+ * CF is the day's net flow (flowsByDate). Net new money is invested from the
+ * start of the day; a net withdrawal leaves at the close, because the shares
+ * sold were held, and moved with the market, until they were sold. Taking it
+ * out of the opening base instead leaves a full exit with almost nothing to
+ * divide by and reads as a -100% day. A day whose base is zero has no
+ * meaningful return, so it is not reported.
  */
 export function dietzSeries(series, flows = {}) {
   const list = Array.isArray(series) ? series : [];

@@ -38,7 +38,13 @@ export function DataTable({
   // whatever row moved into that slot — so Enter opened, and Space starred, an
   // instrument the user was not looking at.
   const [focusKey, setFocusKey] = useState(null);
-  const [scrollTop, setScrollTop] = useState(0);
+  // The viewport height is read from the element rather than taken from the
+  // `height` prop, because a horizontal scrollbar takes its share of that box.
+  const [scroll, setScroll] = useState({ top: 0, viewportH: null });
+  const syncScroll = (el) => {
+    const next = { top: el.scrollTop, viewportH: el.clientHeight };
+    setScroll((s) => (s.top === next.top && s.viewportH === next.viewportH ? s : next));
+  };
   const scrollRef = useRef(null);
   const movedByKey = useRef(false);
   const lastIdx = useRef(-1);
@@ -59,10 +65,8 @@ export function DataTable({
   useEffect(() => { lastIdx.current = focusIdx; }, [focusIdx]);
   const focusRowAt = (i) => setFocusKey(i >= 0 && i < sorted.length ? keyOf(sorted[i], i) : null);
 
-  // A horizontal scrollbar takes its height out of the viewport, so measure
-  // it once the table is mounted instead of trusting the `height` prop.
-  const viewportH = scrollRef.current ? scrollRef.current.clientHeight || height : height;
-  const top = virtualize ? Math.min(scrollTop, maxScrollTop(sorted.length, rowH, viewportH)) : 0;
+  const viewportH = scroll.viewportH || height;
+  const top = virtualize ? Math.min(scroll.top, maxScrollTop(sorted.length, rowH, viewportH)) : 0;
   const win = virtualize ? visibleWindow(top, rowH, sorted.length, height, 8) : { start: 0, end: sorted.length };
   const slice = sorted.slice(win.start, win.end);
   const firstVisible = virtualize ? firstVisibleRow(top, rowH, sorted.length) : 0;
@@ -94,7 +98,7 @@ export function DataTable({
       const headerH = rowH; // the sticky header covers the top of the scrollport
       if (rowTop - headerH < s.scrollTop) s.scrollTop = Math.max(0, rowTop - headerH);
       else if (rowBottom > s.scrollTop + s.clientHeight) s.scrollTop = rowBottom - s.clientHeight;
-      setScrollTop(s.scrollTop);
+      syncScroll(s);
     } else {
       const el = s.querySelector(`[data-row-index="${idx}"]`);
       if (el) el.scrollIntoView({ block: "nearest" }); // scroll-margin-top clears the sticky header
@@ -175,7 +179,7 @@ export function DataTable({
       ref={scrollRef}
       className={`pb-dt${virtualize ? " pb-dt--virtual" : ""}${keyboard ? " pb-dt--nav" : ""}${className ? " " + className : ""}`}
       style={virtualize ? { height, overflow: "auto" } : undefined}
-      onScroll={virtualize ? (e) => setScrollTop(e.currentTarget.scrollTop) : undefined}
+      onScroll={virtualize ? (e) => syncScroll(e.currentTarget) : undefined}
       onKeyDown={onKeyDown}
       onBlur={keyboard ? (e) => {
         const to = e.relatedTarget;

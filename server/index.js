@@ -1086,13 +1086,14 @@ app.get("/api/status", apiLimiter, (req, res) => {
   });
 });
 
+// Any /api path no route above claimed. Without this, in production the SPA
+// fallback below swallowed it and never answered.
+app.use("/api", (req, res) => res.status(404).json({ error: "not found" }));
+
 const distPath = path.resolve(__dirname, "../dist");
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
-  app.get("*", (req, res) => {
-    if (req.path.startsWith("/api/")) return res.status(404).json({ error: "not found" });
-    res.sendFile(path.join(distPath, "index.html"));
-  });
+  app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
 }
 
 // ── Start server ────────────────────────────────────────

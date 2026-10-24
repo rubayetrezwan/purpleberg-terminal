@@ -220,6 +220,26 @@ test("a buy dated on a weekend is valued at cost on the session it books to", ()
   assert.equal(returns[0].r, 0, "the Saturday entry is flat on Monday, not a 2% gain");
 });
 
+test("switching one holding for another on a session nets to no flow", () => {
+  // AAA is sold 1% down and the proceeds go straight into BBB at cost. The day
+  // reads as AAA's move; BBB's own move starts the next session.
+  const dates = ["2026-03-02", "2026-03-03", "2026-03-04"];
+  const closes = {
+    AAA: [{ date: "2026-03-02", close: 100 }, { date: "2026-03-03", close: 99 }],
+    BBB: [{ date: "2026-03-03", close: 101 }, { date: "2026-03-04", close: 101 }],
+  };
+  const txs = [
+    tx({ date: "2026-03-02", symbol: "AAA", side: "buy", shares: 10, price: 100 }),
+    tx({ date: "2026-03-03", symbol: "AAA", side: "sell", shares: 10, price: 99 }),
+    tx({ date: "2026-03-03", symbol: "BBB", side: "buy", shares: 10, price: 99 }),
+  ];
+  const values = valueSeries(txs, closes, dates);
+  assert.deepEqual(values.map((r) => r.value), [1000, 990, 1010]);
+  const { returns } = dietzSeries(values, alignFlows(flowsByDate(txs), dates));
+  assert.equal(returns[0].r.toFixed(6), (-0.01).toFixed(6));
+  assert.equal(returns[1].r.toFixed(6), (20 / 990).toFixed(6));
+});
+
 test("selling out reads as the day's price move, not as a total loss", () => {
   // Down 1% on the day of the sale. The proceeds leave at the close, so they
   // are part of that day's result rather than a hole in its opening base.
