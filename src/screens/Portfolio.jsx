@@ -307,7 +307,9 @@ export default function Portfolio() {
     });
   };
 
-  if (!transactions.length) {
+  // The transactions tab is where the first trade gets entered, so it must
+  // render even when there is nothing yet.
+  if (!transactions.length && tab !== "transactions") {
     return (
       <Page>
         <Section mnemonic="PORT" title="Portfolio">

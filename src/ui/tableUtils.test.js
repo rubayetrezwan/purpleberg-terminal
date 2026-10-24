@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sortRows, visibleWindow, digitIndex } from "./tableUtils.js";
+import { sortRows, visibleWindow, digitIndex, maxScrollTop, firstVisibleRow } from "./tableUtils.js";
 
 const cols = [{ key: "sym" }, { key: "px" }, { key: "name", sortValue: (r) => r.name.toLowerCase() }];
 const rows = [
@@ -52,4 +52,19 @@ test("sortRows: NaN and undefined count as missing, input is not mutated, dir de
 
 test("visibleWindow with no rows", () => {
   assert.deepEqual(visibleWindow(0, 24, 0, 480, 8), { start: 0, end: 0 });
+});
+
+test("the scroll clamp counts the sticky header, so the bottom of a long list is reachable", () => {
+  // The screener: 248 rows of 24px in a 560px scrollport. The browser stops at
+  // 249 * 24 - 560 = 5416; clamping at 5392 shifted every row label by one.
+  assert.equal(maxScrollTop(248, 24, 560), 5416);
+  assert.equal(maxScrollTop(10, 24, 560), 0);
+});
+
+test("firstVisibleRow skips a row that is mostly under the header", () => {
+  assert.equal(firstVisibleRow(0, 24, 248), 0);
+  assert.equal(firstVisibleRow(5416, 24, 248), 226, "16px of row 225 is hidden, 8px shows");
+  assert.equal(firstVisibleRow(5401, 24, 248), 225, "1px of row 225 is hidden");
+  assert.equal(firstVisibleRow(999_999, 24, 5), 4);
+  assert.equal(firstVisibleRow(100, 24, 0), 0);
 });

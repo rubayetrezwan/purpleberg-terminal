@@ -197,6 +197,49 @@ test("a sale on a session still marks the remaining shares to the close", () => 
   assert.deepEqual(out.map((r) => r.value), [1000, 6 * 140]);
 });
 
+test("shares bought and sold on the same session are not counted as still held", () => {
+  // One share held from before, then a round trip of ten on 03-03. The old
+  // share is all that is left and it marks to the close.
+  const txs = [
+    tx({ date: "2026-03-02", symbol: "AAPL", side: "buy", shares: 1, price: 100 }),
+    tx({ date: "2026-03-03", symbol: "AAPL", side: "buy", shares: 10, price: 100 }),
+    tx({ date: "2026-03-03", symbol: "AAPL", side: "sell", shares: 10, price: 101 }),
+  ];
+  const closes = { AAPL: [{ date: "2026-03-02", close: 100 }, { date: "2026-03-03", close: 102 }] };
+  const out = valueSeries(txs, closes, ["2026-03-02", "2026-03-03"]);
+  assert.deepEqual(out.map((r) => r.value), [100, 102]);
+});
+
+test("a buy dated on a weekend is valued at cost on the session it books to", () => {
+  const txs = [tx({ date: "2026-01-03", symbol: "AAPL", side: "buy", shares: 10, price: 98 })];
+  const closes = { AAPL: [{ date: "2026-01-02", close: 100 }, { date: "2026-01-05", close: 100 }, { date: "2026-01-06", close: 110 }] };
+  const dates = ["2026-01-02", "2026-01-05", "2026-01-06"];
+  const out = valueSeries(txs, closes, dates);
+  assert.deepEqual(out.map((r) => r.value), [0, 980, 1100]);
+  const { returns } = dietzSeries(out, alignFlows(flowsByDate(txs), dates));
+  assert.equal(returns[0].r, 0, "the Saturday entry is flat on Monday, not a 2% gain");
+});
+
+test("selling out reads as the day's price move, not as a total loss", () => {
+  // Down 1% on the day of the sale. The proceeds leave at the close, so they
+  // are part of that day's result rather than a hole in its opening base.
+  const dates = ["2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05"];
+  const closes = { AAPL: dates.map((date, i) => ({ date, close: [100, 100, 99, 99][i] })) };
+  const run = (sold) => {
+    const txs = [
+      tx({ date: "2026-03-02", symbol: "AAPL", side: "buy", shares: 10, price: 100 }),
+      tx({ date: "2026-03-04", symbol: "AAPL", side: "sell", shares: sold, price: 99 }),
+    ];
+    return dietzSeries(valueSeries(txs, closes, dates), alignFlows(flowsByDate(txs), dates));
+  };
+  const full = run(10);
+  assert.deepEqual(full.index.map((p) => p.value.toFixed(4)), ["100.0000", "100.0000", "99.0000", "99.0000"]);
+  assert.equal(full.returns.length, 2, "no return once the position is gone");
+  const partial = run(9);
+  assert.equal(partial.returns[1].r.toFixed(6), (-0.01).toFixed(6));
+  assert.equal(partial.index[3].value.toFixed(4), "99.0000");
+});
+
 test("a flow on a day the market was shut books to the next session", () => {
   const flows = { "2026-01-03": 500, "2026-01-05": 200 };
   assert.deepEqual(alignFlows(flows, ["2026-01-02", "2026-01-05", "2026-01-06"]), { "2026-01-05": 700 });

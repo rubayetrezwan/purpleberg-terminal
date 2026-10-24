@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -255,6 +255,9 @@ export default function Equities() {
   // retaining it puts it in the shared poll for as long as this screen is open.
   usePoolExtra(symbol);
   const quote = useQuote(symbol);
+  // The form seeds its price once, on mount. Left open across a symbol change
+  // it would arm the new symbol at the old one's price.
+  useEffect(() => { setAlertOpen(false); }, [symbol]);
   const isWatched = watched.includes(symbol);
   const { data: fin, loading: finLoading } = useFinancialsWithRetry(symbol);
 

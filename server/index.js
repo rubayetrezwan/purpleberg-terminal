@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import rateLimit from "express-rate-limit";
 import { LRUCache } from "lru-cache";
 import { raw, normalizeFinnhubIpo, crossRate } from "./format.js";
+import { createCache } from "./cache.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -65,26 +66,7 @@ const INTERVAL_ALLOW = new Set(["1m", "5m", "15m", "30m", "1h", "1d", "1wk", "1m
 const isTicker = (s) => typeof s === "string" && TICKER_RE.test(s);
 
 // ── Bounded LRU cache ───────────────────────────────────
-const cache = new LRUCache({
-  max: 2000,                // hard ceiling on keys
-  ttl: 15 * 60_000,         // 15-min default TTL (per-entry TTL wins via ttlMs)
-  allowStale: true,         // serve stale on upstream error
-  updateAgeOnGet: false,
-});
-
-function cached(key, ttlMs, fn) {
-  const entry = cache.get(key, { allowStale: false });
-  if (entry && Date.now() - entry.ts < ttlMs) return Promise.resolve(entry.data);
-  return fn().then((data) => {
-    cache.set(key, { data, ts: Date.now() }, { ttl: ttlMs });
-    return data;
-  }).catch((e) => {
-    // On upstream error, serve any stale entry we still have.
-    const stale = cache.get(key, { allowStale: true });
-    if (stale) return stale.data;
-    throw e;
-  });
-}
+const { cache, cached } = createCache();
 
 // ── Yahoo Finance API with crumb-based auth ─────────────
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -1108,9 +1090,8 @@ const distPath = path.resolve(__dirname, "../dist");
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
   app.get("*", (req, res) => {
-    if (!req.path.startsWith("/api")) {
-      res.sendFile(path.join(distPath, "index.html"));
-    }
+    if (req.path.startsWith("/api/")) return res.status(404).json({ error: "not found" });
+    res.sendFile(path.join(distPath, "index.html"));
   });
 }
 

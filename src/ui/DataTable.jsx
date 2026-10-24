@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useDensity } from "../theme/useResolvedTheme.js";
-import { sortRows, visibleWindow, digitIndex } from "./tableUtils.js";
+import { sortRows, visibleWindow, digitIndex, maxScrollTop, firstVisibleRow } from "./tableUtils.js";
 import { GridContext } from "./gridContext.js";
 import { Skeleton } from "./Skeleton.jsx";
 import { EmptyState } from "./EmptyState.jsx";
@@ -59,11 +59,13 @@ export function DataTable({
   useEffect(() => { lastIdx.current = focusIdx; }, [focusIdx]);
   const focusRowAt = (i) => setFocusKey(i >= 0 && i < sorted.length ? keyOf(sorted[i], i) : null);
 
-  const maxScroll = Math.max(0, sorted.length * rowH - height);
-  const top = virtualize ? Math.min(scrollTop, maxScroll) : 0;
+  // A horizontal scrollbar takes its height out of the viewport, so measure
+  // it once the table is mounted instead of trusting the `height` prop.
+  const viewportH = scrollRef.current ? scrollRef.current.clientHeight || height : height;
+  const top = virtualize ? Math.min(scrollTop, maxScrollTop(sorted.length, rowH, viewportH)) : 0;
   const win = virtualize ? visibleWindow(top, rowH, sorted.length, height, 8) : { start: 0, end: sorted.length };
   const slice = sorted.slice(win.start, win.end);
-  const firstVisible = virtualize ? Math.min(Math.floor(top / rowH), Math.max(0, sorted.length - 1)) : 0;
+  const firstVisible = virtualize ? firstVisibleRow(top, rowH, sorted.length) : 0;
   // The one row that carries tabIndex 0 must be rendered, or Tab skips the table.
   const rovingIdx = focusIdx >= win.start && focusIdx < win.end ? focusIdx : win.start;
 

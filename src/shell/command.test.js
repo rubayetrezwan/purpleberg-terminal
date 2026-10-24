@@ -46,6 +46,21 @@ test("buildSuggestions: symbol search orders watchlist, tracked, then Yahoo with
   assert.deepEqual(items.map((i) => `${i.kind}:${i.label}`), ["watch:AAPL", "tracked:AAL", "search:AAOI"]);
 });
 
+test("buildSuggestions: a ticker typed in full comes first, ahead of longer matches", () => {
+  const list = [...pool, { symbol: "MS", name: "Morgan Stanley" }];
+  const items = buildSuggestions({ value: "ms", parsed: parseCommand("ms"), poolList: list, watch: ["MSFT"] });
+  assert.equal(`${items[0].kind}:${items[0].label}`, "exact:MS");
+  assert.equal(items.filter((i) => i.symbol === "MS").length, 1, "listed once");
+  assert.equal(items[1].label, "MSFT", "the watchlist follows");
+});
+
+test("buildSuggestions: no exact row for a partial ticker or an index", () => {
+  const partial = buildSuggestions({ value: "AA", parsed: parseCommand("AA"), poolList: pool });
+  assert.ok(!partial.some((i) => i.kind === "exact"));
+  const index = buildSuggestions({ value: "^GSPC", parsed: parseCommand("^GSPC"), poolList: pool });
+  assert.ok(!index.some((i) => i.kind === "exact"));
+});
+
 test("buildSuggestions: partial command", () => {
   const items = buildSuggestions({ value: "THE", parsed: parseCommand("THE"), poolList: pool });
   assert.deepEqual(items.map((i) => i.label), ["THEME"]);

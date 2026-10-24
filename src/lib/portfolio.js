@@ -179,6 +179,11 @@ export function allocation(rows, keyFn = (r) => r.symbol) {
  * the close would show up as a one-day return, which is how a rough cost basis
  * (or a migrated holding dated today) turns into a fake several-hundred-percent
  * day. From the next session on, everything is marked to the close.
+ *
+ * "That day" is every trade since the previous session, so a buy dated on a
+ * weekend or a holiday counts as new on the session it books to (the same
+ * rule alignFlows uses for its cash). A sale on the same session comes out of
+ * that session's buys first; only what is left of them is held at cost.
  */
 export function valueSeries(transactions, closesBySymbol, dates) {
   const txs = sortTransactions(transactions);
@@ -187,6 +192,7 @@ export function valueSeries(transactions, closesBySymbol, dates) {
   const cursor = new Map(symbols.map((s) => [s, { i: 0, last: null }]));
   const held = new Map(symbols.map((s) => [s, 0]));
   let ti = 0;
+  let prevDate = null;
   const out = [];
   for (const date of Array.isArray(dates) ? dates : []) {
     const boughtToday = new Map();
@@ -194,14 +200,20 @@ export function valueSeries(transactions, closesBySymbol, dates) {
       const t = txs[ti++];
       const s = String(t.symbol || "").toUpperCase();
       const q = num(t.shares);
-      if (t.date === date && t.side === "buy") {
-        const e = boughtToday.get(s) || { shares: 0, amount: 0 };
-        e.shares += q;
-        e.amount += q * num(t.price);
+      const isNew = prevDate == null ? t.date === date : t.date > prevDate;
+      if (isNew) {
+        const e = boughtToday.get(s) || { shares: 0, amount: 0, sold: 0 };
+        if (t.side === "buy") {
+          e.shares += q;
+          e.amount += q * num(t.price);
+        } else {
+          e.sold += q;
+        }
         boughtToday.set(s, e);
       }
       held.set(s, (held.get(s) || 0) + (t.side === "sell" ? -q : q));
     }
+    prevDate = date;
     let value = 0;
     for (const s of symbols) {
       const c = cursor.get(s);
@@ -212,9 +224,13 @@ export function valueSeries(transactions, closesBySymbol, dates) {
         c.i++;
       }
       const fresh = boughtToday.get(s);
-      const marked = (held.get(s) || 0) - (fresh ? fresh.shares : 0);
+      const total = held.get(s) || 0;
+      const freshHeld = fresh && fresh.shares > 0
+        ? Math.min(total, Math.max(0, fresh.shares - fresh.sold))
+        : 0;
+      const marked = total - freshHeld;
       if (marked > EPS && c.last != null) value += marked * c.last;
-      if (fresh) value += fresh.amount;
+      if (freshHeld > EPS) value += fresh.amount * (freshHeld / fresh.shares);
     }
     out.push({ date, value });
   }
@@ -260,10 +276,13 @@ export function flowsByDate(transactions) {
 }
 
 /**
- * One-day Dietz with the day's cash flow at the start of the day:
- *   r = (V(d) - V(d-1) - CF(d)) / (V(d-1) + CF(d))
- * chained into an index starting at 100. A day whose base is zero or negative
- * has no meaningful return (the position opened that day), so it reads flat.
+ * One-day Dietz, chained into an index starting at 100:
+ *   r = (V(d) - V(d-1) - CF(d)) / (V(d-1) + max(CF(d), 0))
+ * New money is in from the start of the day; money taken out leaves at the
+ * close. Taking proceeds out of the opening base instead turns a full exit
+ * into a base of almost nothing and the day into a -100% that the index can
+ * never recover from. A day whose base is zero has no meaningful return, so
+ * it is not reported.
  */
 export function dietzSeries(series, flows = {}) {
   const list = Array.isArray(series) ? series : [];
@@ -275,7 +294,7 @@ export function dietzSeries(series, flows = {}) {
     if (i === 0) { index.push({ date: cur.date, value: level }); continue; }
     const prev = list[i - 1];
     const cf = num(flows[cur.date]);
-    const base = num(prev.value) + cf;
+    const base = num(prev.value) + Math.max(cf, 0);
     // No base means the portfolio did not exist that day (before the first
     // trade, or between a full exit and a later re-entry). Recording it as a
     // flat return would pad the series past the risk gate and dilute

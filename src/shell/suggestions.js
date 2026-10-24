@@ -32,6 +32,12 @@ export function buildSuggestions({ value, parsed, poolList = [], watch = [], yah
   const bySym = new Map(poolList.map((x) => [x.symbol, x]));
   const hit = (row) => row.symbol.startsWith(q) || (row.name || "").toUpperCase().includes(q);
 
+  // A ticker typed in full leads, so Enter on "MS" opens Morgan Stanley rather
+  // than MSFT, which sorts ahead of it as a watchlist or prefix hit.
+  if (watch.includes(q) || bySym.has(q)) {
+    if (!q.startsWith("^")) pushSymbol(symItem("exact", bySym.get(q) || { symbol: q }));
+  }
+
   for (const s of watch) {
     const row = bySym.get(s) || { symbol: s };
     if (hit(row)) pushSymbol(symItem("watch", row));
@@ -57,4 +63,4 @@ export function buildSuggestions({ value, parsed, poolList = [], watch = [], yah
   return out;
 }
 
-export const GROUP_LABELS = { function: "FUNCTIONS", watch: "WATCHLIST", tracked: "TRACKED", search: "SEARCH", command: "COMMANDS" };
+export const GROUP_LABELS = { exact: "TICKER", function: "FUNCTIONS", watch: "WATCHLIST", tracked: "TRACKED", search: "SEARCH", command: "COMMANDS" };
