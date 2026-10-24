@@ -60,11 +60,29 @@ export function isTradingDay(ymd) {
 }
 
 export function nextTradingDay(ymd) {
+  return stepTradingDay(ymd, 1);
+}
+
+export function previousTradingDay(ymd) {
+  return stepTradingDay(ymd, -1);
+}
+
+// The trading day a trade made at `now` belongs to: today in New York once the
+// market has opened on a trading day, otherwise the trading day before. East
+// of New York a US afternoon is already tomorrow on the local calendar, so the
+// local date is the wrong default for a US trade.
+export function tradeDate(now = new Date()) {
+  const p = etParts(now);
+  if (isTradingDay(p.ymd) && p.hour * 60 + p.minute >= OPEN_MIN) return p.ymd;
+  return previousTradingDay(p.ymd);
+}
+
+function stepTradingDay(ymd, step) {
   const [y, m, d] = ymd.split("-").map(Number);
   let t = Date.UTC(y, m - 1, d);
   let firstWeekday = null;
   for (let i = 0; i < 14; i += 1) {
-    t += 86_400_000;
+    t += step * 86_400_000;
     const dt = new Date(t);
     const s = dt.toISOString().slice(0, 10);
     const wd = dt.getUTCDay();

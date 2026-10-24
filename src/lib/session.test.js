@@ -1,6 +1,6 @@
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
-import { nyseSession, etParts, etOffsetMinutes, etInstant, nextTradingDay, isTradingDay, stateFromMarketState } from "./session.js";
+import { nyseSession, etParts, etOffsetMinutes, etInstant, nextTradingDay, previousTradingDay, tradeDate, isTradingDay, stateFromMarketState } from "./session.js";
 
 const at = (iso) => new Date(iso);
 const iso = (d) => d.toISOString();
@@ -104,4 +104,24 @@ test("dates past the holiday table still resolve and are flagged", () => {
   assert.equal(nyseSession(at("2026-09-04T14:00:00Z")).tableStale, false);
   warn.mock.restore();
   assert.equal(nextTradingDay("2027-12-24"), "2027-12-27");
+});
+
+test("previousTradingDay steps back over weekends and holidays", () => {
+  assert.equal(previousTradingDay("2026-10-26"), "2026-10-23"); // Monday back to Friday
+  assert.equal(previousTradingDay("2027-01-19"), "2027-01-15"); // over MLK Day and the weekend
+  assert.equal(previousTradingDay("2026-11-27"), "2026-11-25"); // over Thanksgiving
+});
+
+test("tradeDate is the New York trading day, not the local calendar day", () => {
+  // Tue 00:30 in Dhaka is still Monday afternoon in New York.
+  assert.equal(tradeDate(at("2026-10-26T18:30:00Z")), "2026-10-26");
+  // Saturday afternoon in Dhaka: the last session was Friday.
+  assert.equal(tradeDate(at("2026-10-24T08:30:00Z")), "2026-10-23");
+  // 22:00 Monday in Los Angeles is 01:00 Tuesday in New York, before the open.
+  assert.equal(tradeDate(at("2026-10-27T05:00:00Z")), "2026-10-26");
+  // Monday before and after the 09:30 open.
+  assert.equal(tradeDate(at("2026-10-26T13:00:00Z")), "2026-10-23");
+  assert.equal(tradeDate(at("2026-10-26T13:30:00Z")), "2026-10-26");
+  // Thanksgiving: no session, so the day before.
+  assert.equal(tradeDate(at("2026-11-26T17:00:00Z")), "2026-11-25");
 });

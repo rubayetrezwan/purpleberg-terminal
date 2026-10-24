@@ -149,19 +149,17 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-flash-up { animation: pb-flash-up 0.6s ease-out; }
 .pb-flash-down { animation: pb-flash-down 0.6s ease-out; }
 
+/* Reduced motion stops everything except two: the price tape, which when
+   stopped only ever shows its first few names (hovering it pauses it), and the
+   price flash, a colour fade rather than movement and the only sign that a
+   price just changed. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *:not(.pb-tape__scroll, .pb-flash-up, .pb-flash-down), *::before, *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     animation-delay: 0s !important;
     scroll-behavior: auto !important;
-  }
-  /* The price tape keeps scrolling: stopped, it only ever shows its first few
-     names. Hovering it still pauses it. */
-  .pb-tape__scroll {
-    animation-duration: var(--tape-duration) !important;
-    animation-iteration-count: infinite !important;
   }
 }
 
@@ -429,7 +427,7 @@ input::placeholder { color: var(--c-text-muted); }
 
 .pb-tape { position: relative; z-index: var(--z-shell); display: flex; align-items: center; height: var(--tape-h); border-top: 1px solid var(--c-line); font-size: var(--fs-xs); flex-shrink: 0; overflow: hidden; }
 .pb-tape__viewport { flex: 1; min-width: 0; overflow: hidden; }
-.pb-tape__scroll { --tape-duration: 75s; display: inline-flex; gap: 20px; white-space: nowrap; padding-left: 10px; animation: pb-tape var(--tape-duration) linear infinite; }
+.pb-tape__scroll { display: inline-flex; gap: 20px; white-space: nowrap; padding-left: 10px; animation: pb-tape 75s linear infinite; }
 .pb-tape__scroll:hover { animation-play-state: paused; }
 .pb-tape__item { display: inline-flex; gap: 6px; }
 .pb-tape__status { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px 0 16px; border-left: 1px solid var(--c-line); background: var(--c-bg); white-space: nowrap; color: var(--c-text-dim); letter-spacing: 0.04em; }

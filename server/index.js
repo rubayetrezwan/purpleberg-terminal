@@ -740,7 +740,7 @@ app.get("/api/econ-calendar", apiLimiter, async (req, res) => {
         .map((ev) => {
           const d = ev.date ? new Date(ev.date) : null;
           return {
-            date: d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", weekday: "short" }) : "—",
+            date: d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", weekday: "short", timeZone: "America/New_York" }) : "—",
             time: d ? d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/New_York" }) + " ET" : "—",
             event: ev.title || "—",
             country: ev.country || "—",
