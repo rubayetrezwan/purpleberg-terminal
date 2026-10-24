@@ -15,7 +15,7 @@ export function BottomTape() {
   return (
     <footer className="pb-tape" aria-label="Price tape and feed status">
       <div className="pb-tape__viewport">
-        <div className="pb-tape__scroll" style={{ animationPlayState: tape.length ? "running" : "paused" }}>
+        <div className="pb-tape__scroll">
           {[...tape, ...tape].map((q, i) => (
             <span key={`${q.symbol}-${i}`} className="pb-tape__item">
               <span className="pb-muted">{q.symbol}</span>
