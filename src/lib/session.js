@@ -124,7 +124,7 @@ export function nyseSession(now = new Date()) {
   else if (state === "pre" || (trading && t < PRE_MIN)) countdownTo = etInstant(p.ymd, OPEN_MIN);
   else countdownTo = etInstant(nextTradingDay(p.ymd), OPEN_MIN);
 
-  return { state, early, ymd: p.ymd, countdownTo, countdownLabel: state === "open" ? "closes" : "opens", tableStale };
+  return { state, early, ymd: p.ymd, countdownTo, countdownLabel: state === "open" ? "closes in" : "opens in", tableStale };
 }
 
 // Yahoo's marketState on ^GSPC mapped to our session states.

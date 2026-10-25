@@ -56,17 +56,16 @@ export function revealRow(idx, rowH, scrollTop, viewportH) {
   return scrollTop;
 }
 
-// The first row a reader actually sees below the sticky header, which is what
-// "1)" and the 1 key refer to. A row more than half hidden under the header
-// does not count.
-export function firstVisibleRow(scrollTop, rowH, total) {
-  if (!total) return 0;
-  return Math.min(Math.round(Math.max(0, scrollTop) / rowH), total - 1);
-}
-
 // "1".."9" -> 0..8, anything else -> -1.
 export function digitIndex(key) {
   if (typeof key !== "string" || key.length !== 1) return -1;
   const n = key.charCodeAt(0) - 49;
   return n >= 0 && n <= 8 ? n : -1;
+}
+
+// The row a digit key selects: the row labelled with that number. Labels are
+// absolute ranks, so this does not depend on how far the table is scrolled.
+export function digitRow(key, total) {
+  const d = digitIndex(key);
+  return d >= 0 && d < total ? d : -1;
 }

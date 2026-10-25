@@ -135,6 +135,9 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-muted { color: var(--c-text-muted); }
 .pb-dim { color: var(--c-text-dim); }
 .pb-accent { color: var(--c-accent-text); }
+/* Long text cut with an ellipsis at --clip (set inline), never mid-word with
+   no sign that anything is missing. Pair it with a title for the full text. */
+.pb-clip { display: inline-block; max-width: var(--clip, 28ch); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
 .pb-label { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.06em; color: var(--c-text-muted); }
 .pb-right { text-align: right; }
 .pb-nowrap { white-space: nowrap; }
@@ -171,6 +174,12 @@ input::placeholder { color: var(--c-text-muted); }
 /* Fills whatever height is left under the last section. Without it the page's
    hairline colour showed through as a grey slab below short screens. */
 .pb-page::after { content: ""; flex: 1 0 0; background: var(--c-bg); }
+/* A page whose one section holds a table that runs to the bottom of the
+   screen (height="fill"), never shorter than a usable 360px on a phone. */
+.pb-page--fill::after { display: none; }
+.pb-page--fill > .pb-section { flex: 1; min-height: 0; }
+.pb-page--fill .pb-section__body { display: flex; flex-direction: column; min-height: 0; }
+.pb-page--fill .pb-dt--virtual { min-height: 360px; }
 .pb-grid { display: grid; gap: 1px; background: var(--c-line); align-items: stretch; }
 .pb-grid > * { min-width: 0; background: var(--c-bg); }
 .pb-grid > .pb-grid, .pb-page > .pb-grid { background: var(--c-line); } /* nested grids keep their hairlines regardless of rule order */
@@ -316,8 +325,15 @@ input::placeholder { color: var(--c-text-muted); }
 
 .pb-ld { display: grid; min-height: 100%; }
 .pb-ld__list { border-right: 1px solid var(--c-line); min-width: 0; overflow: auto; }
+/* A list whose table is height="fill" runs to the bottom of its column (or of
+   the phone sheet) instead of stopping at a fixed height above a blank gap. */
+.pb-ld__list--fill, .pb-ld__sheet .pb-drawer__body { display: flex; flex-direction: column; overflow: hidden; }
+.pb-ld__list--fill > .pb-section, .pb-ld__sheet .pb-drawer__body > div > .pb-section { flex: 1; min-height: 0; }
+.pb-ld__sheet .pb-drawer__body > div { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pb-ld__list--fill .pb-section__body, .pb-ld__sheet .pb-section__body { display: flex; flex-direction: column; min-height: 0; }
 .pb-ld__detail { min-width: 0; overflow: auto; }
 .pb-ld--mobile { display: flex; flex-direction: column; }
+.pb-ld--mobile > .pb-ld__detail { flex: 1 0 auto; }
 .pb-ld__selector { padding: var(--cell-py) var(--cell-px); border-bottom: 1px solid var(--c-line); }
 .pb-ld__trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; color: var(--c-text); }
 .pb-ld__trigger svg { flex-shrink: 0; color: var(--c-text-muted); }
@@ -547,7 +563,7 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-eq__sym { font-weight: 600; }
 .pb-eq__symrow { display: flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden; }
 .pb-eq__nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-xs); }
-.pb-eq__detail { display: flex; flex-direction: column; min-width: 0; }
+.pb-eq__detail { display: flex; flex-direction: column; min-width: 0; min-height: 100%; } /* lets the chart fill the pane */
 .pb-eq__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: var(--cell-py) var(--cell-px); border-bottom: 1px solid var(--c-line); }
 .pb-eq__symbig { font-size: var(--fs-xl); font-weight: 600; }
 .pb-eq__name { font-size: var(--fs-sm); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -47,7 +47,7 @@ function QuoteSide({ symbol }) {
     <>
       <div className="pb-cmp__head">
         <Ticker symbol={q.symbol} name={q.name} />
-        <span className="pb-muted">{(q.name || "").slice(0, 28)}</span>
+        <span className="pb-muted pb-clip" style={{ "--clip": "32ch" }} title={q.name || ""}>{q.name || ""}</span>
         {q.exchange && <Tag>{q.exchange}</Tag>}
       </div>
       <KVList>

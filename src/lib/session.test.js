@@ -28,7 +28,7 @@ test("trading days skip weekends and holidays", () => {
 test("regular session states and countdown targets", () => {
   let s = nyseSession(at("2026-09-04T14:00:00Z")); // Fri 10:00 EDT
   assert.equal(s.state, "open");
-  assert.equal(s.countdownLabel, "closes");
+  assert.equal(s.countdownLabel, "closes in");
   assert.equal(iso(s.countdownTo), "2026-09-04T20:00:00.000Z");
 
   s = nyseSession(at("2026-09-04T12:00:00Z")); // 08:00 EDT
@@ -37,7 +37,7 @@ test("regular session states and countdown targets", () => {
 
   s = nyseSession(at("2026-09-04T21:00:00Z")); // 17:00 EDT
   assert.equal(s.state, "post");
-  assert.equal(s.countdownLabel, "opens");
+  assert.equal(s.countdownLabel, "opens in");
   assert.equal(iso(s.countdownTo), "2026-09-08T13:30:00.000Z");
 
   s = nyseSession(at("2026-09-05T01:00:00Z")); // Fri 21:00 EDT

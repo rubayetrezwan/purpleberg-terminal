@@ -156,7 +156,7 @@ function NewsPanel() {
                 <span className="pb-newslist__meta pb-muted">
                   {n.publishedAt ? new Date(n.publishedAt * 1000).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) : "—"}
                   {" · "}
-                  {(n.publisher || "").slice(0, 22)}
+                  <span className="pb-clip" style={{ "--clip": "22ch" }}>{n.publisher || ""}</span>
                 </span>
                 <span className="pb-newslist__title">{n.title}</span>
               </a>

@@ -60,7 +60,7 @@ function ChartTab({ symbol, range, type }) {
   const tip = { ...tooltipProps, labelFormatter: fmtTooltipDate };
 
   return (
-    <ChartFrame height={isMobile ? 240 : 340} loading={loading && !rows.length} empty={!loading && !rows.length ? `NO CHART DATA FOR ${symbol}` : null}>
+    <ChartFrame height="fill" minHeight={isMobile ? 240 : 340} loading={loading && !rows.length} empty={!loading && !rows.length ? `NO CHART DATA FOR ${symbol}` : null}>
       {type === "line" ? (
         <LineChart data={rows}>
           <CartesianGrid {...gridProps} />
@@ -232,13 +232,6 @@ function Grid2({ children }) {
   return <div className="pb-grid" style={{ gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>{children}</div>;
 }
 
-// The phone sheet's list fills the screen below the sheet's own header, the
-// section header and the filter box.
-function sheetListHeight() {
-  const vh = typeof window === "undefined" ? 700 : window.innerHeight;
-  return Math.max(240, vh - 132);
-}
-
 export default function Equities() {
   const { params, query } = useRoute();
   const pool = useQuotePool();
@@ -362,8 +355,8 @@ export default function Equities() {
         selectedKey={symbol}
         numbered
         navigable
-        virtualize={rows.length > 60}
-        height={isMobile ? sheetListHeight() : 560}
+        virtualize
+        height="fill"
         onRowClick={(r) => select(r.symbol)}
         onRowSpace={(r) => toggleWatch(r.symbol)}
         empty={noMatch}
@@ -445,6 +438,7 @@ export default function Equities() {
   return (
     <ListDetail
       listWidth={220}
+      fillList
       list={list}
       detail={detail}
       mobile={{

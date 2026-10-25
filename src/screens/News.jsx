@@ -42,7 +42,7 @@ function Group({ title, items, offset }) {
               <span className="pb-newslist__title">{n.title}</span>
             </a>
             <span className="pb-news__tags">
-              {n.publisher && <Tag>{n.publisher.slice(0, 18)}</Tag>}
+              {n.publisher && <Tag><span className="pb-clip" style={{ "--clip": "18ch" }} title={n.publisher}>{n.publisher}</span></Tag>}
               {n.relatedSymbol && <Ticker symbol={n.relatedSymbol} star={false} />}
             </span>
           </li>

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sortRows, visibleWindow, digitIndex, maxScrollTop, firstVisibleRow, revealRow } from "./tableUtils.js";
+import { sortRows, visibleWindow, digitIndex, digitRow, maxScrollTop, revealRow } from "./tableUtils.js";
 
 const cols = [{ key: "sym" }, { key: "px" }, { key: "name", sortValue: (r) => r.name.toLowerCase() }];
 const rows = [
@@ -32,6 +32,14 @@ test("visibleWindow", () => {
   assert.deepEqual(visibleWindow(0, 24, 10, 480, 8), { start: 0, end: 10 });
 });
 
+test("digitRow picks the row with that number, wherever the table is scrolled", () => {
+  // Row labels are the absolute rank ("26)" stays 26 after a scroll), so the
+  // 3 key means row 3, not the third row on screen.
+  assert.equal(digitRow("3", 700), 2);
+  assert.equal(digitRow("9", 5), -1, "no row 9 in a five-row table");
+  assert.equal(digitRow("0", 700), -1);
+});
+
 test("digitIndex maps 1-9 to 0-8", () => {
   assert.equal(digitIndex("1"), 0);
   assert.equal(digitIndex("9"), 8);
@@ -61,13 +69,6 @@ test("the scroll clamp counts the sticky header, so the bottom of a long list is
   assert.equal(maxScrollTop(10, 24, 560), 0);
 });
 
-test("firstVisibleRow skips a row that is mostly under the header", () => {
-  assert.equal(firstVisibleRow(0, 24, 248), 0);
-  assert.equal(firstVisibleRow(5416, 24, 248), 226, "16px of row 225 is hidden, 8px shows");
-  assert.equal(firstVisibleRow(5401, 24, 248), 225, "1px of row 225 is hidden");
-  assert.equal(firstVisibleRow(999_999, 24, 5), 4);
-  assert.equal(firstVisibleRow(100, 24, 0), 0);
-});
 
 test("revealRow brings a row fully into view below the header and no further", () => {
   // End on the screener: the last row has to sit on the bottom edge, which is

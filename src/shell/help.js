@@ -13,7 +13,7 @@ export const SHORTCUTS = [
   ["Esc", "Close the top-most layer"],
   ["?", "This sheet"],
   ["Up / Down", "Move in a list"],
-  ["1 to 9", "Open the nth visible row of the focused list"],
+  ["1 to 9", "Open row 1 to 9 of the focused list"],
   ["Space", "Star the focused row (watchlist)"],
   ["DES AAPL", "Command line: open Apple in Equities"],
   ["AAPL DES", "Same, Bloomberg order"],

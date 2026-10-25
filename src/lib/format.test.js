@@ -77,6 +77,9 @@ test("fmtCountdown: h:mm:ss, never negative", () => {
   assert.equal(fmtCountdown(59_000), "0:00:59");
   assert.equal(fmtCountdown(-5), "0:00:00");
   assert.equal(fmtCountdown(null), "—");
+  // A weekend wait is over a day: "24:13:51" read like a time of day.
+  assert.equal(fmtCountdown(24 * 3_600_000 + 13 * 60_000 + 51_000), "1D 0:13:51");
+  assert.equal(fmtCountdown(62 * 3_600_000), "2D 14:00:00");
 });
 
 test("date formatters", () => {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useDensity } from "../theme/useResolvedTheme.js";
-import { sortRows, visibleWindow, digitIndex, maxScrollTop, firstVisibleRow, revealRow } from "./tableUtils.js";
+import { sortRows, visibleWindow, digitIndex, digitRow, maxScrollTop, revealRow } from "./tableUtils.js";
 import { GridContext } from "./gridContext.js";
 import { Skeleton } from "./Skeleton.jsx";
 import { EmptyState } from "./EmptyState.jsx";
@@ -18,9 +18,9 @@ function rowHeightPx() {
 // sort: { key, dir: "asc"|"desc" } | null
 // Rows are keyboard-navigable whenever `navigable` or `onRowClick` is set, so
 // a clickable row always has a keyboard path. `selectedKey` is compared with
-// `rowKey(row)` using strict equality, so keep both the same type. With
-// `virtualize`, the row numbers and the digit keys are both relative to the
-// first visible row, so "3)" and the 3 key always agree.
+// `rowKey(row)` using strict equality, so keep both the same type. Row numbers
+// are the absolute rank, and the digit keys 1-9 select the row with that
+// number, scrolling it into view.
 export function DataTable({
   columns, rows, rowKey, sort = null, onSort, selectedKey, onRowClick, onRowSpace,
   navigable = false, numbered = false, virtualize = false, height = 480,
@@ -46,6 +46,15 @@ export function DataTable({
     setScroll((s) => (s.top === next.top && s.viewportH === next.viewportH ? s : next));
   };
   const scrollRef = useRef(null);
+  // A filling table changes height with the window (and the iPhone toolbar),
+  // so the visible window is recomputed from the measured box.
+  useEffect(() => {
+    if (!virtualize || !scrollRef.current || typeof ResizeObserver === "undefined") return undefined;
+    const el = scrollRef.current;
+    const ro = new ResizeObserver(() => syncScroll(el));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [virtualize]); // eslint-disable-line react-hooks/exhaustive-deps
   const movedByKey = useRef(false);
   const lastIdx = useRef(-1);
   // True while the keyboard is in this table. Deleting the focused row
@@ -65,11 +74,13 @@ export function DataTable({
   useEffect(() => { lastIdx.current = focusIdx; }, [focusIdx]);
   const focusRowAt = (i) => setFocusKey(i >= 0 && i < sorted.length ? keyOf(sorted[i], i) : null);
 
-  const viewportH = scroll.viewportH || height;
+  // height="fill" takes whatever height the parent column gives (it must be a
+  // flex column); the real size is measured below, 480 is only the first guess.
+  const fill = height === "fill";
+  const viewportH = scroll.viewportH || (fill ? 480 : height);
   const top = virtualize ? Math.min(scroll.top, maxScrollTop(sorted.length, rowH, viewportH)) : 0;
-  const win = virtualize ? visibleWindow(top, rowH, sorted.length, height, 8) : { start: 0, end: sorted.length };
+  const win = virtualize ? visibleWindow(top, rowH, sorted.length, viewportH, 8) : { start: 0, end: sorted.length };
   const slice = sorted.slice(win.start, win.end);
-  const firstVisible = virtualize ? firstVisibleRow(top, rowH, sorted.length) : 0;
   // The one row that carries tabIndex 0 must be rendered, or Tab skips the table.
   const rovingIdx = focusIdx >= win.start && focusIdx < win.end ? focusIdx : win.start;
 
@@ -104,7 +115,7 @@ export function DataTable({
   const onKeyDown = (e) => {
     if (!keyboard || !sorted.length) return;
     if (e.target.closest(INTERACTIVE)) return; // in-cell controls own their own keys
-    const pageH = scrollRef.current ? scrollRef.current.clientHeight : height;
+    const pageH = scrollRef.current ? scrollRef.current.clientHeight : viewportH;
     const page = Math.max(1, Math.floor(pageH / rowH) - 1);
     const current = focusIdx < 0 ? -1 : focusIdx;
     let next = null;
@@ -127,14 +138,14 @@ export function DataTable({
       onRowSpace(sorted[current], current);
       return;
     } else {
-      const d = digitIndex(e.key);
-      if (d < 0) return;
+      if (digitIndex(e.key) < 0) return;
       e.preventDefault();
       e.stopPropagation(); // digits belong to the list, never to the command line
-      const idx = firstVisible + d;
-      if (idx < sorted.length) {
+      const idx = digitRow(e.key, sorted.length);
+      if (idx >= 0) {
         movedByKey.current = true;
         focusRowAt(idx);
+        ensureVisible(idx);
         if (onRowClick) onRowClick(sorted[idx], idx);
       }
       return;
@@ -174,7 +185,7 @@ export function DataTable({
     <div
       ref={scrollRef}
       className={`pb-dt${virtualize ? " pb-dt--virtual" : ""}${keyboard ? " pb-dt--nav" : ""}${className ? " " + className : ""}`}
-      style={virtualize ? { height, overflow: "auto" } : undefined}
+      style={virtualize ? (fill ? { flex: "1 1 0", minHeight: 0, overflow: "auto" } : { height, overflow: "auto" }) : undefined}
       onScroll={virtualize ? (e) => syncScroll(e.currentTarget) : undefined}
       onKeyDown={onKeyDown}
       onBlur={keyboard ? (e) => {
@@ -215,7 +226,9 @@ export function DataTable({
                 const key = keyOf(row, i);
                 const selected = selectedKey != null && key === selectedKey;
                 const tabIndex = keyboard ? (i === rovingIdx ? 0 : -1) : undefined;
-                const number = virtualize ? i - firstVisible + 1 : i + 1;
+                // The rank, always. A number relative to the scroll position
+                // made the list restart at "1)" part-way down.
+                const number = i + 1;
                 return (
                   <tr
                     key={key}
@@ -227,7 +240,7 @@ export function DataTable({
                     onClick={onRowClick ? () => { focusRowAt(i); onRowClick(row, i); } : undefined}
                     onFocus={keyboard ? (e) => { if (e.target === e.currentTarget) { hadFocus.current = true; focusRowAt(i); } } : undefined}
                   >
-                    {numbered && <td className="pb-dt__td pb-dt__num">{number > 0 ? `${number})` : ""}</td>}
+                    {numbered && <td className="pb-dt__td pb-dt__num">{`${number})`}</td>}
                     {columns.map((c) => (
                       <td key={c.key} className={`pb-dt__td pb-dt__td--${c.align || "right"}`}>
                         {c.render ? c.render(row, i) : row[c.key]}

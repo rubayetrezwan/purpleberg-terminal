@@ -66,7 +66,7 @@ thing.
 
 **Keyboard.** `/` or `Ctrl`/`Cmd`+`K` focuses the command line; any letter or
 digit starts typing into it. Inside a list: arrows move, `Home`/`End` jump,
-`PageUp`/`PageDown` page, `1`–`9` jump to a visible row, `Enter` opens the
+`PageUp`/`PageDown` page, `1`–`9` open the row with that number, `Enter` opens the
 quick-look drawer, `Space` toggles the watchlist star. `Esc` closes the
 topmost layer — drawer, dialog, sheet, or the command line. `?` shows the full
 shortcut sheet.

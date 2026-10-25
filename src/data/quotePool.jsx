@@ -33,28 +33,33 @@ export function QuotePoolProvider({ children }) {
     if (q.pollSeq > 0) reportPoll(q.lastPollOk);
   }, [q.pollSeq, q.lastPollOk]);
 
-  const bySymbol = useMemo(() => {
-    const m = new Map();
-    for (const row of q.data) m.set(row.symbol, row);
-    return m;
-  }, [q.data]);
-
-  // Index rows (^GSPC) are for the shell only; screens read `equities`, which
-  // carry the universe's sector and index membership for the Screener and
-  // the Dashboard's breadth. Symbols outside the universe get neither.
-  const equities = useMemo(
-    () => q.data
-      .filter((row) => !String(row.symbol || "").startsWith("^"))
-      .map((row) => {
-        const u = universeEntry(row.symbol);
-        return { ...row, sector: u ? u.sector : "", spx: Boolean(u && u.spx), ndx: Boolean(u && u.ndx) };
-      }),
+  // Every row a screen reads carries the universe's clean company name, sector
+  // and index membership. Yahoo's own short names are cut at about 30
+  // characters and inconsistent ("Taiwan Semiconductor Manufactur",
+  // "ASML Holding N.V. - New York Registry Shares", "JP Morgan Chase"), so
+  // they are kept only for symbols outside the universe.
+  const rows = useMemo(
+    () => q.data.map((row) => {
+      const u = universeEntry(row.symbol);
+      return u
+        ? { ...row, name: u.name, sector: u.sector, spx: u.spx, ndx: u.ndx }
+        : { ...row, sector: "", spx: false, ndx: false };
+    }),
     [q.data]
   );
 
+  const bySymbol = useMemo(() => {
+    const m = new Map();
+    for (const row of rows) m.set(row.symbol, row);
+    return m;
+  }, [rows]);
+
+  // Index rows (^GSPC) are for the shell only; screens read `equities`.
+  const equities = useMemo(() => rows.filter((row) => !String(row.symbol || "").startsWith("^")), [rows]);
+
   const value = useMemo(
-    () => ({ bySymbol, list: q.data, equities, loading: q.loading, error: q.error, updatedAt: q.updatedAt, intervalMs: q.intervalMs, refetch: q.refetch, symbols }),
-    [bySymbol, q.data, equities, q.loading, q.error, q.updatedAt, q.intervalMs, q.refetch, symbols]
+    () => ({ bySymbol, list: rows, equities, loading: q.loading, error: q.error, updatedAt: q.updatedAt, intervalMs: q.intervalMs, refetch: q.refetch, symbols }),
+    [bySymbol, rows, equities, q.loading, q.error, q.updatedAt, q.intervalMs, q.refetch, symbols]
   );
 
   return <PoolContext.Provider value={value}>{children}</PoolContext.Provider>;

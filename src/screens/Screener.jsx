@@ -104,7 +104,7 @@ export default function Screener() {
 
   const columns = [
     { key: "symbol", label: "TICKER", align: "left", width: 92, sortable: true, render: (r) => <Ticker symbol={r.symbol} name={r.name} /> },
-    { key: "name", label: "NAME", align: "left", sortable: true, render: (r) => <span className="pb-muted">{(r.name || "").slice(0, 26)}</span> },
+    { key: "name", label: "NAME", align: "left", sortable: true, render: (r) => <span className="pb-muted pb-clip" style={{ "--clip": "30ch" }} title={r.name || ""}>{r.name || ""}</span> },
     { key: "price", label: "LAST", sortable: true, render: (r) => <Price value={r.price} format={(v) => fmtNum(v, v >= 1000 ? 0 : 2)} /> },
     { key: "changePercent", label: "CHG %", sortable: true, render: (r) => <Change value={r.changePercent} /> },
     // These five print "—" for the proxy's placeholder 0, so they sort it as
@@ -121,7 +121,7 @@ export default function Screener() {
   ];
 
   return (
-    <Page>
+    <Page className="pb-page--fill">
       <Section
         mnemonic="EQS"
         title="Equity screener"
@@ -207,7 +207,7 @@ export default function Screener() {
           numbered
           navigable
           virtualize
-          height={560}
+          height="fill"
           loading={pool.loading && !rows.length}
           onRowClick={(r) => open(r.symbol)}
           onRowSpace={(r) => toggleWatch(r.symbol)}

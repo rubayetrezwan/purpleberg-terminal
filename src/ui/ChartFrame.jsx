@@ -48,9 +48,12 @@ export function useChartTheme() {
   }), [colors]);
 }
 
-export function ChartFrame({ height = 280, loading = false, empty = null, className = "", children }) {
+// height="fill" grows into the rest of a flex-column parent, never below
+// `minHeight`, so a chart pane does not end in a blank band on a tall screen.
+export function ChartFrame({ height = 280, minHeight = 240, loading = false, empty = null, className = "", children }) {
+  const style = height === "fill" ? { flex: "1 1 0", minHeight } : { height };
   return (
-    <div className={`pb-chart${className ? " " + className : ""}`} style={{ height }}>
+    <div className={`pb-chart${className ? " " + className : ""}`} style={style}>
       {loading ? <Loading /> : empty ? <EmptyState>{empty}</EmptyState> : (
         <ResponsiveContainer width="100%" height="100%">{children}</ResponsiveContainer>
       )}

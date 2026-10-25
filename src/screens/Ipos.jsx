@@ -47,7 +47,7 @@ export default function Ipos() {
 
   const calendarColumns = [
     { key: "date", label: "DATE", align: "left", render: (r) => <span className="pb-muted">{r.date || "—"}</span> },
-    { key: "name", label: "COMPANY", align: "left", render: (r) => (r.name || "—").slice(0, 40) },
+    { key: "name", label: "COMPANY", align: "left", render: (r) => <span className="pb-clip" style={{ "--clip": "40ch" }} title={r.name || ""}>{r.name || "—"}</span> },
     { key: "symbol", label: "SYMBOL", align: "left", render: (r) => (r.symbol ? <Ticker symbol={r.symbol} name={r.name} /> : <span className="pb-muted">—</span>) },
     { key: "exchange", label: "EXCH", align: "left", render: (r) => <span className="pb-muted">{r.exchange || "—"}</span> },
     { key: "price", label: "PRICE", render: (r) => r.price || "—" },

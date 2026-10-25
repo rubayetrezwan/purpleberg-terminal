@@ -563,6 +563,16 @@ const quoteCache = createQuoteCache({
   onError: (e) => console.error("Quote error:", e.message),
 });
 
+// Yield in percent. Yahoo's `dividendYield` is already a percentage and is
+// right for ADRs. `trailingAnnualDividendYield` divides the dividend in the
+// company's own currency by the US dollar price, so Honda read 202% (yen over
+// dollars); it is only a fallback when both are in the same currency.
+function dividendYieldPct(q) {
+  if (q.dividendYield > 0) return q.dividendYield;
+  const sameCurrency = !q.financialCurrency || q.financialCurrency === q.currency;
+  return sameCurrency && q.trailingAnnualDividendYield > 0 ? q.trailingAnnualDividendYield * 100 : 0;
+}
+
 app.get("/api/quotes", apiLimiter, async (req, res) => {
   try {
     const rawSymbols = String(req.query.symbols || "").split(",");
@@ -603,7 +613,7 @@ app.get("/api/quotes", apiLimiter, async (req, res) => {
       week52High: q.fiftyTwoWeekHigh ?? 0,
       week52Low: q.fiftyTwoWeekLow ?? 0,
       avgVolume: q.averageDailyVolume3Month ?? 0,
-      dividendYield: q.trailingAnnualDividendYield ? q.trailingAnnualDividendYield * 100 : 0,
+      dividendYield: dividendYieldPct(q),
       beta: q.beta ?? 0,
       exchange: q.exchange || q.fullExchangeName || "",
       currency: q.currency || "USD",

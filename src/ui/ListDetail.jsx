@@ -11,7 +11,9 @@ import { Drawer } from "./Drawer.jsx";
 // a phone, so `mobile.sheet` swaps the select for a button that opens the
 // desktop list itself, filter and all, in a full-height sheet:
 // mobile: { label, value, display, sheet: true }
-export function ListDetail({ list, detail, listWidth = 220, mobile, className = "" }) {
+// `fillList`: the list's table uses height="fill" and should run the full
+// height of the column.
+export function ListDetail({ list, detail, listWidth = 220, mobile, fillList = false, className = "" }) {
   const isMobile = useIsMobile(768);
   if (isMobile) {
     return (
@@ -29,7 +31,7 @@ export function ListDetail({ list, detail, listWidth = 220, mobile, className = 
   }
   return (
     <div className={`pb-ld${className ? " " + className : ""}`} style={{ gridTemplateColumns: `${listWidth}px minmax(0, 1fr)` }}>
-      <div className="pb-ld__list">{list}</div>
+      <div className={`pb-ld__list${fillList ? " pb-ld__list--fill" : ""}`}>{list}</div>
       <div className="pb-ld__detail">{detail}</div>
     </div>
   );
