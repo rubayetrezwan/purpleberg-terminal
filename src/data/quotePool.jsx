@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo } from "react";
 import { US_STOCKS } from "../config.js";
+import { universeEntry } from "./universe.js";
 import { useStore } from "../stores/useStore.js";
 import { watchlist } from "../stores/watchlist.js";
 import { alerts } from "../stores/alerts.js";
@@ -11,8 +12,8 @@ import { useQuotes } from "./hooks.js";
 
 // One poll for everything equity-shaped the app needs: the shell's fixed
 // symbols, the user's watchlist, alert and portfolio symbols, ad-hoc extras,
-// and finally the tracked 250. User-owned symbols come first so the proxy's
-// 300-symbol cap can only ever trim the tail of the static list.
+// and finally the tracked universe (about 700). User-owned symbols come first
+// so the proxy's symbol cap can only ever trim the tail of the static list.
 const PoolContext = createContext(null);
 
 export function QuotePoolProvider({ children }) {
@@ -38,8 +39,18 @@ export function QuotePoolProvider({ children }) {
     return m;
   }, [q.data]);
 
-  // Index rows (^GSPC) are for the shell only; screens read `equities`.
-  const equities = useMemo(() => q.data.filter((row) => !String(row.symbol || "").startsWith("^")), [q.data]);
+  // Index rows (^GSPC) are for the shell only; screens read `equities`, which
+  // carry the universe's sector and index membership for the Screener and
+  // the Dashboard's breadth. Symbols outside the universe get neither.
+  const equities = useMemo(
+    () => q.data
+      .filter((row) => !String(row.symbol || "").startsWith("^"))
+      .map((row) => {
+        const u = universeEntry(row.symbol);
+        return { ...row, sector: u ? u.sector : "", spx: Boolean(u && u.spx), ndx: Boolean(u && u.ndx) };
+      }),
+    [q.data]
+  );
 
   const value = useMemo(
     () => ({ bySymbol, list: q.data, equities, loading: q.loading, error: q.error, updatedAt: q.updatedAt, intervalMs: q.intervalMs, refetch: q.refetch, symbols }),

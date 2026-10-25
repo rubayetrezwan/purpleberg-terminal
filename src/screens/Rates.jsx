@@ -139,6 +139,9 @@ function CalendarTab() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState(null);
+  // The proxy answers 503 when the feed is down and it has no copy to serve:
+  // that is not the same as a quiet week, and the empty state says which.
+  const [failed, setFailed] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -150,8 +153,9 @@ function CalendarTab() {
         // same as a calendar that is up to date and empty. Keep the old
         // timestamp so Freshness cannot read "2s ago" over nothing.
         if (rows.length) setUpdatedAt(Date.now());
+        setFailed(false);
       })
-      .catch(() => {})
+      .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, []);
 
@@ -168,16 +172,20 @@ function CalendarTab() {
     [events, impact]
   );
 
+  // The feed has no actuals today; a column that is always a dash is noise.
+  const hasActual = events.some((e) => e.actual && e.actual !== "—");
+  const emptyMsg = failed ? "CALENDAR FEED UNAVAILABLE. RETRYING EVERY 2 MIN." : "NO EVENTS IN THE CURRENT WINDOW";
+
   const columns = [
     { key: "date", label: "DATE", align: "left", render: (r) => <span className="pb-muted">{r.date}</span> },
     { key: "time", label: "TIME", align: "left", render: (r) => r.time },
     { key: "country", label: "CCY", align: "left", render: (r) => <Tag>{r.country}</Tag> },
     { key: "event", label: "EVENT", align: "left", render: (r) => r.event },
-    { key: "actual", label: "ACTUAL", render: (r) => (r.actual && r.actual !== "—" ? <span className="pb-eq__sym">{r.actual}</span> : "—") },
+    hasActual && { key: "actual", label: "ACTUAL", render: (r) => (r.actual && r.actual !== "—" ? <span className="pb-eq__sym">{r.actual}</span> : "—") },
     { key: "forecast", label: "FORECAST", render: (r) => <span className="pb-muted">{r.forecast}</span> },
     { key: "previous", label: "PREVIOUS", render: (r) => <span className="pb-muted">{r.previous}</span> },
     { key: "impact", label: "IMPACT", render: (r) => <Tag tone={r.impact === "high" ? "warn" : undefined}>{(r.impact || "med").toUpperCase()}</Tag> },
-  ];
+  ].filter(Boolean);
 
   return (
     <Section
@@ -199,7 +207,7 @@ function CalendarTab() {
       flush
     >
       {isMobile ? (
-        loading && !rows.length ? <EmptyState>LOADING…</EmptyState> : !rows.length ? <EmptyState>NO EVENTS</EmptyState> : (
+        loading && !rows.length ? <EmptyState>LOADING…</EmptyState> : !rows.length ? <EmptyState>{emptyMsg}</EmptyState> : (
           <ol className="pb-econ">
             {rows.map((e, i) => (
               <li key={`${e.date}-${e.time}-${e.country}-${e.event}-${i}`} className="pb-econ__row">
@@ -211,7 +219,7 @@ function CalendarTab() {
                 </div>
                 <div className="pb-econ__event">{e.event}</div>
                 <div className="pb-econ__vals">
-                  <span>ACT {e.actual}</span>
+                  {hasActual && <span>ACT {e.actual}</span>}
                   <span className="pb-muted">FCST {e.forecast}</span>
                   <span className="pb-muted">PREV {e.previous}</span>
                 </div>
@@ -227,7 +235,7 @@ function CalendarTab() {
           rowKey={(r, i) => `${r.date}-${r.time}-${r.country}-${r.event}-${i}`}
           numbered
           loading={loading && !rows.length}
-          empty="NO EVENTS IN THE CURRENT WINDOW"
+          empty={emptyMsg}
         />
       )}
     </Section>

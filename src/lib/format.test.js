@@ -1,9 +1,30 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  fmt, fmtNum, fmtK, fmtPct, fmtSigned, fmtAgo, fmtCountdown,
+  fmt, fmtNum, fmtK, fmtPct, fmtSigned, fmtLevel, fmtAgo, fmtCountdown,
   fmtDateTable, fmtAxisDate, fmtTooltipDate, fmtClock, ts,
 } from "./format.js";
+
+test("values that round to zero never print a minus sign", () => {
+  assert.equal(fmt(-0.001), "0.00");
+  assert.equal(fmtNum(-0.004), "0.00");
+  assert.equal(fmtPct(-0.001), "0.00%");
+  assert.equal(fmtSigned(-0.004), "0.00");
+  assert.equal(fmtPct(-0.006), "-0.01%");
+});
+
+test("Infinity reads as missing, not as a number", () => {
+  assert.equal(fmtPct(Infinity), "—");
+  assert.equal(fmtK(-Infinity), "—");
+  assert.equal(fmtNum(Infinity), "—");
+});
+
+test("fmtLevel keeps the precision a price level needs", () => {
+  assert.equal(fmtLevel(367.4), "367");
+  assert.equal(fmtLevel(1.2), "1.20");
+  assert.equal(fmtLevel(0.4512), "0.4512");
+  assert.equal(fmtLevel(null), "—");
+});
 
 test("fmt: fixed decimals, em dash for missing", () => {
   assert.equal(fmt(2.5, 1), "2.5");

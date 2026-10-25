@@ -1,41 +1,16 @@
 // Ticker lists and reference data only. Colours live in src/theme/index.css as
 // tokens, and formatters in src/lib/format.js — do not re-add either here.
 
+import { UNIVERSE_SYMBOLS } from "./data/universe.js";
+
 // ═══════════════════════════════════════════
 // STOCK TICKERS
 // ═══════════════════════════════════════════
 
-// Top 250 US equities by market cap, spanning every sector. Every ticker was
-// verified to return a live quote from the proxy (Yahoo) before inclusion — dead
-// or delisted symbols (e.g. SQ→XYZ, JNPR/DFS/IPG via 2025 M&A) were dropped so
-// no row renders a permanent "—". Ordered by market cap descending.
-export const US_STOCKS = [
-  "NVDA", "GOOGL", "GOOG", "AAPL", "MSFT", "AMZN", "AVGO", "META", "TSLA", "MU",
-  "BRK-B", "LLY", "WMT", "JPM", "AMD", "V", "INTC", "XOM", "JNJ", "ORCL",
-  "CSCO", "LRCX", "AMAT", "MA", "COST", "CAT", "BAC", "ABBV", "UNH", "GE",
-  "CVX", "PG", "MS", "KO", "HD", "NFLX", "GS", "PLTR", "KLAC", "MRK",
-  "TXN", "DELL", "WFC", "IBM", "RTX", "C", "MRVL", "LIN", "WDC", "STX",
-  "AXP", "PANW", "QCOM", "ANET", "MCD", "ADI", "PEP", "TMUS", "APH", "VZ",
-  "AMGN", "TJX", "NEE", "BA", "DIS", "TMO", "CRWD", "BLK", "SCHW", "T",
-  "UNP", "ETN", "DE", "GILD", "ABT", "GLW", "WELL", "UBER", "PFE", "ISRG",
-  "SHOP", "HON", "PLD", "BKNG", "COP", "CRM", "CVS", "DHR", "SPGI", "CB",
-  "LOW", "COF", "LMT", "PGR", "SYK", "PH", "MO", "SBUX", "NEM", "VRTX",
-  "BMY", "HWM", "EQIX", "PWR", "FTNT", "CDNS", "SO", "MAR", "NOW", "MDT",
-  "ACN", "FCX", "GD", "DUK", "SPOT", "CMI", "CME", "PNC", "UPS", "MCK",
-  "USB", "MNST", "ADP", "JCI", "HCA", "WM", "WMB", "CSX", "ELV", "AMT",
-  "SNPS", "CMCSA", "RCL", "ABNB", "EMR", "SNOW", "ADBE", "DDOG", "NET", "MCO",
-  "SPG", "FDX", "ICE", "MDLZ", "HLT", "SHW", "SLB", "NOC", "CI", "ECL",
-  "INTU", "NXPI", "ITW", "ROST", "ORLY", "GM", "DASH", "MPWR", "MPC", "TDG",
-  "CL", "VLO", "AON", "CTAS", "AEP", "EOG", "KMI", "NSC", "BSX", "PSX",
-  "DLR", "URI", "NKE", "WBD", "TRV", "REGN", "RSG", "TER", "HPE", "PCAR",
-  "APD", "GWW", "TFC", "BKR", "TGT", "D", "SRE", "KEYS", "AFL", "CARR",
-  "NUE", "O", "ALL", "F", "MET", "PSA", "TRGP", "AJG", "COR", "DAL",
-  "OKE", "OXY", "CAH", "AME", "FANG", "FAST", "ROK", "MCHP", "ETR", "CTVA",
-  "AZO", "EW", "EA", "NDAQ", "DVN", "XEL", "EBAY", "FITB", "ODFL", "EXC",
-  "STT", "WAB", "ON", "GRMN", "IDXX", "COIN", "HUM", "DHI", "MSCI", "GFS",
-  "KDP", "YUM", "CCL", "TTWO", "ADSK", "AMP", "CMG", "VTR", "LYV", "PEG",
-  "BDX", "ED", "AIG", "STLD", "KR", "VMC", "PYPL", "UAL", "CCI", "SYY",
-];
+// Every S&P 500 and Nasdaq-100 member plus every other NYSE or Nasdaq listed
+// stock above $20B, largest first. Generated into src/data/universeData.js by
+// `npm run universe`; names, sectors and index membership live there too.
+export const US_STOCKS = UNIVERSE_SYMBOLS;
 
 export const INDEX_SYMBOLS = [
   { symbol: "^GSPC", name: "S&P 500", short: "SPX" },
@@ -83,12 +58,6 @@ export const BOND_SYMBOLS = [
   { symbol: "^FVX", name: "US 5Y Treasury", tenor: "5Y" },
   { symbol: "^TNX", name: "US 10Y Treasury", tenor: "10Y" },
   { symbol: "^TYX", name: "US 30Y Treasury", tenor: "30Y" },
-];
-
-export const SECTORS = [
-  "Technology", "Healthcare", "Financial Services", "Energy",
-  "Consumer Cyclical", "Industrials", "Basic Materials", "Utilities",
-  "Real Estate", "Communication Services", "Consumer Defensive",
 ];
 
 // ═══════════════════════════════════════════

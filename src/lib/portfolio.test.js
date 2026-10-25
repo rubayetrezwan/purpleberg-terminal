@@ -4,7 +4,7 @@ import {
   positionsFrom, enrichPositions, portfolioTotals, allocation,
   valueSeries, flowsByDate, alignFlows, dietzSeries, normalizeTo100,
   riskMetrics, beta, maxDrawdown, toCsv, parseCsv,
-  sampleTransactions, localYmd, MIN_RISK_POINTS,
+  sampleTransactions, localYmd, MIN_RISK_POINTS, sharesHeldOn, newlyRejected,
 } from "./portfolio.js";
 
 const tx = (over) => ({ id: over.id || Math.random().toString(36).slice(2), fees: 0, ...over });
@@ -378,6 +378,79 @@ test("the sample portfolio is eight dated buys inside the last year", () => {
   assert.equal(new Set(rows.map((r) => r.id)).size, 8);
   const { rejected } = positionsFrom(rows);
   assert.equal(rejected.length, 0);
+});
+
+test("a held symbol with no closes is carried at its last trade price, not at zero", () => {
+  // ZZZZ's history failed to load. Valued at nothing, its buy still counted as
+  // cash in and the index fell by its whole weight on a day nothing moved.
+  const txs = [
+    tx({ date: "2026-01-02", symbol: "AAPL", side: "buy", shares: 10, price: 100 }),
+    tx({ date: "2026-01-02", symbol: "ZZZZ", side: "buy", shares: 5, price: 50 }),
+  ];
+  const dates = ["2026-01-01", "2026-01-02", "2026-01-05"];
+  const closes = { AAPL: [{ date: "2026-01-02", close: 100 }, { date: "2026-01-05", close: 110 }], ZZZZ: [] };
+  const out = valueSeries(txs, closes, dates);
+  assert.deepEqual(out.map((r) => r.value), [0, 1250, 1350]);
+  const { returns } = dietzSeries(out, alignFlows(flowsByDate(txs), dates));
+  assert.equal(returns[1].r.toFixed(6), (100 / 1250).toFixed(6), "AAPL's gain, with ZZZZ flat");
+  // Held from before the window, with no closes at all: still its trade price.
+  const old = valueSeries([tx({ date: "2025-06-02", symbol: "ZZZZ", side: "buy", shares: 5, price: 50 })], {}, dates);
+  assert.deepEqual(old.map((r) => r.value), [250, 250, 250]);
+});
+
+test("day P&L counts today's buys from their price and today's sells to theirs", () => {
+  const today = "2026-10-23";
+  const quote = (price, prevClose) => new Map([["AAPL", { symbol: "AAPL", price, prevClose }]]);
+  const day = (txs, q) => {
+    const { positions } = positionsFrom(txs);
+    return portfolioTotals(enrichPositions(positions, q, { transactions: txs, today })).dayPnl;
+  };
+  // Bought today at the last price: no P&L at all, as unrealised says.
+  assert.equal(day([tx({ date: today, symbol: "AAPL", side: "buy", shares: 100, price: 50 })], quote(50, 45)), 0);
+  // Held 10 from before, added 10 today at 48, closed at 45 and now 50.
+  assert.equal(day([
+    tx({ date: "2026-10-01", symbol: "AAPL", side: "buy", shares: 10, price: 40 }),
+    tx({ date: today, symbol: "AAPL", side: "buy", shares: 10, price: 48 }),
+  ], quote(50, 45)), 10 * 5 + 10 * 2);
+  // Sold 4 of 10 at 47 today: those stop at 47, the other 6 run to 50.
+  assert.equal(day([
+    tx({ date: "2026-10-01", symbol: "AAPL", side: "buy", shares: 10, price: 40 }),
+    tx({ date: today, symbol: "AAPL", side: "sell", shares: 4, price: 47 }),
+  ], quote(50, 45)), 6 * 5 + 4 * 2);
+  // Sold out today: the position is closed but its day still counts.
+  assert.equal(day([
+    tx({ date: "2026-10-01", symbol: "AAPL", side: "buy", shares: 10, price: 40 }),
+    tx({ date: today, symbol: "AAPL", side: "sell", shares: 10, price: 47 }),
+  ], quote(50, 45)), 10 * 2);
+  // A round trip inside the day is just its own gain.
+  assert.equal(day([
+    tx({ date: today, symbol: "AAPL", side: "buy", shares: 10, price: 100 }),
+    tx({ date: today, symbol: "AAPL", side: "sell", shares: 10, price: 101 }),
+  ], quote(103, 95)), 10);
+  // Trades before today change nothing: the full move since the close.
+  assert.equal(day([tx({ date: "2026-10-22", symbol: "AAPL", side: "buy", shares: 10, price: 40 })], quote(50, 45)), 50);
+});
+
+test("a back-dated sell that strands a later sell is caught before it is added", () => {
+  const buy = tx({ date: "2026-10-01", symbol: "AAPL", side: "buy", shares: 10, price: 100 });
+  const sell = tx({ date: "2026-10-20", symbol: "AAPL", side: "sell", shares: 10, price: 110 });
+  const txs = [buy, sell];
+  assert.equal(sharesHeldOn(txs, "AAPL", "2026-10-10"), 10, "covered on its own date");
+  const candidate = { date: "2026-10-10", symbol: "AAPL", side: "sell", shares: 5, price: 105, fees: 0 };
+  assert.deepEqual(newlyRejected(txs, [...txs, candidate]), [sell]);
+  // Deleting the buy strands the same sell; deleting the sell strands nothing.
+  assert.deepEqual(newlyRejected(txs, [sell]), [sell]);
+  assert.deepEqual(newlyRejected(txs, [buy]), []);
+  // A sell that was already rejected is not news.
+  const bad = tx({ date: "2026-10-21", symbol: "AAPL", side: "sell", shares: 1, price: 110 });
+  assert.deepEqual(newlyRejected([...txs, bad], [sell, bad]), [sell]);
+});
+
+test("sample dates count back from today in New York, not the local day", () => {
+  // Fri 23 Oct 21:30 EDT is Saturday morning in Dhaka; the newest sample buy
+  // is 20 days before the 23rd.
+  const rows = sampleTransactions(new Date("2026-10-24T01:30:00Z"));
+  assert.equal(rows.map((r) => r.date).sort().at(-1), "2026-10-03");
 });
 
 test("local calendar day, so a late-evening date is not tomorrow", () => {

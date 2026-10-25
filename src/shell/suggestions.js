@@ -1,4 +1,5 @@
 import { ROUTES } from "../router/routes.js";
+import { filterRows } from "../lib/symbolSearch.js";
 
 // Suggestion rows for the command line. Plain data (no closures) so it is
 // testable; CommandLine.jsx maps `kind` to an action.
@@ -17,7 +18,19 @@ const symItem = (kind, row) => ({
   price: row.price, changePercent: row.changePercent, right: row.exchange || "",
 });
 
-export function buildSuggestions({ value, parsed, poolList = [], watch = [], yahoo = [] }) {
+// A bare word that could be a US ticker: one to five letters, optionally with
+// a share class (BRK.B, BF-B).
+const TICKER_SHAPED = /^[A-Z]{1,5}([.-][A-Z]{1,2})?$/;
+
+// True when `q` is the first word of a company name ("APPLE", "TESLA"), which
+// makes it a name search even though it is ticker-shaped.
+const startsName = (row, q) => {
+  const n = String(row.name || "").toUpperCase();
+  return n.startsWith(q) && !/[A-Z0-9]/.test(n.charAt(q.length));
+};
+
+// `pending` is true while the Yahoo search has not answered for this text.
+export function buildSuggestions({ value, parsed, poolList = [], watch = [], yahoo = [], pending = false }) {
   const q = String(value || "").trim().toUpperCase();
   if (parsed.kind === "navigate") {
     const r = ROUTES.find((x) => x.name === parsed.name);
@@ -30,7 +43,8 @@ export function buildSuggestions({ value, parsed, poolList = [], watch = [], yah
   const seenSymbols = new Set();
   const pushSymbol = (item) => { if (!seenSymbols.has(item.symbol)) { seenSymbols.add(item.symbol); out.push(item); } };
   const bySym = new Map(poolList.map((x) => [x.symbol, x]));
-  const hit = (row) => row.symbol.startsWith(q) || (row.name || "").toUpperCase().includes(q);
+  // Yahoo writes class shares with a dash (BRK-B); people type a dot.
+  const sq = q.replace(/\./g, "-");
 
   // A ticker typed in full leads, so Enter on "MS" opens Morgan Stanley rather
   // than MSFT, which would otherwise come first as a watchlist or prefix hit.
@@ -38,17 +52,25 @@ export function buildSuggestions({ value, parsed, poolList = [], watch = [], yah
   // though they arrive after the search debounce. Indices stay out, as they do
   // from the tracked list below.
   const exact = q.startsWith("^") ? null
-    : bySym.get(q) || yahoo.find((r) => r.symbol === q) || (watch.includes(q) ? { symbol: q } : null);
+    : bySym.get(sq) || yahoo.find((r) => r.symbol === sq) || (watch.includes(sq) ? { symbol: sq } : null);
   if (exact) pushSymbol(symItem("exact", exact));
+  // Until Yahoo answers, a ticker-shaped word with no exact hit is taken as a
+  // ticker, so Enter on "SOFI" opens SOFI instead of nothing, and "ARM" does
+  // not open whichever company has "arm" in its name. A word that starts a
+  // tracked company's name ("APPLE") is left to the name match.
+  else if (pending && TICKER_SHAPED.test(q) && !poolList.some((row) => startsName(row, q))) {
+    pushSymbol({ id: `exact:${sq}`, kind: "exact", label: sq, sub: "Open in Equities", symbol: sq, right: "" });
+  }
 
-  for (const s of watch) {
-    const row = bySym.get(s) || { symbol: s };
-    if (hit(row)) pushSymbol(symItem("watch", row));
+  // Ticker matches rank above name matches (filterRows), so a name that merely
+  // contains the text cannot take Enter from a ticker that starts with it.
+  for (const row of filterRows(watch.map((s) => bySym.get(s) || { symbol: s }), q)) {
+    pushSymbol(symItem("watch", row));
   }
   let tracked = 0;
-  for (const row of poolList) {
+  for (const row of filterRows(poolList, q)) {
     if (tracked >= 6) break;
-    if (row.symbol.startsWith("^") || seenSymbols.has(row.symbol) || !hit(row)) continue;
+    if (row.symbol.startsWith("^") || seenSymbols.has(row.symbol)) continue;
     pushSymbol(symItem("tracked", row));
     tracked += 1;
   }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeToPct, alignTimelines, winnerOf } from "./compareUtils.js";
+import { normalizeToPct, alignTimelines, winnerOf, metricValue } from "./compareUtils.js";
 
 test("normalizeToPct returns 0 for the first point and % change from start for the rest", () => {
   const input = [
@@ -71,4 +71,32 @@ test("winnerOf returns null when values are equal or either is missing", () => {
   assert.equal(winnerOf(null, 5, true), null);
   assert.equal(winnerOf(5, undefined, true), null);
   assert.equal(winnerOf(0, 5, true), null); // treat 0 as missing
+});
+
+test("winnerOf never lights a side when the other is not a number", () => {
+  // B's financials still loading or failed: its cell reads "—", so neither wins.
+  assert.equal(winnerOf(5, NaN, true), null);
+  assert.equal(winnerOf(5, NaN, false), null);
+  assert.equal(winnerOf(NaN, 5, true), null);
+  assert.equal(winnerOf(NaN, 5, false), null);
+  assert.equal(winnerOf(Infinity, 5, true), null);
+});
+
+test("winnerOf gives no winner to a non-positive value when lower is better", () => {
+  assert.equal(winnerOf(-12, 20, false), null); // loss-maker's P/E is not the cheapest
+  assert.equal(winnerOf(20, -3, false), null); // negative book value
+  assert.equal(winnerOf(-5, 10, true), "b"); // a negative margin still loses fairly
+});
+
+test("metricValue reads numbers, strings and {raw}, with 0 as missing", () => {
+  assert.equal(metricValue(12.5), 12.5);
+  assert.equal(metricValue("43.1"), 43.1);
+  assert.equal(metricValue("-4.0"), -4);
+  assert.equal(metricValue({ raw: 1.5 }), 1.5);
+  assert.equal(metricValue(0), null);
+  assert.equal(metricValue("0"), null);
+  assert.equal(metricValue(null), null);
+  assert.equal(metricValue(undefined), null);
+  assert.equal(metricValue(""), null);
+  assert.equal(metricValue("N/A"), null);
 });

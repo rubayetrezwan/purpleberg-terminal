@@ -2,13 +2,14 @@ import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { fmt, fmtK, fmtNum } from "../lib/format.js";
 import {
-  PRESETS, presetById, matchesFilters, pos52, offHigh,
-  FILTER_DEFAULTS, filtersToQuery, filtersFromQuery,
+  PRESETS, presetById, matchesFilters, pos52, offHigh, positiveOrNull,
+  FILTER_DEFAULTS, INDEX_FILTERS, filtersToQuery, filtersFromQuery,
 } from "../lib/screener.js";
+import { SECTORS } from "../data/universe.js";
 import { useRoute, updateQuery } from "../router/index.jsx";
 import { useQuotePool } from "../data/quotePool.jsx";
 import { useStore } from "../stores/useStore.js";
-import { savedScreens, saveScreen, deleteScreen } from "../stores/savedScreens.js";
+import { savedScreens, saveScreen, deleteScreen, restoreScreen } from "../stores/savedScreens.js";
 import { useQuickLook } from "../ui/quickLookContext.js";
 import { toggleWatch } from "../ui/watchActions.js";
 import { toast } from "../ui/toasts.js";
@@ -37,8 +38,11 @@ const BOUND_LABEL = { peMin: "MIN", peMax: "MAX", priceMin: "MIN", priceMax: "MA
 // before it reaches the table.
 const SORT_KEYS = new Set([
   "symbol", "name", "price", "changePercent", "marketCap", "pe", "volume",
-  "beta", "dividendYield", "pos52", "offHigh", "exchange",
+  "beta", "dividendYield", "pos52", "offHigh", "sector", "exchange",
 ]);
+
+const SECTOR_OPTIONS = [{ value: "", label: "ALL" }, ...SECTORS.map((s) => ({ value: s, label: s.toUpperCase() }))];
+const INDEX_OPTIONS = [{ value: "", label: "ALL" }, ...INDEX_FILTERS.map(({ value, label }) => ({ value, label }))];
 
 export default function Screener() {
   const { query } = useRoute();
@@ -70,16 +74,32 @@ export default function Screener() {
   const setFilter = (key, value) => updateQuery({ [key]: value === "" ? null : value });
   const clearAll = () => updateQuery({ ...Object.fromEntries(Object.keys(FILTER_DEFAULTS).map((k) => [k, null])), preset: null });
 
-  const applySaved = (item) => updateQuery({ ...Object.fromEntries(Object.keys(FILTER_DEFAULTS).map((k) => [k, null])), ...filtersToQuery(item.filters), preset: null });
+  // A screen saved before presets and sorts were stored has neither: it
+  // clears the preset as it always did and leaves the current sort alone.
+  const applySaved = (item) => updateQuery({
+    ...Object.fromEntries(Object.keys(FILTER_DEFAULTS).map((k) => [k, null])),
+    ...filtersToQuery(item.filters),
+    preset: item.preset || null,
+    ...(item.sort ? { sort: item.sort.key, dir: item.sort.dir } : {}),
+  });
 
   const doSave = (e) => {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
-    saveScreen(trimmed, filters);
+    saveScreen(trimmed, filters, { preset: preset ? preset.id : null, sort });
     toast({ title: `SCREEN SAVED · ${trimmed.toUpperCase()}` });
     setName("");
     setNaming(false);
+  };
+
+  const removeSaved = (item) => {
+    const removed = deleteScreen(item.id);
+    if (!removed) return;
+    toast({
+      title: `SCREEN DELETED · ${item.name.toUpperCase()}`,
+      actions: [{ label: "UNDO", run: () => restoreScreen(removed.item, removed.index) }],
+    });
   };
 
   const columns = [
@@ -87,13 +107,16 @@ export default function Screener() {
     { key: "name", label: "NAME", align: "left", sortable: true, render: (r) => <span className="pb-muted">{(r.name || "").slice(0, 26)}</span> },
     { key: "price", label: "LAST", sortable: true, render: (r) => <Price value={r.price} format={(v) => fmtNum(v, v >= 1000 ? 0 : 2)} /> },
     { key: "changePercent", label: "CHG %", sortable: true, render: (r) => <Change value={r.changePercent} /> },
-    { key: "marketCap", label: "MKT CAP", sortable: true, render: (r) => (r.marketCap > 0 ? fmtK(r.marketCap) : "—") },
-    { key: "pe", label: "P/E", sortable: true, render: (r) => (r.pe > 0 ? fmt(r.pe, 1) : "—") },
-    { key: "volume", label: "VOL", sortable: true, render: (r) => (r.volume > 0 ? fmtK(r.volume) : "—") },
-    { key: "beta", label: "BETA", sortable: true, render: (r) => (r.beta > 0 ? fmt(r.beta) : "—") },
-    { key: "dividendYield", label: "DIV %", sortable: true, render: (r) => (r.dividendYield > 0 ? fmt(r.dividendYield) : "—") },
+    // These five print "—" for the proxy's placeholder 0, so they sort it as
+    // missing too; otherwise an ascending sort opens on a block of blanks.
+    { key: "marketCap", label: "MKT CAP", sortable: true, sortValue: (r) => positiveOrNull(r.marketCap), render: (r) => (r.marketCap > 0 ? fmtK(r.marketCap) : "—") },
+    { key: "pe", label: "P/E", sortable: true, sortValue: (r) => positiveOrNull(r.pe), render: (r) => (r.pe > 0 ? fmt(r.pe, 1) : "—") },
+    { key: "volume", label: "VOL", sortable: true, sortValue: (r) => positiveOrNull(r.volume), render: (r) => (r.volume > 0 ? fmtK(r.volume) : "—") },
+    { key: "beta", label: "BETA", sortable: true, sortValue: (r) => positiveOrNull(r.beta), render: (r) => (r.beta > 0 ? fmt(r.beta) : "—") },
+    { key: "dividendYield", label: "DIV %", sortable: true, sortValue: (r) => positiveOrNull(r.dividendYield), render: (r) => (r.dividendYield > 0 ? fmt(r.dividendYield) : "—") },
     { key: "pos52", label: "52W POS", sortable: true, sortValue: (r) => pos52(r), render: (r) => { const p = pos52(r); return p == null ? "—" : `${fmt(p * 100, 0)}%`; } },
     { key: "offHigh", label: "OFF HIGH", sortable: true, sortValue: (r) => offHigh(r), render: (r) => { const o = offHigh(r); return o == null ? "—" : <Change value={o * 100} decimals={1} />; } },
+    { key: "sector", label: "SECTOR", align: "left", sortable: true, render: (r) => <span className="pb-muted">{r.sector ? r.sector.toUpperCase() : "—"}</span> },
     { key: "exchange", label: "EXCH", sortable: true, render: (r) => <span className="pb-muted">{r.exchange || "—"}</span> },
   ];
 
@@ -121,7 +144,7 @@ export default function Screener() {
           {screens.map((s) => (
             <span key={s.id} className="pb-chip pb-chip--saved">
               <button type="button" className="pb-reset pb-chip__apply" onClick={() => applySaved(s)}>{s.name.toUpperCase()}</button>
-              <button type="button" className="pb-reset pb-chip__del" aria-label={`Delete screen ${s.name}`} onClick={() => deleteScreen(s.id)}>
+              <button type="button" className="pb-reset pb-chip__del" aria-label={`Delete screen ${s.name}`} onClick={() => removeSaved(s)}>
                 <X size={10} strokeWidth={2} />
               </button>
             </span>
@@ -141,6 +164,14 @@ export default function Screener() {
           <label className="pb-scr__field">
             <span className="pb-label">SEARCH</span>
             <Input value={filters.q} onChange={(e) => setFilter("q", e.target.value)} placeholder="SYMBOL OR NAME" aria-label="Search" mono />
+          </label>
+          <label className="pb-scr__field">
+            <span className="pb-label">INDEX</span>
+            <Select value={filters.index} onChange={(v) => setFilter("index", v)} options={INDEX_OPTIONS} aria-label="Index" />
+          </label>
+          <label className="pb-scr__field">
+            <span className="pb-label">SECTOR</span>
+            <Select value={filters.sector} onChange={(v) => setFilter("sector", v)} options={SECTOR_OPTIONS} aria-label="Sector" />
           </label>
           <label className="pb-scr__field">
             <span className="pb-label">EXCHANGE</span>

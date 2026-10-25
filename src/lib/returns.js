@@ -1,3 +1,5 @@
+import { ET } from "./session.js";
+
 // Period returns from a daily close series, as percentages.
 // Equities and futures trade ~252 days a year, so their offsets are in
 // trading days; crypto trades every day, so its offsets are calendar days.
@@ -6,8 +8,17 @@
 export const TRADING_DAY_OFFSETS = { "1W": 5, "1M": 21, "3M": 63, "6M": 126, "1Y": 252 };
 export const CALENDAR_DAY_OFFSETS = { "1W": 7, "1M": 30, "3M": 90, "6M": 180, "1Y": 365 };
 
+const yearIn = (date, timeZone) =>
+  new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric" }).format(date);
+
+// options: { now, timeZone }. `timeZone` names the calendar the series is
+// dated on, which decides which year YTD means. Exchange bars are dated in New
+// York and crypto bars in UTC; neither follows the viewer's clock, and at
+// 14:00 ET on Dec 31 Dhaka is already in January, which left the last session
+// of the year with no YTD. Calendar-day offsets are the crypto series, so
+// they default to UTC.
 export function periodReturns(rows, offsets = {}, options = {}) {
-  const { now = new Date() } = options;
+  const { now = new Date(), timeZone = offsets === CALENDAR_DAY_OFFSETS ? "UTC" : ET } = options;
   const series = Array.isArray(rows) ? rows : [];
   const out = {};
   for (const key of Object.keys(offsets)) out[key] = null;
@@ -30,7 +41,7 @@ export function periodReturns(rows, offsets = {}, options = {}) {
   // reach back into last year cannot answer the question: the first row inside
   // this year would just be the edge of the window, so a 3-month window would
   // report its own 3-month return as YTD. Null in that case.
-  const prefix = `${now.getFullYear()}-`;
+  const prefix = `${yearIn(now, timeZone)}-`;
   const lastDate = series[n - 1] && series[n - 1].date;
   // The series also has to reach into this year. A window that ends before
   // January has no year to date, and comparing its final close with itself

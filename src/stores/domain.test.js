@@ -5,6 +5,7 @@ import { migrateSettings, sanitizeSettings, SETTINGS_DEFAULTS, setSetting } from
 import { addToList, removeFromList, moveInList, normalizeSymbol, WATCHLIST_MAX, sanitizeWatchlist } from "./watchlist.js";
 import { sanitizeAlerts, addAlert, rearmAlert, replaceAlertItems, alerts as alertsStore } from "./alerts.js";
 import { migratePortfolio, sanitizePortfolio, localYmd } from "./portfolio.js";
+import { savedScreens, sanitizeSavedScreens, saveScreen, deleteScreen, restoreScreen } from "./savedScreens.js";
 import { STORES, exportAll, importAll, validateExport, resetAll } from "./index.js";
 
 test("settings migrate from the old purpleberg_theme key", () => {
@@ -48,7 +49,7 @@ test("portfolio migrates old holdings into dated buy transactions", () => {
     { symbol: "aapl", name: "Apple", shares: 10, avgCost: 150 },
     { symbol: "MSFT", name: "Microsoft", shares: 0, avgCost: 300 },
   ]));
-  const out = migratePortfolio(st, new Date(2026, 8, 4, 12));
+  const out = migratePortfolio(st, new Date("2026-09-04T16:00:00Z")); // Fri 12:00 EDT
   assert.equal(out.transactions.length, 1);
   const tx = out.transactions[0];
   assert.equal(tx.symbol, "AAPL");
@@ -61,6 +62,16 @@ test("portfolio migrates old holdings into dated buy transactions", () => {
   assert.ok(tx.id);
   st.setItem("purpleberg_portfolio", "not json");
   assert.equal(migratePortfolio(st), null);
+});
+
+test("migrated buys take the New York trade date, not the local one", () => {
+  // Fri 23 Oct 21:30 EDT is already Saturday morning in Dhaka. The local date
+  // put these buys on a Saturday after today in New York.
+  const st = memoryStorage();
+  st.setItem("purpleberg_portfolio", JSON.stringify([{ symbol: "AAPL", shares: 1, avgCost: 100 }]));
+  assert.equal(migratePortfolio(st, new Date("2026-10-24T01:30:00Z")).transactions[0].date, "2026-10-23");
+  // On the weekend itself the buy goes to the last session.
+  assert.equal(migratePortfolio(st, new Date("2026-10-24T15:00:00Z")).transactions[0].date, "2026-10-23");
 });
 
 test("export and import round-trip through every store", () => {
@@ -116,6 +127,39 @@ test("domain sanitizers repair corrupt shapes", () => {
   assert.equal(sanitizeAlerts({ items: [{ id: "a", symbol: "NVDA", op: "above", price: 1 }, { id: "b" }] }).items.length, 1);
   assert.equal(sanitizePortfolio({ transactions: [{ id: "t", date: "2026-09-04", symbol: "AAPL", side: "buy", shares: 1, price: 10, fees: 0 }, { id: "u", date: "bad" }] }).transactions.length, 1);
   assert.equal(localYmd(new Date(2026, 0, 5, 21)), "2026-01-05");
+});
+
+test("a saved screen keeps its preset and sort, and older saves still load", () => {
+  savedScreens.reset();
+  const item = saveScreen("momo", { peMax: "30" }, { preset: "nearhigh", sort: { key: "pe", dir: "asc" } });
+  assert.equal(item.preset, "nearhigh");
+  assert.deepEqual(item.sort, { key: "pe", dir: "asc" });
+  assert.deepEqual(item.filters, { peMax: "30" });
+  assert.deepEqual(savedScreens.get().items, [item]);
+  assert.equal(saveScreen("plain", {}).preset, null);
+  // Saved before presets and sorts were stored: neither field exists.
+  const [old] = sanitizeSavedScreens({ items: [{ id: "x", name: "old", filters: { peMax: "15" } }] }).items;
+  assert.deepEqual(old, { id: "x", name: "old", filters: { peMax: "15" }, preset: null, sort: null });
+  const [junk] = sanitizeSavedScreens({ items: [{ id: "y", name: "j", filters: {}, preset: 5, sort: { key: "pe", dir: "up" } }] }).items;
+  assert.equal(junk.preset, null);
+  assert.equal(junk.sort, null);
+  savedScreens.reset();
+});
+
+test("a deleted saved screen can be put back in its old slot", () => {
+  savedScreens.reset();
+  saveScreen("a", {});
+  const b = saveScreen("b", {});
+  saveScreen("c", {});
+  const removed = deleteScreen(b.id);
+  assert.deepEqual(removed, { item: b, index: 1 });
+  assert.deepEqual(savedScreens.get().items.map((x) => x.name), ["a", "c"]);
+  restoreScreen(removed.item, removed.index);
+  assert.deepEqual(savedScreens.get().items.map((x) => x.name), ["a", "b", "c"]);
+  restoreScreen(removed.item, removed.index); // a second UNDO changes nothing
+  assert.equal(savedScreens.get().items.length, 3);
+  assert.equal(deleteScreen("missing"), null);
+  savedScreens.reset();
 });
 
 test("re-arming an alert resets its reference so crossing detection restarts", () => {

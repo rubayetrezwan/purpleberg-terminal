@@ -1,6 +1,6 @@
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
-import { nyseSession, etParts, etOffsetMinutes, etInstant, nextTradingDay, previousTradingDay, tradeDate, isTradingDay, stateFromMarketState } from "./session.js";
+import { nyseSession, etParts, etOffsetMinutes, etInstant, nextTradingDay, previousTradingDay, tradeDate, isTradingDay, stateFromMarketState, displayState } from "./session.js";
 
 const at = (iso) => new Date(iso);
 const iso = (d) => d.toISOString();
@@ -65,6 +65,25 @@ test("early close days close at 13:00 ET", () => {
   assert.equal(iso(s.countdownTo), "2026-11-27T18:00:00.000Z");
   s = nyseSession(at("2026-11-27T18:30:00Z")); // 13:30 EST
   assert.equal(s.state, "post");
+});
+
+test("after hours end at 17:00 ET on early close days", () => {
+  assert.equal(nyseSession(at("2026-11-27T21:59:00Z")).state, "post"); // 16:59 EST
+  const s = nyseSession(at("2026-11-27T22:00:00Z")); // 17:00 EST
+  assert.equal(s.state, "closed");
+  assert.equal(iso(s.countdownTo), "2026-11-30T14:30:00.000Z");
+  assert.equal(nyseSession(at("2026-11-28T00:30:00Z")).state, "closed"); // 19:30 EST
+});
+
+test("the label trusts Yahoo's marketState only while the quote is fresh", () => {
+  // Saturday 16:00 ET (02:00 Sunday in Dhaka) with Friday's REGULAR kept from a failed poll.
+  const clock = nyseSession(at("2026-10-24T20:00:00Z")).state;
+  assert.equal(clock, "closed");
+  assert.equal(displayState(clock, "REGULAR", false), "closed");
+  // Fresh data wins, so an unscheduled closure shows up.
+  assert.equal(displayState("open", "CLOSED", true), "closed");
+  assert.equal(displayState("pre", "PRE", false), "pre");
+  assert.equal(displayState("open", undefined, true), "open");
 });
 
 test("DST boundaries", () => {

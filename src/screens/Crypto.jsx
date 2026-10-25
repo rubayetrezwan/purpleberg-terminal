@@ -65,21 +65,33 @@ export default function Crypto() {
   const { colors, gridProps, axisProps, tooltipProps, lineProps, areaProps } = useChartTheme();
 
   // CoinGecko and CoinPaprika use different id schemes ("bitcoin" versus
-  // "paprika:btc-bitcoin"), so keep the symbol as a fallback key: when the
-  // proxy fails over mid-session an id-only lookup would reset the selection.
-  const [lastSymbol, setLastSymbol] = useState(null);
+  // "paprika:btc-bitcoin"), so remember which symbol the URL resolved to:
+  // when the proxy fails over mid-session an id-only lookup would reset the
+  // selection. The command line passes what was typed, lowercased ("CRYP ETH"
+  // arrives as "eth"), so an id, a ticker or a name all match, in any case.
+  const [last, setLast] = useState(null);
   const requested = params.id || null;
-  const selected =
-    (requested && coins.find((c) => c.id === requested)) ||
-    (lastSymbol ? coins.find((c) => c.symbol === lastSymbol) : null) ||
-    coins[0] ||
-    null;
+  const key = requested ? requested.toLowerCase() : null;
+  const matched = key
+    ? coins.find((c) => [c.id, c.symbol, c.name].some((v) => String(v || "").toLowerCase() === key))
+    : null;
+  const remembered = last && (!requested || last.requested === requested)
+    ? coins.find((c) => c.symbol === last.symbol)
+    : null;
+  // A key that matches nothing in the top 20 says NOT FOUND instead of
+  // showing BTC under a URL that names another coin. The first coin still
+  // stands in for the values below; they are cheap and unused.
+  const missing = Boolean(requested) && coins.length > 0 && !matched && !remembered;
+  const selected = matched || remembered || coins[0] || null;
 
   useEffect(() => {
-    if (selected && selected.symbol !== lastSymbol) setLastSymbol(selected.symbol);
-  }, [selected, lastSymbol]);
+    if (!selected || missing) return;
+    if (!last || last.symbol !== selected.symbol || last.requested !== requested) {
+      setLast({ requested, symbol: selected.symbol });
+    }
+  }, [selected, missing, last, requested]);
 
-  const id = selected ? selected.id : null;
+  const id = selected && !missing ? selected.id : null;
   const { data: hist, loading: histLoading } = useCryptoChart(id, range);
   const chartRows = useMemo(() => hist.map((d) => ({ date: d.date || "", price: d.close, volume: d.volume })), [hist]);
   const returns = useMemo(() => periodReturns(hist, CALENDAR_DAY_OFFSETS), [hist]);
@@ -132,7 +144,11 @@ export default function Crypto() {
     </Section>
   );
 
-  const detail = (
+  const detail = missing ? (
+    <div className="pb-eq__detail">
+      <EmptyState>COIN {requested.toUpperCase()} NOT FOUND IN TOP 20</EmptyState>
+    </div>
+  ) : (
     <div className="pb-eq__detail">
       <header className="pb-eq__head">
         <span className="pb-eq__symbig">{selected.name}</span>
@@ -241,6 +257,10 @@ export default function Crypto() {
     </div>
   );
 
+  // A native select shows its first option when the value matches none, so a
+  // missing coin gets a placeholder rather than reading as BTC.
+  const options = coins.map((c) => ({ value: c.id, label: `${c.symbol} · ${coinPrice(c.price)}` }));
+
   return (
     <ListDetail
       listWidth={200}
@@ -248,9 +268,9 @@ export default function Crypto() {
       detail={detail}
       mobile={{
         label: "Cryptocurrency",
-        value: id,
+        value: missing ? "" : id,
         onChange: select,
-        options: coins.map((c) => ({ value: c.id, label: `${c.symbol} · ${coinPrice(c.price)}` })),
+        options: missing ? [{ value: "", label: `${requested.toUpperCase()} · NOT FOUND` }, ...options] : options,
       }}
     />
   );

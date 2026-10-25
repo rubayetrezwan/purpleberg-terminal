@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Bell } from "lucide-react";
 import { useStore } from "../stores/useStore.js";
 import { alerts, rearmAlert, removeAlert } from "../stores/alerts.js";
@@ -8,11 +8,12 @@ import { fmtNum, fmtClock } from "../lib/format.js";
 export function AlertsBell() {
   const items = useStore(alerts, (s) => s.items);
   const [open, setOpen] = useState(false);
-  useLayer(open, () => setOpen(false));
+  const ref = useRef(null);
+  useLayer(open, () => setOpen(false), { modal: false, ref });
   const armed = items.filter((a) => !a.triggeredAt);
   const fired = items.filter((a) => a.triggeredAt);
   return (
-    <div className="pb-bell">
+    <div className="pb-bell" ref={ref}>
       <button
         type="button"
         className={`pb-reset pb-bell__btn${fired.length ? " pb-bell__btn--fired" : ""}`}

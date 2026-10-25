@@ -6,6 +6,7 @@ import rateLimit from "express-rate-limit";
 import { LRUCache } from "lru-cache";
 import { raw, normalizeFinnhubIpo, crossRate } from "./format.js";
 import { createCache } from "./cache.js";
+import { createQuoteCache, mapWithConcurrency } from "./quotes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -34,11 +35,16 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ||
 if (process.env.RENDER_EXTERNAL_URL) {
   ALLOWED_ORIGINS.push(process.env.RENDER_EXTERNAL_URL.replace(/\/$/, ""));
 }
+// Only the API is guarded. Browsers send an Origin header on module scripts
+// even from the same origin, so a global check turned every JS chunk into a
+// 500 and the whole site into a black page on any host not listed (a custom
+// domain, 127.0.0.1, a LAN address). A refused origin just gets no CORS
+// headers, which the browser enforces; it is not a server error.
 app.use(
+  "/api",
   cors({
     origin(origin, cb) {
-      if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-      cb(new Error("Not allowed by CORS"));
+      cb(null, !origin || ALLOWED_ORIGINS.includes(origin));
     },
   })
 );
@@ -75,13 +81,18 @@ const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 // CoinGecko, CoinPaprika, ForexFactory) can't tie up a request indefinitely.
 // On timeout the AbortError propagates to the caller's catch, which then serves
 // stale cache (via cached()) or a graceful empty payload.
+// The timer is left running after the headers arrive: the caller reads the
+// body afterwards, and a body that stalls mid-stream has to be cut off too.
+// Aborting after the body has been read is harmless.
 async function fetchWithTimeout(url, options = {}, timeoutMs = 10_000) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  timer.unref?.();
   try {
     return await fetch(url, { ...options, signal: ctrl.signal });
-  } finally {
+  } catch (e) {
     clearTimeout(timer);
+    throw e;
   }
 }
 
@@ -89,8 +100,17 @@ let yahooCrumb = null;
 let yahooCookie = null;
 let crumbExpiry = 0;
 
-async function refreshCrumb() {
-  if (yahooCrumb && Date.now() < crumbExpiry) return;
+// One refresh at a time: when the crumb expires, every request in flight would
+// otherwise fetch a new one, and a burst of crumb calls is a quick way to get
+// throttled by Yahoo.
+let crumbRefresh = null;
+function refreshCrumb() {
+  if (yahooCrumb && Date.now() < crumbExpiry) return Promise.resolve();
+  if (!crumbRefresh) crumbRefresh = fetchCrumb().finally(() => { crumbRefresh = null; });
+  return crumbRefresh;
+}
+
+async function fetchCrumb() {
   try {
     // Step 1: Get cookie from Yahoo
     const cookieRes = await fetchWithTimeout("https://fc.yahoo.com", {
@@ -148,7 +168,8 @@ async function yahooAuthFetch(url) {
 }
 
 // ── Beta cache (from quoteSummary, 24h TTL) ─────────────
-const betaCache = new LRUCache({ max: 500, ttl: 24 * 60 * 60_000 });
+// Sized above the ~700-stock universe so a full poll never evicts its own betas.
+const betaCache = new LRUCache({ max: 2000, ttl: 24 * 60 * 60_000 });
 
 async function fetchBeta(symbol) {
   const hit = betaCache.get(symbol);
@@ -161,25 +182,11 @@ async function fetchBeta(symbol) {
     betaCache.set(symbol, beta);
     return beta;
   } catch {
-    // Cache the failure briefly so a flaky symbol doesn't DoS us.
-    betaCache.set(symbol, 0, { ttl: 60_000 });
+    // Cache the failure for a while so a throttled run over ~700 symbols
+    // doesn't retry every one of them on the next poll.
+    betaCache.set(symbol, 0, { ttl: 10 * 60_000 });
     return 0;
   }
-}
-
-// Simple concurrency limiter so cold-start doesn't fan out 96 parallel Yahoo requests.
-async function mapWithConcurrency(items, limit, fn) {
-  const out = new Array(items.length);
-  let i = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (true) {
-      const idx = i++;
-      if (idx >= items.length) return;
-      out[idx] = await fn(items[idx], idx);
-    }
-  });
-  await Promise.all(workers);
-  return out;
 }
 
 // Warm the beta cache for the given symbols in the background. Quote responses
@@ -189,7 +196,9 @@ async function mapWithConcurrency(items, limit, fn) {
 // duplicate requests for the same ticker.
 const betaInFlight = new Set();
 function warmBetas(symbols) {
-  const todo = symbols.filter((s) => !betaInFlight.has(s) && betaCache.get(s) === undefined);
+  // At most 50 per poll: a cold start would otherwise send ~700 quoteSummary
+  // calls at once on the same IP the quotes depend on.
+  const todo = symbols.filter((s) => !betaInFlight.has(s) && betaCache.get(s) === undefined).slice(0, 50);
   if (!todo.length) return;
   for (const s of todo) betaInFlight.add(s);
   // fetchBeta caches both success (24h) and failure (60s) itself; fire-and-forget.
@@ -275,7 +284,7 @@ async function yahooQuoteBatch(symbols) {
   const fetchList = Array.from(fetchSet);
   if (fetchList.length === 0) return [];
 
-  // v7 supports up to ~50 symbols per request
+  // v7 takes 200+ symbols per request (checked live: 250 in one call, ~0.3s)
   const url = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${fetchList.map(encodeURIComponent).join(",")}`;
   const data = await yahooAuthFetch(url);
   const fetched = data.quoteResponse?.result || [];
@@ -334,17 +343,43 @@ async function yahooChartQuote(sym) {
     exchange: meta.exchangeName || meta.fullExchangeName || "",
     fullExchangeName: meta.fullExchangeName || "",
     currency: meta.currency || "USD",
-    marketState: "REGULAR",
+    quoteType: meta.instrumentType || "",
+    // The chart endpoint has no market state. Judge it from the session
+    // window it does send, rather than calling every fallback quote open.
+    marketState: chartMarketState(meta),
   };
 }
 
+function chartMarketState(meta, nowSec = Date.now() / 1000) {
+  const periods = meta.currentTradingPeriod || {};
+  const inside = (p) => p && p.start > 0 && p.end > 0 && nowSec >= p.start && nowSec < p.end;
+  if (inside(periods.regular)) return "REGULAR";
+  if (inside(periods.pre)) return "PRE";
+  if (inside(periods.post)) return "POST";
+  return "CLOSED";
+}
+
+// After a v7 failure, v7 is left alone for a while instead of being retried by
+// every poll, and the one-request-per-symbol chart fallback is kept to small
+// lists. The shared ~700-symbol poll then rides on the quote cache's stale
+// copies; firing 700 chart requests every 12 seconds is how an IP gets banned.
+const V7_BACKOFF_MS = 90_000;
+const FALLBACK_MAX_SYMBOLS = 40;
+let v7DownUntil = 0;
+
 async function yahooQuote(symbols) {
   // Try v7 batch first (has all financial data), fall back to v8 chart
-  try {
-    const results = await yahooQuoteBatch(symbols);
-    if (results.length > 0) return results;
-  } catch (e) {
-    console.error("v7 batch failed, falling back to v8 chart:", e.message);
+  if (Date.now() >= v7DownUntil) {
+    try {
+      const results = await yahooQuoteBatch(symbols);
+      if (results.length > 0) return results;
+    } catch (e) {
+      v7DownUntil = Date.now() + V7_BACKOFF_MS;
+      console.error("v7 batch failed, falling back to v8 chart:", e.message);
+    }
+  }
+  if (symbols.length > FALLBACK_MAX_SYMBOLS) {
+    throw new Error(`v7 unavailable; no chart fallback for a ${symbols.length}-symbol batch`);
   }
 
   // Fallback: use v8 chart endpoint per symbol. Synthetic FX crosses are
@@ -357,15 +392,17 @@ async function yahooQuote(symbols) {
     for (const d of SYNTHETIC_FX[s].multiply) fetchSet.add(d);
   }
 
+  // One request per symbol, so it is throttled: a batch is up to 200 symbols,
+  // and firing them all at once is how a v7 hiccup becomes a Yahoo ban.
   const fetched = [];
-  await Promise.all(Array.from(fetchSet).map(async (sym) => {
+  await mapWithConcurrency(Array.from(fetchSet), 5, async (sym) => {
     try {
       const q = await yahooChartQuote(sym);
       if (q) fetched.push(q);
     } catch (e) {
       console.error(`Chart fallback error for ${sym}:`, e.message);
     }
-  }));
+  });
 
   const synths = syntheticSyms
     .map((s) => buildSyntheticQuote(s, fetched))
@@ -411,14 +448,41 @@ async function yahooHistorical(symbol, range = "3mo", interval = "1d") {
   const timestamps = result.timestamp || [];
   const quotes = result.indicators?.quote?.[0] || {};
 
-  return timestamps.map((ts, i) => ({
-    date: new Date(ts * 1000).toISOString().split("T")[0],
+  // Date each bar in its exchange's own zone. In UTC, FX bars (stamped at
+  // midnight London, 23:00Z in summer) and Sydney bars landed on the day
+  // before: a Sunday bar, and Friday twice.
+  const day = exchangeDay(result.meta?.exchangeTimezoneName);
+  const bars = timestamps.map((ts, i) => ({
+    date: day(ts),
     open: quotes.open?.[i] ?? 0,
     high: quotes.high?.[i] ?? 0,
     low: quotes.low?.[i] ?? 0,
     close: quotes.close?.[i] ?? 0,
     volume: quotes.volume?.[i] ?? 0,
   })).filter((d) => d.close > 0);
+
+  // Yahoo sometimes appends today's live bar next to the daily bar it already
+  // sent for the same date. Daily and longer bars keep one row per date: the last.
+  if (!["1d", "1wk", "1mo"].includes(interval)) return bars;
+  const byDate = new Map();
+  for (const b of bars) byDate.set(b.date, b);
+  return Array.from(byDate.values());
+}
+
+const dayFormatters = new Map();
+function exchangeDay(timeZone) {
+  const tz = timeZone || "America/New_York";
+  let f = dayFormatters.get(tz);
+  if (!f) {
+    try {
+      // en-CA formats as YYYY-MM-DD.
+      f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
+    } catch {
+      f = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" });
+    }
+    dayFormatters.set(tz, f);
+  }
+  return (ts) => f.format(new Date(ts * 1000));
 }
 
 async function yahooSearch(query) {
@@ -487,24 +551,25 @@ function buildFxFallbackQuote(pairSymbol, rates) {
 }
 
 // ── GET /api/quotes ─────────────────────────────────────
+// The client's shared poll asks for the whole universe (about 700 stocks) plus
+// the user's own symbols in one request. Yahoo's v7 endpoint takes 200 a call
+// comfortably, so a cold poll is four calls in parallel.
+const MAX_QUOTE_SYMBOLS = 1000;
+const quoteCache = createQuoteCache({
+  fetchBatch: yahooQuote,
+  ttlMs: 12_000,
+  batchSize: 200,
+  concurrency: 4,
+  onError: (e) => console.error("Quote error:", e.message),
+});
+
 app.get("/api/quotes", apiLimiter, async (req, res) => {
   try {
-    const rawSymbols = (req.query.symbols || "").split(",").filter(Boolean);
-    const symbols = rawSymbols.filter(isTicker).slice(0, 300); // hard cap per request (Dashboard fetches ~250)
+    const rawSymbols = String(req.query.symbols || "").split(",");
+    const symbols = [...new Set(rawSymbols.filter(isTicker).map((s) => s.toUpperCase()))].slice(0, MAX_QUOTE_SYMBOLS);
     if (!symbols.length) return res.json([]);
 
-    const cacheKey = `quotes:${symbols.sort().join(",")}`;
-    let data = await cached(cacheKey, 12_000, async () => {
-      const results = [];
-      // Batch in groups of 40 (v7 supports larger batches)
-      for (let i = 0; i < symbols.length; i += 40) {
-        const batch = symbols.slice(i, i + 40);
-        const batchResults = await yahooQuote(batch);
-        results.push(...batchResults);
-        if (i + 40 < symbols.length) await new Promise((r) => setTimeout(r, 200));
-      }
-      return results;
-    });
+    let data = await quoteCache.get(symbols);
 
     // FX fallback: any requested "=X" pair that Yahoo didn't return gets a
     // last-known daily rate from open.er-api.com so the FX screen never blanks.
@@ -560,9 +625,12 @@ app.get("/api/historical/:symbol", apiLimiter, async (req, res) => {
     const interval = INTERVAL_ALLOW.has(req.query.interval) ? req.query.interval : "1d";
 
     const cacheKey = `hist:${symbol}:${range}:${interval}`;
-    const data = await cached(cacheKey, 300_000, () =>
-      yahooHistorical(symbol, range, interval)
-    );
+    const data = await cached(cacheKey, 300_000, () => yahooHistorical(symbol, range, interval), {
+      valid: (d) => d.length > 0,
+      // Short enough that the client's own retries (1.5s, 3s, 6s) reach Yahoo
+      // again after a blip, long enough to absorb a burst on a bad ticker.
+      failTtlMs: 5_000,
+    });
     res.json(data);
   } catch (e) {
     console.error("Historical error:", e.message);
@@ -631,7 +699,10 @@ app.get("/api/financials/:symbol", apiLimiter, async (req, res) => {
       ratios: {
         // trailing/forward P/E and P/S live in summaryDetail; priceToBook is in
         // defaultKeyStatistics. raw() collapses any value-less {} to 0.
-        pe: raw(sd.trailingPE) || raw(sd.forwardPE) || raw(ks.forwardPE),
+        // P/E is trailing only: falling back to forward P/E put a forecast (or
+        // a negative one, for a loss-maker) under a P/E (TTM) label.
+        pe: raw(sd.trailingPE),
+        forwardPe: raw(sd.forwardPE) || raw(ks.forwardPE),
         pb: raw(ks.priceToBook) || raw(sd.priceToBook),
         ps: raw(sd.priceToSalesTrailing12Months),
         evEbitda: raw(ks.enterpriseToEbitda),
@@ -666,7 +737,7 @@ app.get("/api/financials/:symbol", apiLimiter, async (req, res) => {
     res.json({
       profile: { sector: "N/A", industry: "N/A", country: "N/A", employees: 0, summary: "", website: "" },
       margins: { gross: "0", operating: "0", profit: "0", ebitda: "0" },
-      ratios: { pe: 0, pb: 0, ps: 0, evEbitda: 0, roe: "0", roa: "0", debtToEquity: 0, currentRatio: 0 },
+      ratios: { pe: 0, forwardPe: 0, pb: 0, ps: 0, evEbitda: 0, roe: "0", roa: "0", debtToEquity: 0, currentRatio: 0 },
       estimates: { targetHigh: 0, targetLow: 0, targetMean: 0, targetMedian: 0, revenueEstimate: "N/A", epsEstimate: 0, epsPrev: 0 },
       recommendations: { buy: 0, hold: 0, sell: 0 },
       quarterlyRevenue: [],
@@ -680,7 +751,9 @@ app.get("/api/news", apiLimiter, async (req, res) => {
     const rawSymbols = (req.query.symbols || "AAPL,MSFT,GOOGL,TSLA,NVDA,JPM").split(",");
     const symbols = rawSymbols.filter(isTicker).slice(0, 10);
     if (!symbols.length) return res.json([]);
-    const cacheKey = `news:${symbols.sort().join(",")}`;
+    // Sort a copy for the key: sorting in place reordered the list the fetch
+    // below takes its first four from, so NVDA and TSLA were never fetched.
+    const cacheKey = `news:${[...symbols].sort().join(",")}`;
 
     const data = await cached(cacheKey, 120_000, async () => {
       const results = [];
@@ -711,7 +784,7 @@ app.get("/api/news", apiLimiter, async (req, res) => {
       return results
         .filter((n) => { const k = n.link || n.title; if (seen.has(k)) return false; seen.add(k); return true; })
         .sort((a, b) => (b.publishedAt || 0) - (a.publishedAt || 0));
-    });
+    }, { valid: (d) => d.length > 0, failTtlMs: 60_000 });
 
     res.json(data);
   } catch (e) {
@@ -724,8 +797,13 @@ app.get("/api/news", apiLimiter, async (req, res) => {
 // Fetch real economic calendar events from Forex Factory
 app.get("/api/econ-calendar", apiLimiter, async (req, res) => {
   try {
+    // ForexFactory rate-limits an IP after a couple of quick requests, and
+    // Render's outbound IP is shared with other apps. Retrying on every poll
+    // kept the block alive and the calendar permanently empty, so: refresh
+    // every 30 min, back off 20 min after a failure, and keep the last good
+    // week for a day (the schedule barely changes within a week).
     const cacheKey = "econ:calendar";
-    const data = await cached(cacheKey, 600_000, async () => {
+    const data = await cached(cacheKey, 30 * 60_000, async () => {
       const url = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
       const r = await fetchWithTimeout(url, {
         headers: { "User-Agent": UA, "Accept": "application/json" },
@@ -750,13 +828,15 @@ app.get("/api/econ-calendar", apiLimiter, async (req, res) => {
             impact: ev.impact === "High" ? "high" : "med",
           };
         });
-    });
+    }, { valid: (d) => d.length > 0, failTtlMs: 20 * 60_000, staleMs: 24 * 60 * 60_000 });
 
     res.json(data);
   } catch (e) {
-    // cached() has already fallen back to any stale copy before throwing.
+    // cached() has already fallen back to any stale copy before throwing, so
+    // the feed is down and there is nothing to show. Say so: a 200 with []
+    // reads as "no events this week" on the Rates screen.
     console.error("Economic calendar error:", e.message);
-    res.json([]);
+    res.status(503).json({ error: "calendar feed unavailable" });
   }
 });
 
@@ -776,7 +856,7 @@ app.get("/api/treasury-rates", apiLimiter, async (req, res) => {
         us10y: results.find((r) => r.symbol === "^TNX")?.regularMarketPrice ?? 0,
         us30y: results.find((r) => r.symbol === "^TYX")?.regularMarketPrice ?? 0,
       };
-    });
+    }, { valid: (d) => d.us10y > 0, failTtlMs: 60_000 });
 
     res.json(data);
   } catch (e) {
@@ -798,14 +878,17 @@ const COINGECKO_BASE = process.env.COINGECKO_BASE || "https://api.coingecko.com/
 // CoinGecko returns ~hourly points for days<=90 and daily for longer; we
 // bucket to one point per UTC day on the server so the chart shape matches
 // the historical series used elsewhere.
+// CoinGecko's public plan answers 401 for anything past 365 days, so 5y and
+// max come from Yahoo first (see yahooCryptoHistory) and fall back to a year.
 const CRYPTO_RANGE_DAYS = {
   "1mo": "30",
   "3mo": "90",
   "6mo": "180",
   "1y": "365",
-  "5y": "1825",
-  "max": "max",
+  "5y": "365",
+  "max": "365",
 };
+const CRYPTO_LONG_RANGES = new Set(["5y", "max"]);
 // The regex allows the `paprika:` prefix we use on CoinPaprika-sourced ids so
 // the chart endpoint can route them back to the fallback upstream.
 const CRYPTO_ID_RE = /^[a-z0-9][a-z0-9:-]{0,80}$/;
@@ -813,14 +896,15 @@ const isCryptoId = (s) => typeof s === "string" && CRYPTO_ID_RE.test(s);
 
 // CoinGecko's public tier is ~5-15 req/min per IP and shared-cloud IPs (Render
 // free) get throttled aggressively, so transient 429s on a cold-cache start
-// were falling all the way through to the UI as "no crypto data". Retry twice
-// with exponential backoff, respecting Retry-After when the upstream sets it.
+// were falling all the way through to the UI as "no crypto data". Retry once,
+// respecting Retry-After when the upstream sets it. More retries only kept a
+// throttled IP throttled; callers cache failures and serve stale copies instead.
 // If COINGECKO_API_KEY is set we forward it as the Demo plan header, which
 // lifts the limit to ~30 req/min per key. CoinPaprika acts as an independent
 // fallback upstream below (no key, different IP pool) when retries are
 // exhausted AND no stale cache is available.
 const CG_API_KEY = process.env.COINGECKO_API_KEY || "";
-async function coingeckoFetch(url, { retries = 2 } = {}) {
+async function coingeckoFetch(url, { retries = 1 } = {}) {
   const headers = { "User-Agent": UA, "Accept": "application/json" };
   if (CG_API_KEY) headers["x-cg-demo-api-key"] = CG_API_KEY;
   let lastErr;
@@ -892,9 +976,10 @@ async function coinpaprikaMarketsTop20() {
 }
 
 async function coinpaprikaChart(realId, range) {
-  const days = parseInt(CRYPTO_RANGE_DAYS[range], 10);
-  const spanDays = Number.isFinite(days) ? days : 90;
-  const startDate = new Date(Date.now() - spanDays * 86_400_000).toISOString().split("T")[0];
+  // Paprika's free plan serves one year back, counting today: a start date a
+  // full 365 days ago is refused with a 402.
+  const days = parseInt(CRYPTO_RANGE_DAYS[range], 10) || 90;
+  const startDate = new Date(Date.now() - (Math.min(days, 365) - 1) * 86_400_000).toISOString().split("T")[0];
   const url = `${COINPAPRIKA_BASE}/tickers/${encodeURIComponent(realId)}/historical?start=${startDate}&interval=1d&limit=5000`;
   const body = await coinpaprikaFetch(url);
   return (Array.isArray(body) ? body : [])
@@ -911,10 +996,8 @@ async function coinpaprikaChart(realId, range) {
 // window — top-20 rankings barely move inside two minutes, and on Render's
 // shared-IP free tier CoinGecko's public limit is the binding constraint, not
 // data freshness. Stale-on-error falls back via the shared `cached()` helper.
-app.get("/api/crypto/markets", apiLimiter, async (req, res) => {
-  try {
-    const cacheKey = "crypto:markets:top20";
-    const data = await cached(cacheKey, 120_000, async () => {
+function loadCryptoMarkets() {
+  return cached("crypto:markets:top20", 120_000, async () => {
       const url = `${COINGECKO_BASE}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=20&page=1&sparkline=false&price_change_percentage=24h`;
       const list = await coingeckoFetch(url);
       return list.map((c) => ({
@@ -941,8 +1024,12 @@ app.get("/api/crypto/markets", apiLimiter, async (req, res) => {
         atlDate: c.atl_date || "",
         lastUpdated: c.last_updated || "",
       }));
-    });
-    res.json(data);
+  });
+}
+
+app.get("/api/crypto/markets", apiLimiter, async (req, res) => {
+  try {
+    res.json(await loadCryptoMarkets());
   } catch (e) {
     // cached() has already fallen back to any stale CoinGecko copy before
     // throwing, so reaching here means there is none.
@@ -960,6 +1047,29 @@ app.get("/api/crypto/markets", apiLimiter, async (req, res) => {
   }
 });
 
+// Multi-year history for a coin from Yahoo's SYMBOL-USD series. The symbol
+// comes from the cached top-20 list. Two coins can share a ticker, so the
+// series is only used if its last close is within 15% of the coin's live price.
+async function yahooCryptoHistory(id, range) {
+  // A chart reached by direct link can arrive before the list was ever loaded.
+  let markets = cache.get("crypto:markets:top20")?.data || cache.get("crypto:markets:paprika")?.data;
+  if (!markets) markets = await loadCryptoMarkets().catch(() => []);
+  const coin = markets.find((c) => c.id === id);
+  if (!coin || !coin.symbol || !(coin.price > 0)) return null;
+  const ticker = `${coin.symbol}-USD`;
+  if (!isTicker(ticker)) return null;
+  // Yahoo turns "max" into monthly bars, so MAX asks for ten years of daily ones.
+  const rows = await yahooHistorical(ticker, range === "5y" ? "5y" : "10y", "1d");
+  const last = rows[rows.length - 1];
+  if (rows.length < 400 || !last || Math.abs(last.close / coin.price - 1) > 0.15) return null;
+  // Thin to about 600 points, counting back from the latest close so it is
+  // always kept. Thousands of daily points make the chart crawl on a phone.
+  const step = Math.ceil(rows.length / 600);
+  const out = [];
+  for (let i = rows.length - 1; i >= 0; i -= step) out.push({ date: rows[i].date, close: rows[i].close, volume: rows[i].volume });
+  return out.reverse();
+}
+
 // ── GET /api/crypto/:id/chart ───────────────────────────
 // Daily close series for a coin. CoinGecko's market_chart returns [ms, price]
 // tuples; we keep the last price per UTC day so a 1mo range is ~30 points
@@ -973,10 +1083,25 @@ app.get("/api/crypto/:id/chart", apiLimiter, async (req, res) => {
 
     // If the markets endpoint served from the Paprika fallback, the coin id
     // comes back prefixed and we route the chart request to Paprika too.
+    const failSoft = { valid: (d) => d.length > 0, failTtlMs: 60_000 };
+
+    if (CRYPTO_LONG_RANGES.has(range)) {
+      try {
+        const long = await cached(`crypto:chart:yahoo:${id}:${range}`, 3_600_000, async () => {
+          const rows = await yahooCryptoHistory(id, range);
+          if (!rows) throw new Error("no Yahoo series for this coin");
+          return rows;
+        }, failSoft);
+        return res.json(long);
+      } catch (e) {
+        console.error(`Crypto long history (${id}) falls back to one year:`, e.message);
+      }
+    }
+
     if (id.startsWith("paprika:")) {
       const realId = id.slice("paprika:".length);
       const cacheKey = `crypto:chart:${id}:${range}`;
-      const data = await cached(cacheKey, 300_000, () => coinpaprikaChart(realId, range));
+      const data = await cached(cacheKey, 300_000, () => coinpaprikaChart(realId, range), failSoft);
       return res.json(data);
     }
 
@@ -1003,7 +1128,7 @@ app.get("/api/crypto/:id/chart", apiLimiter, async (req, res) => {
           close: priceByDay.get(date),
           volume: volByDay.get(date) || 0,
         }));
-    });
+    }, failSoft);
     res.json(data);
   } catch (e) {
     console.error("Crypto chart error:", e.message);
@@ -1015,13 +1140,14 @@ app.get("/api/crypto/:id/chart", apiLimiter, async (req, res) => {
 app.get("/api/search", apiLimiter, async (req, res) => {
   try {
     const query = String(req.query.q || "").slice(0, 40);
-    if (!query || !/^[\w\s.\-^=&]+$/i.test(query)) return res.json([]);
+    // Apostrophes are allowed so "McDonald's" finds MCD.
+    if (!query || !/^[\w\s.\-^=&'’]+$/i.test(query)) return res.json([]);
 
     const cacheKey = `search:${query}`;
     const data = await cached(cacheKey, 60_000, async () => {
       const result = await yahooSearch(query);
       return (result.quotes || [])
-        .filter((q) => ["EQUITY", "INDEX", "CURRENCY", "FUTURE", "ETF"].includes(q.quoteType))
+        .filter((q) => ["EQUITY", "INDEX", "CURRENCY", "FUTURE", "ETF", "CRYPTOCURRENCY"].includes(q.quoteType))
         .slice(0, 10)
         .map((q) => ({
           symbol: q.symbol,
@@ -1090,6 +1216,10 @@ app.use("/api", (req, res) => res.status(404).json({ error: "not found" }));
 
 const distPath = path.resolve(__dirname, "../dist");
 if (fs.existsSync(distPath)) {
+  // Hashed build files never change under the same name, so they cache for a
+  // year. A hash that no longer exists (a tab left open across a deploy) is a
+  // 404, not index.html served as JavaScript; the client reloads on that.
+  app.use("/assets", express.static(path.join(distPath, "assets"), { immutable: true, maxAge: "1y", fallthrough: false }));
   app.use(express.static(distPath));
   app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
 }

@@ -8,19 +8,42 @@ import { Loading } from "./ui/Loading.jsx";
 import { toast } from "./ui/toasts.js";
 import ErrorBoundary from "./ErrorBoundary";
 
-// Screens are code-split; every one is built on the kit.
-const Dashboard = lazy(() => import("./screens/Dashboard.jsx"));
-const Equities = lazy(() => import("./screens/Equities.jsx"));
-const Fx = lazy(() => import("./screens/Fx.jsx"));
-const Rates = lazy(() => import("./screens/Rates.jsx"));
-const Commodities = lazy(() => import("./screens/Commodities.jsx"));
-const Crypto = lazy(() => import("./screens/Crypto.jsx"));
-const Screener = lazy(() => import("./screens/Screener.jsx"));
-const Portfolio = lazy(() => import("./screens/Portfolio.jsx"));
-const News = lazy(() => import("./screens/News.jsx"));
-const Compare = lazy(() => import("./screens/Compare.jsx"));
-const Ipos = lazy(() => import("./screens/Ipos.jsx"));
-const Settings = lazy(() => import("./screens/Settings.jsx"));
+// Screens are code-split; every one is built on the kit. React.lazy keeps a
+// failed import for good, so a screen whose chunk failed to load once would
+// fail on every later render. retryFailedScreens() swaps those for a fresh
+// lazy so the error boundary's RETRY really imports again.
+const retries = [];
+
+function screen(load) {
+  let failed = false;
+  const attempt = () => load().catch((e) => { failed = true; throw e; });
+  let Lazy = lazy(attempt);
+  retries.push(() => {
+    if (!failed) return;
+    failed = false;
+    Lazy = lazy(attempt);
+  });
+  return function LazyScreen(props) {
+    return <Lazy {...props} />;
+  };
+}
+
+function retryFailedScreens() {
+  for (const retry of retries) retry();
+}
+
+const Dashboard = screen(() => import("./screens/Dashboard.jsx"));
+const Equities = screen(() => import("./screens/Equities.jsx"));
+const Fx = screen(() => import("./screens/Fx.jsx"));
+const Rates = screen(() => import("./screens/Rates.jsx"));
+const Commodities = screen(() => import("./screens/Commodities.jsx"));
+const Crypto = screen(() => import("./screens/Crypto.jsx"));
+const Screener = screen(() => import("./screens/Screener.jsx"));
+const Portfolio = screen(() => import("./screens/Portfolio.jsx"));
+const News = screen(() => import("./screens/News.jsx"));
+const Compare = screen(() => import("./screens/Compare.jsx"));
+const Ipos = screen(() => import("./screens/Ipos.jsx"));
+const Settings = screen(() => import("./screens/Settings.jsx"));
 
 function useDefaultScreen() {
   const booted = useRef(false);
@@ -63,7 +86,7 @@ export default function App() {
 
   return (
     <AppShell>
-      <ErrorBoundary key={route ? route.name : "unknown"} screen={route ? route.mnemonic : ""}>
+      <ErrorBoundary key={route ? route.name : "unknown"} screen={route ? route.mnemonic : ""} resetKey={path} onRetry={retryFailedScreens}>
         <Suspense fallback={<Loading />}>
           <Screen route={route} />
         </Suspense>

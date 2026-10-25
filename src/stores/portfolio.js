@@ -1,14 +1,12 @@
 import { createStore } from "./createStore.js";
 import { newId } from "../lib/id.js";
-import { localYmd } from "../lib/portfolio.js";
+import { tradeDate } from "../lib/session.js";
 
 // transactions: [{ id, date: "YYYY-MM-DD", symbol, side: "buy"|"sell",
 //                  shares, price, fees, note? }]
 // The old app stored holdings ({symbol, name, shares, avgCost}) under
 // purpleberg_portfolio; each becomes one buy dated on migration day.
-// One implementation of the local calendar day, in the lib, so a 21:00
-// migration in New York is not dated tomorrow. Re-exported for callers that
-// already import it from here.
+// localYmd is re-exported for callers that already import it from here.
 export { localYmd } from "../lib/portfolio.js";
 
 export function migratePortfolio(storage, today = new Date()) {
@@ -16,7 +14,10 @@ export function migratePortfolio(storage, today = new Date()) {
   let old = null;
   try { old = JSON.parse(storage.getItem("purpleberg_portfolio") || "null"); } catch { return null; }
   if (!Array.isArray(old) || old.length === 0) return null;
-  const date = localYmd(today);
+  // Migration day is the New York trade date, the same default the form uses.
+  // East of New York the local date runs a day ahead through the US evening,
+  // which would date these buys after today in New York, often on a Saturday.
+  const date = tradeDate(today);
   const transactions = old
     .filter((h) => h && h.symbol && Number(h.shares) > 0 && Number(h.avgCost) > 0)
     .map((h) => ({

@@ -10,8 +10,10 @@ async function get(url) {
 }
 
 export const api = {
+  // Commas stay literal: the shared poll sends about 700 symbols, and encoding
+  // each separator as %2C would add 2 kB to every request line.
   quotes: (symbols) =>
-    get(`/quotes?symbols=${encodeURIComponent(symbols.join(","))}`),
+    get(`/quotes?symbols=${symbols.map(encodeURIComponent).join(",")}`),
 
   historical: (symbol, range = "3mo", interval = "1d") =>
     get(`/historical/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`),

@@ -43,12 +43,17 @@ export function CommandLine() {
   const parsed = useMemo(() => parseCommand(value), [value]);
   const searchQuery = parsed.kind === "search" && parsed.query.length >= 2 ? parsed.query : "";
   const { results: yahoo, loading: searching } = useSearch(searchQuery, 400);
+  // A one-letter query never reaches Yahoo, so it counts as still waiting.
+  const pending = searching || !searchQuery;
   const items = useMemo(
-    () => buildSuggestions({ value, parsed, poolList: pool.equities, watch, yahoo }),
-    [value, parsed, pool.equities, watch, yahoo]
+    () => buildSuggestions({ value, parsed, poolList: pool.equities, watch, yahoo, pending }),
+    [value, parsed, pool.equities, watch, yahoo, pending]
   );
 
   useEffect(() => { setActive(0); }, [value]);
+  // Results arrive and shrink under the highlight (Yahoo answers after the
+  // debounce), so the index is clamped where it is used rather than trusted.
+  const current = Math.max(0, Math.min(active, items.length - 1));
 
   useEffect(() => registerCommandLine((prefill) => {
     setValue(prefill);
@@ -60,7 +65,8 @@ export function CommandLine() {
   }), []);
 
   const reset = () => { setOpen(false); setValue(""); if (inputRef.current) inputRef.current.blur(); };
-  useLayer(open, reset);
+  // Not modal: it handles its own keys, and opening it closes any popover.
+  useLayer(open, reset, { modal: false });
 
   const runItem = (item, shift) => {
     reset();
@@ -72,14 +78,17 @@ export function CommandLine() {
 
   const onKeyDown = (e) => {
     e.stopPropagation();
-    if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive((a) => Math.min(items.length - 1, a + 1)); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(0, a - 1)); }
+    // The global Ctrl+K handler never sees this key from here, so without
+    // preventDefault Chrome takes it and jumps to the address bar.
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") { e.preventDefault(); e.currentTarget.select(); return; }
+    if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive(Math.max(0, Math.min(items.length - 1, current + 1))); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive(Math.max(0, current - 1)); }
     else if (e.key === "Escape") { e.preventDefault(); reset(); }
     else if (e.key === "Enter") {
       e.preventDefault();
       if (parsed.kind === "navigate") { reset(); navigate(pathFor(parsed.name, parsed.params, parsed.query)); }
       else if (parsed.kind === "command") { reset(); runCommand(parsed.command); }
-      else if (items[active]) runItem(items[active], e.shiftKey);
+      else if (items[current]) runItem(items[current], e.shiftKey);
     }
   };
 
@@ -107,7 +116,7 @@ export function CommandLine() {
         aria-expanded={open}
         aria-controls="pb-cmd-list"
         aria-autocomplete="list"
-        aria-activedescendant={open && items[active] ? `pb-cmd-opt-${active}` : undefined}
+        aria-activedescendant={open && items[current] ? `pb-cmd-opt-${current}` : undefined}
         spellCheck={false}
         autoComplete="off"
         autoCapitalize="characters"
@@ -124,7 +133,7 @@ export function CommandLine() {
               {g.items.map((item) => {
                 flat += 1;
                 const idx = flat;
-                const on = idx === active;
+                const on = idx === current;
                 return (
                   <div
                     key={item.id}

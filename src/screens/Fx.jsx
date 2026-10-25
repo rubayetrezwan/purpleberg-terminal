@@ -15,12 +15,15 @@ import { Price } from "../ui/Price.jsx";
 import { Input } from "../ui/Input.jsx";
 import { Tag } from "../ui/Tag.jsx";
 import { Freshness } from "../ui/Freshness.jsx";
+import { EmptyState } from "../ui/EmptyState.jsx";
 import { ChartFrame, useChartTheme } from "../ui/ChartFrame.jsx";
 
 const RANGES = ["1mo", "3mo", "6mo", "1y"];
 const fxSymbols = FX_SYMBOLS.map((f) => f.symbol);
 const slugOf = (symbol) => symbol.replace("=X", "");
-const symbolOf = (slug) => `${String(slug || "").toUpperCase()}=X`;
+// A URL may carry the Yahoo symbol itself ("/fx/USDJPY=X"), which must not
+// become USDJPY=X=X.
+const symbolOf = (slug) => `${String(slug || "").toUpperCase().replace(/=X$/, "")}=X`;
 
 // Pip size follows the quote's magnitude, not the currency code: pairs quoted
 // in the tens or hundreds (JPY, BDT, INR) move in 0.01, majors in 0.0001.
@@ -58,7 +61,12 @@ export default function Fx() {
   );
 
   const requested = params.pair ? symbolOf(params.pair) : null;
-  const selected = rows.find((r) => r.symbol === requested) || rows[0];
+  const match = requested ? rows.find((r) => r.symbol === requested) : null;
+  // A pair this screen does not carry says NOT FOUND. Falling back to the
+  // first row would show EUR/USD under a URL that names another pair. The
+  // values below still derive from the first row; they are cheap and unused.
+  const missing = Boolean(requested) && !match;
+  const selected = match || rows[0];
   const symbol = selected.symbol;
   const dp = decimalsFor(selected.price);
   const pip = pipSize(selected.price);
@@ -67,7 +75,7 @@ export default function Fx() {
   const pips = dayRange == null ? null : Math.round(dayRange / pip);
   const [base, quote] = selected.pair.split("/");
 
-  const { data: hist, loading: histLoading } = useHistorical(symbol, range);
+  const { data: hist, loading: histLoading } = useHistorical(missing ? null : symbol, range);
   const chartRows = useMemo(() => hist.map((d) => ({ date: d.date || "", price: d.close })), [hist]);
   const converted = selected.price > 0 ? parseFloat(amount || 0) * selected.price : null;
 
@@ -86,7 +94,7 @@ export default function Fx() {
         columns={listColumns}
         rows={rows}
         rowKey={(r) => r.symbol}
-        selectedKey={symbol}
+        selectedKey={missing ? null : symbol}
         numbered
         navigable
         loading={loading && !data.length}
@@ -96,7 +104,11 @@ export default function Fx() {
     </Section>
   );
 
-  const detail = (
+  const detail = missing ? (
+    <div className="pb-eq__detail">
+      <EmptyState>PAIR {slugOf(requested)} NOT FOUND</EmptyState>
+    </div>
+  ) : (
     <div className="pb-eq__detail">
       <header className="pb-eq__head">
         <span className="pb-eq__symbig">{selected.pair}</span>
@@ -161,6 +173,10 @@ export default function Fx() {
     </div>
   );
 
+  // A native select shows its first option when the value matches none, so a
+  // missing pair gets a placeholder rather than reading as EUR/USD.
+  const options = rows.map((r) => ({ value: r.symbol, label: `${r.pair}${r.price > 0 ? ` · ${fmt(r.price, decimalsFor(r.price))}` : ""}` }));
+
   return (
     <ListDetail
       listWidth={200}
@@ -168,9 +184,9 @@ export default function Fx() {
       detail={detail}
       mobile={{
         label: "Currency pair",
-        value: symbol,
+        value: missing ? "" : symbol,
         onChange: select,
-        options: rows.map((r) => ({ value: r.symbol, label: `${r.pair}${r.price > 0 ? ` · ${fmt(r.price, decimalsFor(r.price))}` : ""}` })),
+        options: missing ? [{ value: "", label: `${slugOf(requested)} · NOT FOUND` }, ...options] : options,
       }}
     />
   );

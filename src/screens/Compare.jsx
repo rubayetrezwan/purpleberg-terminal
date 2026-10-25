@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeftRight, X } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
-import { fmt, fmtK, fmtNum, fmtAxisDate, fmtTooltipDate } from "../lib/format.js";
-import { normalizeToPct, alignTimelines, winnerOf } from "../compareUtils.js";
+import { fmt, fmtK, fmtNum, fmtLevel, fmtAxisDate, fmtTooltipDate } from "../lib/format.js";
+import { normalizeToPct, alignTimelines, winnerOf, metricValue } from "../compareUtils.js";
 import { normalizeSymbol } from "../lib/ticker.js";
 import { useRoute, updateQuery } from "../router/index.jsx";
 import { useQuote, usePoolExtra } from "../data/quotePool.jsx";
@@ -23,19 +23,13 @@ import { ChartFrame, useChartTheme } from "../ui/ChartFrame.jsx";
 const RANGES = ["1mo", "3mo", "6mo", "1y", "ytd"];
 
 // One metric row: both values, the label between them, the better side lit.
+// A placeholder zero from the proxy prints "—" like any other missing value.
 function Row({ label, a, b, format, higherIsBetter, suffix = "" }) {
-  const toNum = (v) => {
-    if (v == null) return NaN;
-    if (typeof v === "number") return v;
-    if (typeof v === "string") return parseFloat(v);
-    if (typeof v === "object" && "raw" in v) return Number(v.raw);
-    return Number(v);
-  };
-  const av = toNum(a);
-  const bv = toNum(b);
+  const av = metricValue(a);
+  const bv = metricValue(b);
   const winner = winnerOf(av, bv, higherIsBetter);
   const cell = (v, win) => (
-    <span className={win ? "pb-cmp__win" : ""}>{!Number.isFinite(v) ? "—" : format(v) + suffix}</span>
+    <span className={win ? "pb-cmp__win" : ""}>{v == null ? "—" : format(v) + suffix}</span>
   );
   return (
     <div className="pb-cmp__row">
@@ -64,7 +58,7 @@ function QuoteSide({ symbol }) {
         <KV k="BETA" v={q.beta > 0 ? fmt(q.beta) : "—"} />
         <KV k="DIV YLD" v={q.dividendYield > 0 ? `${fmt(q.dividendYield)}%` : "—"} />
         <KV k="VOL" v={q.volume > 0 ? fmtK(q.volume) : "—"} />
-        <KV k="52W" v={q.week52Low > 0 ? `${fmt(q.week52Low, 0)} – ${fmt(q.week52High, 0)}` : "—"} />
+        <KV k="52W" v={q.week52Low > 0 && q.week52High > 0 ? `${fmtLevel(q.week52Low)} – ${fmtLevel(q.week52High)}` : "—"} />
       </KVList>
     </>
   );
@@ -178,7 +172,10 @@ export default function Compare() {
             <Section title="Ratios">
               {(finLoadA || finLoadB) && !finA && !finB ? <EmptyState>LOADING…</EmptyState> : (
                 <div className="pb-cmp">
-                  <Row label="P/E (TTM)" a={(finA && finA.ratios.pe) || (quoteA && quoteA.pe)} b={(finB && finB.ratios.pe) || (quoteB && quoteB.pe)} format={(v) => fmt(v, 1)} suffix="x" higherIsBetter={false} />
+                  {/* The quote's P/E is Yahoo's trailingPE. The financials P/E falls back to
+                      forward P/E when trailing is missing, which is usually because earnings are
+                      negative, so it would put a loss-maker's forward multiple under a TTM label. */}
+                  <Row label="P/E (TTM)" a={quoteA && quoteA.pe} b={quoteB && quoteB.pe} format={(v) => fmt(v, 1)} suffix="x" higherIsBetter={false} />
                   <Row label="P/S" a={finA && finA.ratios.ps} b={finB && finB.ratios.ps} format={(v) => fmt(v)} suffix="x" higherIsBetter={false} />
                   <Row label="P/B" a={finA && finA.ratios.pb} b={finB && finB.ratios.pb} format={(v) => fmt(v)} suffix="x" higherIsBetter={false} />
                   <Row label="EV/EBITDA" a={finA && finA.ratios.evEbitda} b={finB && finB.ratios.evEbitda} format={(v) => fmt(v, 1)} suffix="x" higherIsBetter={false} />

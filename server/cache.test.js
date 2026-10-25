@@ -51,6 +51,41 @@ test("put stores an answer under the same freshness and grace rules", async () =
   assert.equal(calls, 0);
 });
 
+test("an answer that fails validation never replaces the last good copy", async () => {
+  const { cached } = createCache({ staleMs: 5_000 });
+  const nonEmpty = { valid: (d) => d.length > 0 };
+  await cached("econ", 20, async () => ["CPI"], nonEmpty);
+  await sleep(40);
+  assert.deepEqual(await cached("econ", 20, async () => [], nonEmpty), ["CPI"]);
+});
+
+test("an invalid answer with nothing cached is an error, not an empty success", async () => {
+  const { cached } = createCache();
+  await assert.rejects(cached("econ", 1_000, async () => [], { valid: (d) => d.length > 0 }), /no usable data/);
+});
+
+test("after a failure the upstream is left alone for the backoff window", async () => {
+  let t = 0;
+  const { cached } = createCache({ now: () => t });
+  let calls = 0;
+  const failing = async () => { calls += 1; throw new Error("429"); };
+  await assert.rejects(cached("ff", 1_000, failing, { failTtlMs: 60_000 }), /429/);
+  t = 30_000;
+  await assert.rejects(cached("ff", 1_000, failing, { failTtlMs: 60_000 }), /429/);
+  assert.equal(calls, 1);
+  t = 61_000;
+  assert.deepEqual(await cached("ff", 1_000, async () => { calls += 1; return ["ok"]; }, { failTtlMs: 60_000 }), ["ok"]);
+  assert.equal(calls, 2);
+});
+
+test("a per-key grace period can keep the last good copy longer", async () => {
+  let t = 0;
+  const { cached } = createCache({ staleMs: 1_000, now: () => t });
+  await cached("cal", 100, async () => ["NFP"], { staleMs: 86_400_000 });
+  t = 3_600_000;
+  assert.deepEqual(await cached("cal", 100, async () => { throw new Error("down"); }, { staleMs: 86_400_000 }), ["NFP"]);
+});
+
 test("with nothing cached, the upstream error reaches the caller", async () => {
   const { cached } = createCache();
   await assert.rejects(cached("none", 1_000, async () => { throw new Error("down"); }), /down/);

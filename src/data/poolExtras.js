@@ -1,6 +1,6 @@
 import { createStore } from "../stores/createStore.js";
 
-// Ad-hoc symbols (quick-look on something outside the tracked 250) held in the
+// Ad-hoc symbols (quick-look on something outside the tracked universe) held in the
 // quote pool for as long as at least one component retains them.
 export const poolExtras = createStore("poolExtras", { counts: {} }, { storage: null, debounceMs: 0 });
 

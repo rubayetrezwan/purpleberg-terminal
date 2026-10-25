@@ -3,7 +3,8 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "r
 import { Trash2 } from "lucide-react";
 import { useRoute, updateQuery } from "../router/index.jsx";
 import { api } from "../data/api.js";
-import { useQuotes, useHistorical, useIsMobile } from "../data/hooks.js";
+import { useHistorical, useIsMobile } from "../data/hooks.js";
+import { useQuotePool, usePoolExtra } from "../data/quotePool.jsx";
 import { useStore } from "../stores/useStore.js";
 import {
   portfolio, migratePortfolio, replaceTransactions, addTransaction,
@@ -12,8 +13,10 @@ import {
 import {
   positionsFrom, enrichPositions, portfolioTotals, allocation, valueSeries,
   flowsByDate, alignFlows, dietzSeries, normalizeTo100, riskMetrics, beta,
-  sortTransactions, toCsv, parseCsv, sampleTransactions, MIN_RISK_POINTS,
+  sortTransactions, toCsv, parseCsv, sampleTransactions, newlyRejected, MIN_RISK_POINTS,
 } from "../lib/portfolio.js";
+import { normalizeSymbol } from "../lib/ticker.js";
+import { tradeDate } from "../lib/session.js";
 import { fmtNum, fmtPct, fmtSigned, fmtAxisDate, fmtTooltipDate } from "../lib/format.js";
 import { Page, Grid } from "../ui/Grid.jsx";
 import { Section } from "../ui/Section.jsx";
@@ -65,7 +68,7 @@ function useMigration() {
       replaceTransactions(migrated.transactions);
       toast({
         title: `IMPORTED ${migrated.transactions.length} HOLDINGS`,
-        body: "Each old holding became one buy dated today. Edit the dates on the transactions tab for accurate returns.",
+        body: `Each old holding became one buy dated ${migrated.transactions[0].date}. Edit the dates on the transactions tab for accurate returns.`,
         ttlMs: 9000,
       });
     }
@@ -75,21 +78,23 @@ function useMigration() {
 // Daily closes for several symbols at once. The proxy caches per symbol, so
 // re-fetching on a holdings change is cheap.
 function useHistories(symbols, range = "1y") {
-  const [state, setState] = useState({ bySymbol: {}, loading: symbols.length > 0 });
   const key = symbols.join(",");
+  const [state, setState] = useState({ key, bySymbol: {}, loading: symbols.length > 0 });
   useEffect(() => {
     const list = key ? key.split(",") : [];
-    if (!list.length) { setState({ bySymbol: {}, loading: false }); return undefined; }
+    if (!list.length) { setState({ key, bySymbol: {}, loading: false }); return undefined; }
     let cancelled = false;
     setState((s) => ({ ...s, loading: true }));
     Promise.all(
       list.map((s) => api.historical(s, range, "1d").then((rows) => [s, Array.isArray(rows) ? rows : []]).catch(() => [s, []]))
     ).then((pairs) => {
-      if (!cancelled) setState({ bySymbol: Object.fromEntries(pairs), loading: false });
+      if (!cancelled) setState({ key, bySymbol: Object.fromEntries(pairs), loading: false });
     });
     return () => { cancelled = true; };
   }, [key, range]);
-  return state;
+  // Until the effect has run for a new list (a first trade in a new symbol),
+  // the state still holds the old list's closes, so it counts as loading.
+  return { bySymbol: state.bySymbol, loading: state.loading || state.key !== key };
 }
 
 // Sector per symbol, fetched only once the allocation tab is open.
@@ -149,20 +154,37 @@ export default function Portfolio() {
     () => positions.filter((p) => p.shares > 0).map((p) => p.symbol).sort(),
     [positions]
   );
-  const quoteSymbols = useMemo(() => [...openSymbols, BENCH, BILL], [openSymbols]);
-  const { data: quotes, updatedAt, intervalMs } = useQuotes(quoteSymbols, 15000);
-  const bySymbol = useMemo(() => new Map(quotes.map((q) => [q.symbol, q])), [quotes]);
+  // Prices come from the shared quote pool, which already polls every
+  // transaction symbol and the S&P 500, so holdings show the same prices as
+  // the rest of the terminal instead of a second poll one tick apart. The
+  // 3-month bill is not in the pool, so it joins while this screen is open.
+  usePoolExtra(BILL);
+  const { bySymbol, updatedAt, intervalMs } = useQuotePool();
 
-  const rows = useMemo(() => enrichPositions(positions, bySymbol), [positions, bySymbol]);
+  // ADD TO PORTFOLIO in the quick look lands here with ?symbol=. The form
+  // takes it as its starting symbol and the parameter is then dropped, so a
+  // second click on the same symbol still reads as a new seed.
+  const seedSymbol = tab === "transactions" ? normalizeSymbol(query.symbol) : null;
+  useEffect(() => {
+    if (tab === "transactions" && query.symbol) updateQuery({ symbol: null });
+  }, [tab, query.symbol]);
+
+  const accepted = useMemo(() => {
+    const bad = new Set(rejected.map((r) => r.transaction && r.transaction.id));
+    return transactions.filter((t) => !bad.has(t.id));
+  }, [transactions, rejected]);
+  // Day P&L needs today's trades, and "today" is the New York trade date.
+  // Every poll re-renders, so this moves on with the clock.
+  const today = tradeDate();
+  const rows = useMemo(
+    () => enrichPositions(positions, bySymbol, { transactions: accepted, today }),
+    [positions, bySymbol, accepted, today]
+  );
   const openRows = useMemo(() => rows.filter((r) => r.shares > 0), [rows]);
   const totals = useMemo(() => portfolioTotals(rows), [rows]);
 
   // ── Performance ──
   const { data: benchRows, loading: benchLoading } = useHistorical(BENCH, "1y");
-  const accepted = useMemo(() => {
-    const bad = new Set(rejected.map((r) => r.transaction && r.transaction.id));
-    return transactions.filter((t) => !bad.has(t.id));
-  }, [transactions, rejected]);
   // Every symbol ever transacted, not just the open ones: a position that has
   // been sold was still held on the days before the sale, and without its
   // closes it would contribute nothing to the value on those days while its
@@ -172,8 +194,18 @@ export default function Portfolio() {
     [accepted]
   );
   const { bySymbol: closes, loading: closesLoading } = useHistories(seriesSymbols, "1y");
+  // Symbols whose history came back empty or failed. valueSeries carries them
+  // at their last trade price, and the chart says so.
+  const noHistory = useMemo(
+    () => (closesLoading ? [] : seriesSymbols.filter((s) => !(closes[s] || []).some((r) => Number(r.close) > 0))),
+    [closesLoading, seriesSymbols, closes]
+  );
 
   const series = useMemo(() => {
+    // Built only once every symbol's closes are in. A half-loaded set values
+    // the missing symbols at nothing while their buys still count as cash in,
+    // which the chain reads as a crash.
+    if (closesLoading) return null;
     const benchDates = (benchRows || []).filter((r) => Number(r.close) > 0);
     if (!benchDates.length || !accepted.length) return null;
     const first = sortTransactions(accepted)[0].date;
@@ -201,7 +233,7 @@ export default function Portfolio() {
       from: dates[0],
       days: dates.length,
     };
-  }, [benchRows, closes, accepted]);
+  }, [benchRows, closes, closesLoading, accepted]);
 
   const rf = useMemo(() => {
     const bill = bySymbol.get(BILL);
@@ -223,11 +255,22 @@ export default function Portfolio() {
     [openRows, sectors]
   );
 
-  // Shares of a symbol held on a date, for the form's sell check.
-  const sharesHeld = (symbol, date) =>
-    sortTransactions(accepted)
-      .filter((t) => t.symbol === symbol && t.date <= date)
-      .reduce((a, t) => a + (t.side === "sell" ? -Number(t.shares) : Number(t.shares)), 0);
+  // Deleting a buy can leave a later sell without the shares it sold; the
+  // accounting would then drop that sell and keep its shares open. Refuse,
+  // and name the sell so it is clear which one to delete first.
+  const doDelete = (t) => {
+    const broken = newlyRejected(transactions, transactions.filter((x) => x.id !== t.id));
+    if (broken.length) {
+      const s = broken[0];
+      toast({
+        tone: "warn",
+        title: "DELETE THE LATER SELL FIRST",
+        body: `Without this buy, the ${s.date} sell of ${shareStr(Number(s.shares))} ${s.symbol} is not covered.`,
+      });
+      return;
+    }
+    removeTransaction(t.id);
+  };
 
   const fileRef = useRef(null);
   const [preview, setPreview] = useState(null);
@@ -355,7 +398,7 @@ export default function Portfolio() {
       key: "del",
       label: "",
       render: (t) => (
-        <Button size="sm" onClick={() => removeTransaction(t.id)} aria-label={`Delete the ${t.date} ${t.symbol} ${t.side}`}>
+        <Button size="sm" onClick={() => doDelete(t)} aria-label={`Delete the ${t.date} ${t.symbol} ${t.side}`}>
           <Trash2 size={11} strokeWidth={1.5} />
         </Button>
       ),
@@ -415,6 +458,11 @@ export default function Portfolio() {
             <Line dataKey="bench" name="S&P 500" stroke={colors.series[2]} {...lineProps} strokeDasharray="3 3" connectNulls />
           </LineChart>
         </ChartFrame>
+        {noHistory.length > 0 && (
+          <div className="pb-form__hint pb-warn">
+            No history for {noHistory.join(", ")}; carried flat at the last trade price.
+          </div>
+        )}
         <div className="pb-form__hint pb-muted">
           Both lines start at 100. The portfolio line is a daily Dietz chain, so deposits and
           withdrawals do not count as gains.
@@ -447,7 +495,7 @@ export default function Portfolio() {
       {tab === "transactions" && (
         <>
           <Section title="Add a transaction">
-            <TransactionForm sharesHeld={sharesHeld} onAdd={(t) => { addTransaction(t); toast({ title: `${t.side.toUpperCase()} ${t.symbol} RECORDED` }); }} />
+            <TransactionForm transactions={transactions} initialSymbol={seedSymbol} onAdd={(t) => { addTransaction(t); toast({ title: `${t.side.toUpperCase()} ${t.symbol} RECORDED` }); }} />
           </Section>
 
           <Section

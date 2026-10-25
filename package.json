@@ -10,7 +10,8 @@
     "build": "vite build",
     "start": "node server/index.js",
     "preview": "vite preview",
-    "test": "node --test src/**/*.test.js server/**/*.test.js"
+    "test": "node --test \"src/**/*.test.js\" \"server/**/*.test.js\"",
+    "universe": "node scripts/build-universe.mjs"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -24,7 +25,7 @@
     "recharts": "^2.12.7"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=21"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",

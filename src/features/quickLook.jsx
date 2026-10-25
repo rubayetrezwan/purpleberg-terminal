@@ -9,13 +9,14 @@ import { Price } from "../ui/Price.jsx";
 import { Tag } from "../ui/Tag.jsx";
 import { Button, IconButton } from "../ui/Button.jsx";
 import { Loading } from "../ui/Loading.jsx";
+import { EmptyState } from "../ui/EmptyState.jsx";
 import { toggleWatch } from "../ui/watchActions.js";
 import { useStore } from "../stores/useStore.js";
 import { watchlist, normalizeSymbol } from "../stores/watchlist.js";
-import { useQuote, usePoolExtra } from "../data/quotePool.jsx";
+import { useQuote, useQuotePool, usePoolExtra } from "../data/quotePool.jsx";
 import { useHistorical } from "../data/hooks.js";
 import { navigate, pathFor } from "../router/index.jsx";
-import { fmt, fmtK, fmtNum, fmtSigned } from "../lib/format.js";
+import { fmt, fmtK, fmtLevel, fmtNum, fmtSigned } from "../lib/format.js";
 import { useNewsFeed } from "./newsFeed.jsx";
 import { AlertForm } from "./AlertForm.jsx";
 
@@ -35,7 +36,18 @@ export function QuickLookProvider({ children }) {
 function QuickLookDrawer({ symbol, onClose }) {
   usePoolExtra(symbol);
   const q = useQuote(symbol);
-  const { data: hist } = useHistorical(symbol, "1mo");
+  const pool = useQuotePool();
+  const { data: hist, loading: histLoading } = useHistorical(symbol, "1mo");
+  // Joining the pool restarts its poll, so a missing row only means "no
+  // quote" once a poll that asked for this symbol has come back. Note the
+  // pool's stamp when the symbol joins; a different one is that answer. Until
+  // then the drawer says LOADING, after it NO QUOTE (an IPO not yet trading).
+  const inPool = Boolean(symbol) && pool.symbols.includes(symbol);
+  const [joined, setJoined] = useState(null);
+  useEffect(() => {
+    setJoined(inPool ? { symbol, at: pool.updatedAt } : null);
+  }, [symbol, inPool]); // eslint-disable-line react-hooks/exhaustive-deps
+  const answered = Boolean(joined && joined.symbol === symbol && pool.updatedAt !== joined.at);
   const { news } = useNewsFeed();
   const [alertOpen, setAlertOpen] = useState(false);
   useEffect(() => { setAlertOpen(false); }, [symbol]);
@@ -85,7 +97,7 @@ function QuickLookDrawer({ symbol, onClose }) {
     <Drawer open={Boolean(symbol)} onClose={onClose} header={header} ariaLabel={`Quick look ${symbol || ""}`}>
       {symbol && (
         <div className="pb-ql">
-          {!q ? <Loading /> : (
+          {!q ? (answered ? <EmptyState>NO QUOTE FOR {symbol}</EmptyState> : <Loading />) : (
             <>
               <div className="pb-ql__price">
                 <Price value={q.price} format={(v) => fmtNum(v, 2)} className="pb-ql__last" />
@@ -96,7 +108,7 @@ function QuickLookDrawer({ symbol, onClose }) {
                 </span>
               </div>
               <div className="pb-ql__spark">
-                {closes.length > 1 ? <Sparkline values={closes} width={330} height={56} /> : <span className="pb-label">1M CHART LOADING…</span>}
+                {closes.length > 1 ? <Sparkline values={closes} width={330} height={56} /> : <span className="pb-label">{histLoading ? "1M CHART LOADING…" : "NO CHART DATA"}</span>}
               </div>
               {alertOpen && <div className="pb-ql__alert"><AlertForm symbol={symbol} currentPrice={q.price} onDone={() => setAlertOpen(false)} /></div>}
               <KVList cols={2}>
@@ -111,7 +123,7 @@ function QuickLookDrawer({ symbol, onClose }) {
                 <KV k="EPS" v={q.eps ? fmt(q.eps) : "—"} />
                 <KV k="DIV YLD" v={q.dividendYield > 0 ? fmt(q.dividendYield) + "%" : "—"} />
                 <KV k="BETA" v={q.beta ? fmt(q.beta) : "—"} />
-                <KV k="52W" v={q.week52Low > 0 ? `${fmt(q.week52Low, 0)} – ${fmt(q.week52High, 0)}` : "—"} />
+                <KV k="52W" v={q.week52Low > 0 ? `${fmtLevel(q.week52Low)} – ${fmtLevel(q.week52High)}` : "—"} />
               </KVList>
               {range52 != null && (
                 <div className="pb-ql__range" title="Position in the 52-week range">

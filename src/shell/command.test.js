@@ -70,6 +70,36 @@ test("buildSuggestions: no exact row for a partial ticker or an index", () => {
   assert.ok(!index.some((i) => i.kind === "exact"));
 });
 
+test("buildSuggestions: a ticker prefix outranks a name that merely contains the text", () => {
+  const list = [{ symbol: "VRTX", name: "Vertex Pharmaceuticals Incorporated" }, { symbol: "ARMK", name: "Aramark" }];
+  const items = buildSuggestions({ value: "arm", parsed: parseCommand("arm"), poolList: list });
+  assert.deepEqual(items.filter((i) => i.kind === "tracked").map((i) => i.label), ["ARMK", "VRTX"]);
+});
+
+test("buildSuggestions: before Yahoo answers, a ticker-shaped word with no exact hit opens as itself", () => {
+  const list = [{ symbol: "VRTX", name: "Vertex Pharmaceuticals Incorporated" }];
+  const arm = buildSuggestions({ value: "arm", parsed: parseCommand("arm"), poolList: list, pending: true });
+  assert.equal(`${arm[0].kind}:${arm[0].symbol}`, "exact:ARM");
+  const sofi = buildSuggestions({ value: "SOFI", parsed: parseCommand("SOFI"), poolList: list, pending: true });
+  assert.equal(`${sofi[0].kind}:${sofi[0].symbol}`, "exact:SOFI");
+  const cls = buildSuggestions({ value: "brk.b", parsed: parseCommand("brk.b"), poolList: [], pending: true });
+  assert.equal(cls[0].symbol, "BRK-B");
+  // Once Yahoo has answered without it, the best match leads instead.
+  const settled = buildSuggestions({ value: "arm", parsed: parseCommand("arm"), poolList: list });
+  assert.equal(settled[0].label, "VRTX");
+});
+
+test("buildSuggestions: the pending fallback leaves full tickers, names and indices alone", () => {
+  const list = [...pool, { symbol: "MS", name: "Morgan Stanley" }];
+  const ms = buildSuggestions({ value: "MS", parsed: parseCommand("MS"), poolList: list, watch: ["MSFT"], pending: true });
+  assert.equal(`${ms[0].kind}:${ms[0].label}`, "exact:MS");
+  assert.equal(ms.filter((i) => i.kind === "exact").length, 1);
+  const apple = buildSuggestions({ value: "apple", parsed: parseCommand("apple"), poolList: pool, pending: true });
+  assert.equal(apple[0].label, "AAPL");
+  const index = buildSuggestions({ value: "^GSPC", parsed: parseCommand("^GSPC"), poolList: pool, pending: true });
+  assert.ok(!index.some((i) => i.kind === "exact"));
+});
+
 test("buildSuggestions: partial command", () => {
   const items = buildSuggestions({ value: "THE", parsed: parseCommand("THE"), poolList: pool });
   assert.deepEqual(items.map((i) => i.label), ["THEME"]);

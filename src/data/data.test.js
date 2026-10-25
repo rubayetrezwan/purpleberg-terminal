@@ -4,6 +4,7 @@ import { scaleInterval } from "./polling.js";
 import { dedupeSymbols, POOL_CAP, POOL_FIXED } from "./symbols.js";
 import { nextFeedState, FEED_INITIAL } from "./feedState.js";
 import { retainSymbol, releaseSymbol, poolExtras } from "./poolExtras.js";
+import { newestWins, withRetry, HISTORY_RETRY_MS } from "./hooks.js";
 
 test("scaleInterval scales by refresh setting with a 5s floor", () => {
   assert.equal(scaleInterval(15000, 15), 15000);
@@ -55,4 +56,53 @@ test("poolExtras is ref-counted", () => {
   releaseSymbol("");
   releaseSymbol("NEVER_HELD");
   assert.deepEqual(poolExtras.get().counts, {});
+});
+
+test("newestWins lets slow answers land and drops only ones older than the last applied", () => {
+  const gate = newestWins();
+  const a = gate.issue();
+  const b = gate.issue();
+  const c = gate.issue();
+  // Three ticks fired before any answer came back: the first answer to
+  // arrive still lands, which the old latest-request-only rule refused.
+  assert.equal(gate.accept(a), true);
+  assert.equal(gate.accept(c), true);
+  assert.equal(gate.accept(b), false, "b is older than c, which already landed");
+  const d = gate.issue();
+  assert.equal(gate.accept(d), true);
+});
+
+test("withRetry retries thrown errors with the backoff, then gives up", async () => {
+  const waits = [];
+  const wait = async (ms) => { waits.push(ms); };
+  let calls = 0;
+  const flaky = async () => { calls += 1; if (calls < 3) throw new Error("offline"); return [1, 2]; };
+  assert.deepEqual(await withRetry(flaky, { wait }), [1, 2]);
+  assert.equal(calls, 3);
+  assert.deepEqual(waits, HISTORY_RETRY_MS.slice(0, 2));
+
+  waits.length = 0;
+  calls = 0;
+  const down = async () => { calls += 1; throw new Error("still offline"); };
+  await assert.rejects(withRetry(down, { wait }), /still offline/);
+  assert.equal(calls, HISTORY_RETRY_MS.length + 1);
+  assert.deepEqual(waits, HISTORY_RETRY_MS);
+});
+
+test("withRetry retries an empty series like an error and stops when told to", async () => {
+  const wait = async () => {};
+  let calls = 0;
+  assert.deepEqual(await withRetry(async () => { calls += 1; return []; }, { wait }), []);
+  assert.equal(calls, HISTORY_RETRY_MS.length + 1, "an empty series is retried, then returned");
+
+  calls = 0;
+  const late = async () => { calls += 1; return calls < 2 ? [] : [{ close: 1 }]; };
+  assert.deepEqual(await withRetry(late, { wait }), [{ close: 1 }]);
+  assert.equal(calls, 2);
+
+  calls = 0;
+  let stopped = false;
+  const down = async () => { calls += 1; stopped = true; throw new Error("offline"); };
+  await assert.rejects(withRetry(down, { wait, stopped: () => stopped }));
+  assert.equal(calls, 1, "a cancelled load does not keep retrying");
 });

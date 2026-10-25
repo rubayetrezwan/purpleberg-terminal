@@ -5,16 +5,34 @@ export const MONTHS_SHORT = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-const missing = (n) => n == null || n === "" || Number.isNaN(Number(n));
+// Infinity is missing too: a division by a zero base must read "—", not
+// "+Infinity%".
+const missing = (n) => n == null || n === "" || !Number.isFinite(Number(n));
+
+// Round to `d` places before formatting, so a value that rounds to zero
+// prints "0.00" rather than "-0.00".
+const rounded = (n, d) => {
+  const v = Number(Number(n).toFixed(d));
+  return Object.is(v, -0) ? 0 : v;
+};
 
 // Fixed decimals, no grouping (tables that must stay narrow).
-export const fmt = (n, d = 2) => (missing(n) ? "—" : Number(n).toFixed(d));
+export const fmt = (n, d = 2) => (missing(n) ? "—" : rounded(n, d).toFixed(d));
 
 // Fixed decimals with thousands separators (prices, headline numbers).
 export const fmtNum = (n, d = 2) =>
   missing(n)
     ? "—"
-    : Number(n).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+    : rounded(n, d).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+// A price level (a 52-week bound, a target) at the precision it needs: whole
+// numbers from 100 up, cents below that, four places under a dollar. A $1.05
+// stock's range then reads "0.45 – 1.20", not "0 – 1".
+export const fmtLevel = (n) => {
+  if (missing(n)) return "—";
+  const a = Math.abs(Number(n));
+  return fmt(n, a >= 100 ? 0 : a >= 1 ? 2 : 4);
+};
 
 // Magnitude abbreviation. Abbreviates on |n| so negatives collapse too, and
 // promotes to the next unit when rounding would print "1000.0K".
@@ -43,7 +61,7 @@ export const fmtK = (n) => {
 
 export const fmtSigned = (n, d = 2) => {
   if (missing(n)) return "—";
-  const v = Number(n);
+  const v = rounded(n, d);
   return (v > 0 ? "+" : "") + v.toFixed(d);
 };
 

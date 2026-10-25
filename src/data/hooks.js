@@ -3,6 +3,7 @@ import { api } from "./api.js";
 import { useStore } from "../stores/useStore.js";
 import { settings } from "../stores/settings.js";
 import { scaleInterval } from "./polling.js";
+import { feedStatus } from "./feedStatus.js";
 
 // Re-pace a running poll when the refresh setting changes, without firing an
 // immediate fetch. The fetch effect owns start/stop; this only swaps the period.
@@ -62,6 +63,25 @@ export function useIsMobile(breakpoint = 768) {
 // transition (visibility -> interval restart) cost more than the duplication
 // saved, so each hook owns its own start/stop pair.
 
+// Polls overlap when the proxy answers slower than the poll interval. Keeping
+// only the latest request's answer would throw each one away as the next tick
+// fired, so the data would stall for as long as the proxy stayed slow. Any
+// answer may land unless a newer one already has; only a late answer to an
+// older request is dropped. Skipping ticks instead would let one hung request
+// (a phone changing networks) block the poll until the browser gives up on it.
+export function newestWins() {
+  let issued = 0;
+  let applied = 0;
+  return {
+    issue: () => ++issued,
+    accept: (ticket) => {
+      if (ticket < applied) return false;
+      applied = ticket;
+      return true;
+    },
+  };
+}
+
 // ── Fetch quotes with auto-refresh ──────────────────────
 // Polling pauses while the tab is hidden and resumes immediately on focus.
 export function useQuotes(symbols, intervalMs = 15000) {
@@ -82,15 +102,17 @@ export function useQuotes(symbols, intervalMs = 15000) {
       setState((s) => ({ ...s, loading: false }));
       return undefined;
     }
+    // `cancelled` drops answers for a superseded symbol list; the gate only
+    // orders answers within this one.
     let cancelled = false;
-    let attempt = 0;
+    const gate = newestWins();
     setState((s) => (s.loading === (s.data.length === 0) ? s : { ...s, loading: s.data.length === 0 }));
 
     const fetchData = async () => {
-      const myAttempt = ++attempt; // only the latest attempt may write state
+      const ticket = gate.issue();
       try {
         const result = await api.quotes(symbols);
-        if (cancelled || myAttempt !== attempt) return;
+        if (cancelled || !gate.accept(ticket)) return;
         // The proxy answers 200 with [] on a total upstream failure, so an
         // empty payload is a failed poll: keep the rows and the old timestamp.
         const empty = !Array.isArray(result) || result.length === 0;
@@ -104,7 +126,7 @@ export function useQuotes(symbols, intervalMs = 15000) {
           lastPollOk: !empty,
         }));
       } catch (e) {
-        if (cancelled || myAttempt !== attempt) return;
+        if (cancelled || !gate.accept(ticket)) return;
         setState((s) => ({ ...s, loading: false, error: e.message, pollSeq: s.pollSeq + 1, lastPollOk: false }));
       }
     };
@@ -129,11 +151,54 @@ export function useQuotes(symbols, intervalMs = 15000) {
   return { ...state, refetch, intervalMs: effectiveMs };
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Retries a failed load a few times with a growing pause, so a dropped signal
+// on a phone does not leave "NO HISTORY" on a chart until the range changes.
+// An error and an empty series both mean "no data": the proxy now answers an
+// empty series with an error, and an empty array from anywhere else is no
+// more use to a chart. Once the retries run out the last error is thrown, or
+// the empty series returned. `stopped` ends the loop once the caller no
+// longer wants the result.
+export const HISTORY_RETRY_MS = [1500, 3000, 6000];
+export async function withRetry(load, { delays = HISTORY_RETRY_MS, wait = sleep, stopped = () => false } = {}) {
+  for (let i = 0; ; i += 1) {
+    let rows;
+    try {
+      rows = await load();
+    } catch (e) {
+      if (i >= delays.length || stopped()) throw e;
+      await wait(delays[i]);
+      if (stopped()) throw e;
+      continue;
+    }
+    const empty = !Array.isArray(rows) || rows.length === 0;
+    if (!empty || i >= delays.length || stopped()) return rows;
+    await wait(delays[i]);
+    if (stopped()) return rows;
+  }
+}
+
 // ── Fetch historical data ───────────────────────────────
 export function useHistorical(symbol, range = "3mo") {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState(null);
+  // An outage longer than the retries above still ends with an empty chart.
+  // The shared quote poll is the app's signal for the network coming back:
+  // when it succeeds again after a failure and this chart has nothing to
+  // show, load once more. A chart that has its series is left alone.
+  const [reload, setReload] = useState(0);
+  const feedHealthy = useStore(feedStatus, (s) => s.failures === 0);
+  const wasHealthy = useRef(feedHealthy);
+  const emptyRef = useRef(true);
+  emptyRef.current = data.length === 0;
+
+  useEffect(() => {
+    const recovered = feedHealthy && !wasHealthy.current;
+    wasHealthy.current = feedHealthy;
+    if (recovered && symbol && emptyRef.current) setReload((n) => n + 1);
+  }, [feedHealthy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!symbol) { setLoading(false); setData([]); setUpdatedAt(null); return undefined; }
@@ -145,13 +210,13 @@ export function useHistorical(symbol, range = "3mo") {
     // fetch fails.
     setData([]);
     setUpdatedAt(null);
-    api.historical(symbol, range).then((result) => {
+    withRetry(() => api.historical(symbol, range), { stopped: () => cancelled }).then((result) => {
       if (!cancelled) { setData(Array.isArray(result) ? result : []); setLoading(false); setUpdatedAt(Date.now()); }
     }).catch(() => {
       if (!cancelled) { setData([]); setLoading(false); }
     });
     return () => { cancelled = true; };
-  }, [symbol, range]);
+  }, [symbol, range, reload]);
 
   return { data, loading, updatedAt };
 }
@@ -320,6 +385,11 @@ export function useCryptoChart(id, range = "3mo") {
     if (!id) { setLoading(false); setData([]); return; }
     let cancelled = false;
     setLoading(true);
+    // As in useHistorical: the screen gates on rows, not on loading, so the
+    // previous coin's series and period returns would show under the new
+    // coin's header, and stay there for good if this fetch fails (CoinGecko
+    // rate-limits the public tier often).
+    setData([]);
 
     api.cryptoChart(id, range).then((result) => {
       if (!cancelled) {
@@ -327,7 +397,7 @@ export function useCryptoChart(id, range = "3mo") {
         setLoading(false);
       }
     }).catch(() => {
-      if (!cancelled) setLoading(false);
+      if (!cancelled) { setData([]); setLoading(false); }
     });
 
     return () => { cancelled = true; };
@@ -417,7 +487,9 @@ export function useSearch(query, delayMs = 300) {
         if (stale) return;
         setResults([]);
       } finally {
-        setLoading(false);
+        // A discarded answer must not end the newer search's loading state:
+        // the command line's ticker fallback relies on it while results are pending.
+        if (!stale) setLoading(false);
       }
     }, delayMs);
 

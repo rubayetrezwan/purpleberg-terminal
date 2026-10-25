@@ -40,12 +40,32 @@ export function alignTimelines(a, b) {
 }
 
 /**
+ * A metric from a quote or financials payload as a finite number, or null.
+ * Accepts numbers, numeric strings ("12.3") and Yahoo's {raw} objects. The proxy
+ * sends 0 (or "0") for any ratio or margin it could not source, so a zero reads
+ * as missing here rather than as a real 0.0% margin or 0.00x multiple.
+ */
+export function metricValue(v) {
+  if (v == null || v === "") return null;
+  let n;
+  if (typeof v === "number") n = v;
+  else if (typeof v === "string") n = parseFloat(v);
+  else if (typeof v === "object" && "raw" in v) n = Number(v.raw);
+  else n = Number(v);
+  return Number.isFinite(n) && n !== 0 ? n : null;
+}
+
+/**
  * Pick the "winner" between two numeric values. Returns 'a', 'b', or null (tie / missing).
  * `higherIsBetter` flips the comparison for metrics like P/E where lower is better.
- * Zero is treated as missing data (common in our quote payloads).
+ * Both sides must be real numbers: lighting the value next to a "—" would crown a
+ * number nobody can compare. Zero is treated as missing data (common in our quote
+ * payloads). When lower is better, a value at or below zero is not cheap but
+ * meaningless (a loss-maker's P/E, negative book value), so nobody wins.
  */
 export function winnerOf(aVal, bVal, higherIsBetter) {
-  if (aVal == null || bVal == null || aVal === 0 || bVal === 0) return null;
+  if (!Number.isFinite(aVal) || !Number.isFinite(bVal) || aVal === 0 || bVal === 0) return null;
+  if (!higherIsBetter && (aVal < 0 || bVal < 0)) return null;
   if (aVal === bVal) return null;
   const aBetter = higherIsBetter ? aVal > bVal : aVal < bVal;
   return aBetter ? "a" : "b";

@@ -1,12 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart,
   XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
 import { Bell, Star } from "lucide-react";
 import { US_STOCKS } from "../config.js";
-import { fmt, fmtK, fmtNum, fmtPct, fmtAxisDate, fmtTooltipDate } from "../lib/format.js";
+import { universeEntry } from "../data/universe.js";
+import { fmt, fmtK, fmtNum, fmtPct, fmtLevel, fmtAxisDate, fmtTooltipDate } from "../lib/format.js";
 import { pos52 } from "../lib/screener.js";
+import { filterRows, pickFromFilter } from "../lib/symbolSearch.js";
+import { normalizeSymbol } from "../lib/ticker.js";
 import { useRoute, updateQuery, navigate, pathFor } from "../router/index.jsx";
 import { useQuotePool, useQuote, usePoolExtra } from "../data/quotePool.jsx";
 import { useHistorical, useFinancialsWithRetry, useIsMobile } from "../data/hooks.js";
@@ -24,7 +27,7 @@ import { KV, KVList } from "../ui/KV.jsx";
 import { Change } from "../ui/Change.jsx";
 import { Price } from "../ui/Price.jsx";
 import { Tag } from "../ui/Tag.jsx";
-import { IconButton } from "../ui/Button.jsx";
+import { Button, IconButton } from "../ui/Button.jsx";
 import { Input } from "../ui/Input.jsx";
 import { RangeBar } from "../ui/RangeBar.jsx";
 import { ChartFrame, useChartTheme } from "../ui/ChartFrame.jsx";
@@ -34,9 +37,9 @@ import { Loading } from "../ui/Loading.jsx";
 // Unit per ratio, from /api/financials: pe/pb/ps/evEbitda/currentRatio are
 // multiples; roe/roa are already percentages; Yahoo returns debtToEquity as a
 // percent-like number (79.55 means 79.55%).
-const RATIO_UNITS = { pe: "x", pb: "x", ps: "x", evEbitda: "x", currentRatio: "x", roe: "%", roa: "%", debtToEquity: "%" };
+const RATIO_UNITS = { pe: "x", forwardPe: "x", pb: "x", ps: "x", evEbitda: "x", currentRatio: "x", roe: "%", roa: "%", debtToEquity: "%" };
 const RATIO_LABELS = {
-  pe: "P/E (TTM)", pb: "P/B", ps: "P/S", evEbitda: "EV/EBITDA",
+  pe: "P/E (TTM)", forwardPe: "P/E (FWD)", pb: "P/B", ps: "P/S", evEbitda: "EV/EBITDA",
   roe: "ROE", roa: "ROA", debtToEquity: "DEBT / EQUITY", currentRatio: "CURRENT RATIO",
 };
 const TABS = ["CHART", "FINANCIALS", "ESTIMATES", "RATIOS", "PROFILE"];
@@ -199,16 +202,18 @@ function RatiosTab({ fin, loading }) {
 
 function ProfileTab({ fin, quote, loading }) {
   const p = (fin && fin.profile) || {};
+  // Sector and industry names run long; two columns cut them off on a phone.
+  const isMobile = useIsMobile(768);
   if (loading && !fin) return <Loading />;
   return (
     <Section title="Company profile">
-      <KVList cols={2}>
+      <KVList cols={isMobile ? 1 : 2}>
         <KV k="SECTOR" v={p.sector && p.sector !== "N/A" ? p.sector : "—"} />
         <KV k="INDUSTRY" v={p.industry && p.industry !== "N/A" ? p.industry : "—"} />
         <KV k="COUNTRY" v={p.country && p.country !== "N/A" ? p.country : "—"} />
         <KV k="EMPLOYEES" v={p.employees ? fmtK(p.employees) : "—"} />
         <KV k="MKT CAP" v={quote && quote.marketCap > 0 ? fmtK(quote.marketCap) : "—"} />
-        <KV k="52W RANGE" v={quote && quote.week52Low > 0 ? `${fmt(quote.week52Low, 0)} – ${fmt(quote.week52High, 0)}` : "—"} />
+        <KV k="52W RANGE" v={quote && quote.week52Low > 0 ? `${fmtLevel(quote.week52Low)} – ${fmtLevel(quote.week52High)}` : "—"} />
       </KVList>
       {p.website && (
         <div className="pb-profile__link">
@@ -227,9 +232,17 @@ function Grid2({ children }) {
   return <div className="pb-grid" style={{ gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>{children}</div>;
 }
 
+// The phone sheet's list fills the screen below the sheet's own header, the
+// section header and the filter box.
+function sheetListHeight() {
+  const vh = typeof window === "undefined" ? 700 : window.innerHeight;
+  return Math.max(240, vh - 132);
+}
+
 export default function Equities() {
   const { params, query } = useRoute();
   const pool = useQuotePool();
+  const isMobile = useIsMobile(768);
   const watched = useStore(watchlist, (s) => s.symbols);
   const [filter, setFilter] = useState("");
   // The symbol the alert form was opened for. The form seeds its price once,
@@ -241,18 +254,28 @@ export default function Equities() {
   const range = RANGES.includes(query.range) ? query.range : "3mo";
   const type = TYPES.some((t) => t.value === query.type) ? query.type : "area";
 
+  // Names come from the universe so the filter finds "apple" before the first
+  // quote has landed; a watched symbol outside it falls back to the quote's.
   const universe = useMemo(() => {
     const source = listMode === "watch" ? watched : US_STOCKS;
-    return source.map((s) => pool.bySymbol.get(s) || { symbol: s, price: 0, changePercent: null });
+    return source.map((s) => {
+      const q = pool.bySymbol.get(s);
+      const u = universeEntry(s);
+      return { symbol: s, name: (u && u.name) || (q && q.name) || "", price: q ? q.price : 0, changePercent: q ? q.changePercent : null };
+    });
   }, [listMode, watched, pool.bySymbol]);
 
-  const rows = useMemo(() => {
-    const q = filter.trim().toUpperCase();
-    if (!q) return universe;
-    return universe.filter((r) => r.symbol.includes(q) || String(r.name || "").toUpperCase().includes(q));
-  }, [universe, filter]);
+  const rows = useMemo(() => filterRows(universe, filter), [universe, filter]);
 
-  const symbol = (params.symbol || (rows[0] && rows[0].symbol) || "AAPL").toUpperCase();
+  // Without a symbol in the URL, show the head of the list, not the head of
+  // the filtered list: typing in the filter must not change the security.
+  const symbol = (params.symbol || (universe[0] && universe[0].symbol) || "AAPL").toUpperCase();
+  // Then write it into the URL, so the security stays put when the list
+  // changes under it: un-starring the head of the watchlist used to swap the
+  // screen to the next stock.
+  useEffect(() => {
+    if (!params.symbol) navigate(pathFor("equities", { symbol }, query), { replace: true });
+  }, [params.symbol]); // eslint-disable-line react-hooks/exhaustive-deps
   // A symbol reached from the command line may be outside the tracked list;
   // retaining it puts it in the shared poll for as long as this screen is open.
   usePoolExtra(symbol);
@@ -263,8 +286,40 @@ export default function Equities() {
 
   const select = (sym) => navigate(pathFor("equities", { symbol: sym }, query));
 
+  // Enter is GO: the best match, or any ticker typed in full, tracked or not.
+  const onFilterKey = (e) => {
+    if (e.key !== "Enter") return;
+    const pick = pickFromFilter(rows, filter);
+    if (!pick) return;
+    e.preventDefault();
+    setFilter("");
+    select(pick);
+  };
+
+  const typed = normalizeSymbol(filter.trim().replace(/\./g, "-"));
+  const noMatch = !filter.trim() ? "NO MATCH" : listMode === "watch" ? (
+    <EmptyState action={<Button size="sm" onClick={() => updateQuery({ list: "all" })}>SEARCH ALL {US_STOCKS.length}</Button>}>
+      NOT IN WATCHLIST
+    </EmptyState>
+  ) : typed ? (
+    <EmptyState action={<Button size="sm" onClick={() => { setFilter(""); select(typed); }}>OPEN {typed}</Button>}>
+      NOT TRACKED
+    </EmptyState>
+  ) : "NO MATCH";
+
+  // The phone sheet is full width, so it can afford the company name.
   const listColumns = [
-    { key: "symbol", label: "TICKER", align: "left", width: "40%", render: (r) => <span className="pb-eq__sym">{r.symbol}</span> },
+    isMobile
+      ? {
+        key: "symbol", label: "TICKER", align: "left", width: "58%",
+        render: (r) => (
+          <span className="pb-eq__symrow">
+            <span className="pb-eq__sym">{r.symbol}</span>
+            <span className="pb-eq__nm pb-muted">{r.name}</span>
+          </span>
+        ),
+      }
+      : { key: "symbol", label: "TICKER", align: "left", width: "40%", render: (r) => <span className="pb-eq__sym">{r.symbol}</span> },
     { key: "price", label: "LAST", render: (r) => (r.price > 0 ? <Price value={r.price} format={(v) => fmtNum(v, v >= 1000 ? 0 : 2)} /> : "—") },
     { key: "changePercent", label: "CHG", render: (r) => <Change value={r.changePercent} /> },
   ];
@@ -285,7 +340,19 @@ export default function Equities() {
       flush
     >
       <div className="pb-eq__filter">
-        <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="FILTER" aria-label="Filter symbols" mono />
+        <Input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          onKeyDown={onFilterKey}
+          placeholder="TICKER OR NAME"
+          aria-label="Filter symbols"
+          mono
+          enterKeyHint="go"
+          autoCapitalize="characters"
+          autoCorrect="off"
+          autoComplete="off"
+          spellCheck={false}
+        />
       </div>
       <DataTable
         label="Securities"
@@ -296,10 +363,10 @@ export default function Equities() {
         numbered
         navigable
         virtualize={rows.length > 60}
-        height={560}
+        height={isMobile ? sheetListHeight() : 560}
         onRowClick={(r) => select(r.symbol)}
         onRowSpace={(r) => toggleWatch(r.symbol)}
-        empty="NO MATCH"
+        empty={noMatch}
       />
     </Section>
   );
@@ -346,8 +413,8 @@ export default function Equities() {
         <Stat label="Vol" value={quote && quote.volume > 0 ? fmtK(quote.volume) : "—"} />
         <Stat
           label="52W"
-          value={quote && quote.week52Low > 0 ? `${fmt(quote.week52Low, 0)} – ${fmt(quote.week52High, 0)}` : "—"}
-          sub={<RangeBar pct={pct == null ? null : pct * 100} lo={quote ? fmt(quote.week52Low, 0) : "—"} hi={quote ? fmt(quote.week52High, 0) : "—"} />}
+          value={quote && quote.week52Low > 0 ? `${fmtLevel(quote.week52Low)} – ${fmtLevel(quote.week52High)}` : "—"}
+          sub={<RangeBar pct={pct == null ? null : pct * 100} lo={quote ? fmtLevel(quote.week52Low) : "—"} hi={quote ? fmtLevel(quote.week52High) : "—"} label="" />}
         />
       </StatRow>
 
@@ -383,8 +450,8 @@ export default function Equities() {
       mobile={{
         label: "Security",
         value: symbol,
-        onChange: select,
-        options: rows.map((r) => ({ value: r.symbol, label: `${r.symbol}${r.price > 0 ? ` · ${fmtNum(r.price)}` : ""}` })),
+        display: `${symbol}${quote && quote.price > 0 ? ` · ${fmtNum(quote.price)}` : ""}`,
+        sheet: true,
       }}
     />
   );

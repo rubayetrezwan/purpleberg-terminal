@@ -1,5 +1,6 @@
 import { newId } from "./id.js";
 import { TICKER_RE } from "./ticker.js";
+import { etParts } from "./session.js";
 
 // Portfolio accounting on average cost. Transactions are the source of truth:
 //   { id, date: "YYYY-MM-DD", symbol, side: "buy"|"sell", shares, price, fees }
@@ -12,7 +13,8 @@ const num = (v) => {
 };
 
 // Local calendar day. A 21:00 transaction in New York belongs to that day, not
-// to tomorrow, so this never goes through UTC.
+// to tomorrow, so this never goes through UTC. Trade dates are New York dates
+// and come from session.js instead; this is for the local calendar only.
 export function localYmd(d) {
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
@@ -89,13 +91,58 @@ export function positionsFrom(transactions) {
 }
 
 /**
+ * Shares of `symbol` held at the end of `date`, by the same rules as
+ * positionsFrom, so a row the accounting rejects counts for nothing here
+ * either. A new row on that date would apply after these, as entered.
+ */
+export function sharesHeldOn(transactions, symbol, date) {
+  const upTo = (Array.isArray(transactions) ? transactions : []).filter((t) => String(t.date) <= date);
+  const p = positionsFrom(upTo).positions.find((x) => x.symbol === symbol);
+  return p ? p.shares : 0;
+}
+
+/**
+ * Transactions the accounting accepts in `before` but rejects in `after`.
+ * A sell can be covered on its own date and still take the shares a later
+ * sell needed, and deleting a buy can do the same; either way the later sell
+ * would quietly drop out and its shares would stay open. Rows are compared by
+ * identity, so `after` should reuse the objects in `before`.
+ */
+export function newlyRejected(before, after) {
+  const was = new Set(positionsFrom(before).rejected.map((r) => r.transaction));
+  return positionsFrom(after).rejected.map((r) => r.transaction).filter((t) => !was.has(t));
+}
+
+/**
  * Attach live quote figures. `bySymbol` is a Map or plain object of quotes.
  * A position with no live price keeps null figures and `live: false` so the
  * caller can show an em dash instead of pretending the P&L is flat.
+ *
+ * Day P&L is the value now, less the value at the previous close, less the
+ * cash put in today. That way shares bought today count from their buy price
+ * and shares sold today stop at their sell price, instead of the whole
+ * position being given the full move since the previous close. `today` is the
+ * New York trade date and `transactions` the accepted ones; without them every
+ * share is treated as held since the previous close.
  */
-export function enrichPositions(positions, bySymbol) {
+export function enrichPositions(positions, bySymbol, { transactions = [], today = null } = {}) {
   const lookup = (s) =>
     bySymbol instanceof Map ? bySymbol.get(s) : bySymbol ? bySymbol[s] : null;
+  // Per symbol, the net shares traded today and the cash that went in, fees
+  // included, signed the way flowsByDate signs it.
+  const todays = new Map();
+  if (today) {
+    for (const t of Array.isArray(transactions) ? transactions : []) {
+      if (!(String(t.date) >= today)) continue;
+      const s = String(t.symbol || "").trim().toUpperCase();
+      const e = todays.get(s) || { net: 0, flow: 0 };
+      const gross = num(t.shares) * num(t.price);
+      const fees = num(t.fees);
+      if (t.side === "sell") { e.net -= num(t.shares); e.flow -= gross - fees; }
+      else { e.net += num(t.shares); e.flow += gross + fees; }
+      todays.set(s, e);
+    }
+  }
   return (Array.isArray(positions) ? positions : []).map((p) => {
     const q = lookup(p.symbol);
     const price = q && Number(q.price) > 0 ? Number(q.price) : null;
@@ -103,6 +150,15 @@ export function enrichPositions(positions, bySymbol) {
     const live = price != null && p.shares > 0;
     const value = live ? price * p.shares : null;
     const unrealised = live ? value - p.cost : null;
+    const day = todays.get(p.symbol);
+    const heldAtClose = p.shares - (day ? day.net : 0);
+    // A position closed before today has no part in the day at all. One
+    // closed today is worth nothing now but still made or lost money today.
+    const valueNow = p.shares > 0 ? value : day ? 0 : null;
+    const valueAtClose = heldAtClose > EPS ? (prevClose != null ? heldAtClose * prevClose : null) : 0;
+    const dayPnl = valueNow != null && valueAtClose != null
+      ? valueNow - valueAtClose - (day ? day.flow : 0)
+      : null;
     return {
       ...p,
       name: (q && q.name) || p.symbol,
@@ -113,7 +169,7 @@ export function enrichPositions(positions, bySymbol) {
       value,
       unrealised,
       unrealisedPct: live && p.cost > 0 ? (unrealised / p.cost) * 100 : null,
-      dayPnl: live && prevClose != null ? (price - prevClose) * p.shares : null,
+      dayPnl,
     };
   });
 }
@@ -134,12 +190,15 @@ export function portfolioTotals(rows) {
   // day P&L. num(null) would fold it in as a flat zero, so day P&L covers only
   // the rows that have one and reports how many it left out.
   const withDay = live.filter((r) => r.dayPnl != null);
+  // A position sold out today is no longer open, but what it made or lost
+  // since the previous close is still part of the day.
+  const dayRows = [...withDay, ...all.filter((r) => !(r.shares > 0) && r.dayPnl != null)];
   return {
     value: live.length ? value : null,
     cost: live.length ? cost : null,
     unrealised: live.length ? value - cost : null,
     returnPct: live.length && cost > 0 ? ((value - cost) / cost) * 100 : null,
-    dayPnl: withDay.length ? withDay.reduce((a, r) => a + num(r.dayPnl), 0) : null,
+    dayPnl: dayRows.length ? dayRows.reduce((a, r) => a + num(r.dayPnl), 0) : null,
     dayPnlMissing: live.length - withDay.length,
     realised: all.reduce((a, r) => a + num(r.realised), 0),
     fees: all.reduce((a, r) => a + num(r.fees), 0),
@@ -171,8 +230,14 @@ export function allocation(rows, keyFn = (r) => r.symbol) {
 /**
  * Portfolio value on each of `dates`, using the shares held on that date and
  * the last close at or before it. `closesBySymbol` is { SYM: [{date, close}] }
- * ascending. Gaps carry the previous close forward; a symbol with no close yet
- * contributes nothing rather than a guess. Pass accepted transactions only.
+ * ascending. Gaps carry the previous close forward. Pass accepted
+ * transactions only.
+ *
+ * A held symbol with no close yet (its history failed to load, or starts
+ * after the window does) is carried at its last trade price. Valuing it at
+ * nothing while its buy still counts as a cash flow reads as that whole
+ * holding being lost, which is a crash that never happened; a flat line is
+ * the smaller lie, and the caller can say which symbols it applies to.
  *
  * Shares bought on one of these sessions are valued at what they cost that
  * day, not at that day's close. Otherwise the gap between an entry price and
@@ -191,6 +256,7 @@ export function valueSeries(transactions, closesBySymbol, dates) {
   const closes = new Map(symbols.map((s) => [s, (closesBySymbol && closesBySymbol[s]) || []]));
   const cursor = new Map(symbols.map((s) => [s, { i: 0, last: null }]));
   const held = new Map(symbols.map((s) => [s, 0]));
+  const tradePrice = new Map();
   const list = Array.isArray(dates) ? dates : [];
   let ti = 0;
   const out = [];
@@ -213,6 +279,7 @@ export function valueSeries(transactions, closesBySymbol, dates) {
         session.set(s, e);
       }
       held.set(s, (held.get(s) || 0) + (t.side === "sell" ? -q : q));
+      if (num(t.price) > 0) tradePrice.set(s, num(t.price));
     }
     let value = 0;
     for (const s of symbols) {
@@ -229,7 +296,8 @@ export function valueSeries(transactions, closesBySymbol, dates) {
         ? Math.min(total, Math.max(0, traded.bought - traded.sold))
         : 0;
       const marked = total - atCost;
-      if (marked > EPS && c.last != null) value += marked * c.last;
+      const mark = c.last != null ? c.last : tradePrice.get(s);
+      if (marked > EPS && mark != null) value += marked * mark;
       if (atCost > EPS) value += traded.cost * (atCost / traded.bought);
     }
     out.push({ date, value });
@@ -472,9 +540,12 @@ const SAMPLE = [
   [20, "MSFT", 8, 470],
 ];
 
+// Days are counted back from today in New York. East of New York the local
+// calendar is a day ahead for most of the US evening, and these are US trades.
 export function sampleTransactions(today = new Date()) {
+  const [y, m, d] = etParts(today).ymd.split("-").map(Number);
   return SAMPLE.map(([daysAgo, symbol, shares, price]) => {
-    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - daysAgo);
-    return { id: newId(), date: localYmd(d), symbol, side: "buy", shares, price, fees: 0, note: "sample" };
+    const date = new Date(Date.UTC(y, m - 1, d - daysAgo)).toISOString().slice(0, 10);
+    return { id: newId(), date, symbol, side: "buy", shares, price, fees: 0, note: "sample" };
   });
 }

@@ -1,6 +1,6 @@
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
-import { pushLayer, popLayer, closeTopLayer, layerCount, topLayerId } from "./layers.js";
+import { pushLayer, popLayer, closeTopLayer, layerCount, topLayerId, hasModalLayer } from "./layers.js";
 
 test("layers close top-most first and tolerate double pops", () => {
   const closed = [];
@@ -36,5 +36,40 @@ test("a throwing close handler keeps its layer on the stack", () => {
   assert.equal(closeTopLayer(), true);
   assert.equal(layerCount(), 1);
   popLayer("bad");
+  restore.mock.restore();
+});
+
+test("only modal layers count as modal; popovers leave the shortcuts alone", () => {
+  pushLayer("bell", () => {}, { modal: false });
+  assert.equal(hasModalLayer(), false);
+  pushLayer("drawer", () => {});
+  assert.equal(hasModalLayer(), true);
+  popLayer("drawer");
+  popLayer("bell");
+  assert.equal(layerCount(), 0);
+});
+
+test("opening a popover closes the other, but not a modal underneath", () => {
+  const closed = [];
+  pushLayer("drawer", () => closed.push("drawer"));
+  pushLayer("bell", () => { closed.push("bell"); }, { modal: false });
+  pushLayer("clock", () => closed.push("clock"), { modal: false });
+  assert.deepEqual(closed, ["bell"]);
+  assert.equal(layerCount(), 2);
+  assert.equal(topLayerId(), "clock");
+  // Escape still goes top-most first.
+  closeTopLayer();
+  closeTopLayer();
+  assert.deepEqual(closed, ["bell", "clock", "drawer"]);
+  assert.equal(layerCount(), 0);
+});
+
+test("a popover whose close handler throws stays on the stack", () => {
+  const restore = mock.method(console, "error", () => {});
+  pushLayer("stuck", () => { throw new Error("boom"); }, { modal: false });
+  pushLayer("next", () => {}, { modal: false });
+  assert.equal(layerCount(), 2);
+  popLayer("next");
+  popLayer("stuck");
   restore.mock.restore();
 });

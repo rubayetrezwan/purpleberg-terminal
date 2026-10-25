@@ -168,6 +168,9 @@ input::placeholder { color: var(--c-text-muted); }
    ============================================================ */
 .pb-page { display: flex; flex-direction: column; gap: 1px; background: var(--c-line); min-height: 100%; }
 .pb-page > * { background: var(--c-bg); }
+/* Fills whatever height is left under the last section. Without it the page's
+   hairline colour showed through as a grey slab below short screens. */
+.pb-page::after { content: ""; flex: 1 0 0; background: var(--c-bg); }
 .pb-grid { display: grid; gap: 1px; background: var(--c-line); align-items: stretch; }
 .pb-grid > * { min-width: 0; background: var(--c-bg); }
 .pb-grid > .pb-grid, .pb-page > .pb-grid { background: var(--c-line); } /* nested grids keep their hairlines regardless of rule order */
@@ -188,6 +191,12 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-stat--lg .pb-stat__value { font-size: var(--fs-xl); }
 .pb-stat__sub { font-size: var(--fs-sm); color: var(--c-text-dim); }
 .pb-stat--right { text-align: right; }
+/* A phone cannot fit six figures on one line: wrap three to a row, and let a
+   short last row stretch rather than leave grey holes in the grid. */
+@media (max-width: 767px) {
+  .pb-statrow { display: flex; flex-wrap: wrap; }
+  .pb-statrow > .pb-stat { flex: 1 1 calc(33.333% - 1px); }
+}
 
 .pb-kvlist { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: var(--cell-px); }
 .pb-kv { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: var(--row-h); padding: 0 var(--cell-px); border-bottom: 1px solid var(--c-line); min-width: 0; }
@@ -216,6 +225,11 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-input, .pb-select { height: var(--ctl-h); padding: 0 8px; border: 1px solid var(--c-line-strong); background: var(--c-raised); color: var(--c-text); font-size: var(--fs-sm); width: 100%; min-width: 0; }
 .pb-input:focus, .pb-select:focus { border-color: var(--c-accent); }
 .pb-input--mono { text-transform: uppercase; letter-spacing: 0.04em; }
+/* iOS Safari zooms the page into any field set below 16px and leaves it
+   zoomed. On touch screens, fields get 16px; the rest of the type stays put. */
+@media (pointer: coarse) {
+  .pb-input, .pb-select, textarea { font-size: 16px; }
+}
 .pb-select { appearance: auto; padding-right: 4px; }
 .pb-kbd { display: inline-block; padding: 0 4px; font-size: var(--fs-xs); line-height: 16px; border: 1px solid var(--c-line-strong); color: var(--c-text-dim); }
 
@@ -305,10 +319,20 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-ld__detail { min-width: 0; overflow: auto; }
 .pb-ld--mobile { display: flex; flex-direction: column; }
 .pb-ld__selector { padding: var(--cell-py) var(--cell-px); border-bottom: 1px solid var(--c-line); }
+.pb-ld__trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; color: var(--c-text); }
+.pb-ld__trigger svg { flex-shrink: 0; color: var(--c-text-muted); }
+.pb-ld__trigger-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Fixed layout keeps long company names from pushing LAST and CHG off the
+   screen in the phone sheet. */
+.pb-ld__sheet .pb-dt__table { table-layout: fixed; }
+.pb-ld__sheet .pb-dt__num { width: 40px; }
 
 .pb-chart { width: 100%; min-width: 0; }
 .pb-chart .recharts-cartesian-axis-tick-value { font-family: inherit; }
 .pb-chart .recharts-tooltip-wrapper { outline: none; }
+/* An inline SVG leaves a text-baseline gap under the chart: 5px of overflow
+   that gave every chart pane its own scrollbar. */
+.pb-chart .recharts-surface { display: block; }
 .pb-chart > .pb-loading, .pb-chart > .pb-empty { height: 100%; display: flex; align-items: center; justify-content: center; }
 
 /* ============================================================
@@ -321,6 +345,11 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-ticker:hover .pb-ticker__star, .pb-ticker__star:focus-visible, .pb-ticker__star--on { opacity: 1; }
 .pb-ticker__star--on { color: var(--c-accent-text); }
 @media (hover: none) { .pb-ticker__star { opacity: 1; } }
+/* Small icon controls get a finger-sized hit area on touch screens. The
+   negative margins keep the layout, and the 24px table rows, unchanged. */
+@media (pointer: coarse) {
+  .pb-ticker__star, .pb-chip__del { padding: 7px; margin: -7px -5px; }
+}
 
 .pb-ql { display: flex; flex-direction: column; }
 .pb-ql__head { gap: 8px; }
@@ -355,6 +384,7 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-cmd--open, .pb-cmd:focus-within { border-color: var(--c-accent); }
 .pb-cmd__input { flex: 1; min-width: 0; height: 100%; padding: 0 8px; color: var(--c-accent-text); font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: 0.04em; }
 .pb-cmd__input::placeholder { color: var(--c-text-muted); text-transform: uppercase; }
+@media (pointer: coarse) { .pb-cmd__input { font-size: 16px; } } /* no iOS focus zoom, as for .pb-input */
 .pb-cmd__go { padding: 0 8px; font-size: var(--fs-xs); color: var(--c-text-muted); letter-spacing: 0.06em; border-left: 1px solid var(--c-line); height: 100%; display: inline-flex; align-items: center; }
 .pb-cmd__pop { position: absolute; top: calc(100% + 1px); left: -1px; right: -1px; max-height: min(60vh, 480px); overflow: auto; background: var(--c-raised); border: 1px solid var(--c-line-strong); z-index: var(--z-layer); }
 .pb-cmd__grouplbl { padding: 4px 8px; font-size: var(--fs-xs); letter-spacing: 0.08em; color: var(--c-text-muted); border-bottom: 1px solid var(--c-line); background: var(--c-bg); position: sticky; top: 0; }
@@ -407,6 +437,11 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-bell__btn--fired { color: var(--c-warn); }
 .pb-bell__count { font-size: var(--fs-xs); }
 .pb-bell__pop { min-width: 340px; max-width: calc(100vw - 16px); }
+/* On a phone the bell sits well left of the screen edge, so a right-aligned
+   340px popover ran off the left side. Pin popovers to the screen instead. */
+@media (max-width: 767px) {
+  .pb-pop { position: fixed; top: calc(var(--top-h) + 4px); left: 8px; right: 8px; min-width: 0; max-width: none; }
+}
 .pb-alertrow { display: grid; grid-template-columns: 56px 1fr auto auto auto; gap: 8px; align-items: center; padding: 0 8px; min-height: var(--row-h); font-size: var(--fs-sm); border-bottom: 1px solid var(--c-line); }
 .pb-alertrow:last-child { border-bottom: 0; }
 .pb-alertrow__sym { font-weight: 600; }
@@ -505,10 +540,13 @@ input::placeholder { color: var(--c-text-muted); }
 .pb-range { min-width: 0; }
 .pb-range__track { position: relative; height: 4px; background: var(--c-line-strong); }
 .pb-range__mark { position: absolute; top: -3px; width: 2px; height: 10px; background: var(--c-accent); }
-.pb-range__labels { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.pb-range__labels { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; white-space: nowrap; }
+.pb-range__labels > span:nth-child(2) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 .pb-eq__filter { padding: var(--cell-py) var(--cell-px); border-bottom: 1px solid var(--c-line); }
 .pb-eq__sym { font-weight: 600; }
+.pb-eq__symrow { display: flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden; }
+.pb-eq__nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-xs); }
 .pb-eq__detail { display: flex; flex-direction: column; min-width: 0; }
 .pb-eq__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: var(--cell-py) var(--cell-px); border-bottom: 1px solid var(--c-line); }
 .pb-eq__symbig { font-size: var(--fs-xl); font-weight: 600; }

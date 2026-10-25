@@ -171,9 +171,12 @@ function NewsPanel() {
 
 function BreadthPanel() {
   const pool = useQuotePool();
-  const b = useMemo(() => breadth(pool.equities), [pool.equities]);
+  // Index breadth, not universe breadth: the S&P 500's own members, so the
+  // figure means what it would on any other terminal.
+  const members = useMemo(() => pool.equities.filter((q) => q.spx), [pool.equities]);
+  const b = useMemo(() => breadth(members), [members]);
   return (
-    <Section title="Breadth" meta={b.total ? `${b.total} of ${pool.equities.length} quoted, cross-sectional, today` : "cross-sectional, today"}>
+    <Section title="S&P 500 breadth" meta={b.total ? `${b.total} of ${members.length} quoted, today` : "today"}>
       <StatRow>
         <Stat label="Advancing" value={b.total ? b.up : "—"} tone={b.up ? "up" : undefined} />
         <Stat label="Declining" value={b.total ? b.down : "—"} tone={b.down ? "down" : undefined} />

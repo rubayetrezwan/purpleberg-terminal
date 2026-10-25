@@ -1,6 +1,8 @@
 import { TICKER_RE } from "../lib/ticker.js";
 
-export const POOL_CAP = 300; // the proxy's per-request hard cap
+// The proxy's per-request hard cap (MAX_QUOTE_SYMBOLS in server/index.js).
+// The universe is about 700 symbols; the rest is headroom for the user's own.
+export const POOL_CAP = 1000;
 
 // Symbols the shell always needs: ^GSPC drives the session clock's market state.
 export const POOL_FIXED = ["^GSPC"];

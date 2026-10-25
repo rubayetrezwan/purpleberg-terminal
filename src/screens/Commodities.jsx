@@ -18,6 +18,7 @@ import { Tag } from "../ui/Tag.jsx";
 import { RangeBar } from "../ui/RangeBar.jsx";
 import { PeriodReturns } from "../ui/PeriodReturns.jsx";
 import { Freshness } from "../ui/Freshness.jsx";
+import { EmptyState } from "../ui/EmptyState.jsx";
 import { ChartFrame, useChartTheme } from "../ui/ChartFrame.jsx";
 
 // Yahoo's quote endpoint does not expose futures contract specs, so these are
@@ -49,7 +50,9 @@ const RANGES = ["1mo", "3mo", "6mo", "1y", "5y"];
 const TYPES = [{ value: "area", label: "AREA" }, { value: "line", label: "LINE" }, { value: "volume", label: "VOLUME" }];
 const cmdSymbols = COMMODITY_SYMBOLS.map((c) => c.symbol);
 const slugOf = (symbol) => symbol.replace("=F", "");
-const symbolOf = (slug) => `${String(slug || "").toUpperCase()}=F`;
+// A URL may carry the Yahoo symbol itself ("/commodities/GC=F"), which must
+// not become GC=F=F.
+const symbolOf = (slug) => `${String(slug || "").toUpperCase().replace(/=F$/, "")}=F`;
 
 export default function Commodities() {
   const { params, query } = useRoute();
@@ -72,12 +75,17 @@ export default function Commodities() {
   );
 
   const requested = params.symbol ? symbolOf(params.symbol) : null;
-  const selected = rows.find((r) => r.symbol === requested) || rows[0];
+  const match = requested ? rows.find((r) => r.symbol === requested) : null;
+  // A contract this screen does not carry says NOT FOUND. Falling back to
+  // the first row would show crude oil under a URL that names another one.
+  // The values below still derive from the first row; they are cheap and unused.
+  const missing = Boolean(requested) && !match;
+  const selected = match || rows[0];
   const symbol = selected.symbol;
   const isCents = String(selected.unit || "").startsWith("¢");
   const money = (v, d = 2) => (v == null || Number.isNaN(Number(v)) ? "—" : `${isCents ? "¢" : "$"}${fmtNum(v, d)}`);
 
-  const { data: hist, loading: histLoading } = useHistorical(symbol, range);
+  const { data: hist, loading: histLoading } = useHistorical(missing ? null : symbol, range);
   const chartRows = useMemo(
     () => hist.map((d) => ({ date: d.date || "", price: d.close, high: d.high, low: d.low, volume: d.volume })),
     [hist]
@@ -103,7 +111,7 @@ export default function Commodities() {
         columns={listColumns}
         rows={rows}
         rowKey={(r) => r.symbol}
-        selectedKey={symbol}
+        selectedKey={missing ? null : symbol}
         numbered
         navigable
         loading={loading && !data.length}
@@ -117,7 +125,11 @@ export default function Commodities() {
     ? ((selected.price - selected.week52Low) / (selected.week52High - selected.week52Low)) * 100
     : null;
 
-  const detail = (
+  const detail = missing ? (
+    <div className="pb-eq__detail">
+      <EmptyState>CONTRACT {slugOf(requested)} NOT FOUND</EmptyState>
+    </div>
+  ) : (
     <div className="pb-eq__detail">
       <header className="pb-eq__head">
         <span className="pb-eq__symbig">{selected.name}</span>
@@ -227,6 +239,10 @@ export default function Commodities() {
     </div>
   );
 
+  // A native select shows its first option when the value matches none, so a
+  // missing contract gets a placeholder rather than reading as crude oil.
+  const options = rows.map((r) => ({ value: r.symbol, label: `${r.name}${r.price > 0 ? ` · ${fmtNum(r.price)}` : ""}` }));
+
   return (
     <ListDetail
       listWidth={200}
@@ -234,9 +250,9 @@ export default function Commodities() {
       detail={detail}
       mobile={{
         label: "Commodity",
-        value: symbol,
+        value: missing ? "" : symbol,
         onChange: select,
-        options: rows.map((r) => ({ value: r.symbol, label: `${r.name}${r.price > 0 ? ` · ${fmtNum(r.price)}` : ""}` })),
+        options: missing ? [{ value: "", label: `${slugOf(requested)} · NOT FOUND` }, ...options] : options,
       }}
     />
   );

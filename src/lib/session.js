@@ -8,6 +8,8 @@ const OPEN_MIN = 9 * 60 + 30;
 const CLOSE_MIN = 16 * 60;
 const EARLY_CLOSE_MIN = 13 * 60;
 const POST_END_MIN = 20 * 60;
+// On early-close days the after-hours session ends at 17:00 ET, not 20:00.
+const EARLY_POST_END_MIN = 17 * 60;
 
 const partsFmt = new Intl.DateTimeFormat("en-US", {
   timeZone: ET,
@@ -102,6 +104,7 @@ export function nyseSession(now = new Date()) {
   const trading = isTradingDay(p.ymd);
   const early = NYSE_EARLY_CLOSES.has(p.ymd);
   const closeMin = early ? EARLY_CLOSE_MIN : CLOSE_MIN;
+  const postEndMin = early ? EARLY_POST_END_MIN : POST_END_MIN;
   const t = p.hour * 60 + p.minute + p.second / 60;
   const tableStale = p.ymd > HOLIDAY_TABLE_THROUGH;
   if (tableStale && !warnedStaleTable) {
@@ -113,7 +116,7 @@ export function nyseSession(now = new Date()) {
   if (trading) {
     if (t >= PRE_MIN && t < OPEN_MIN) state = "pre";
     else if (t >= OPEN_MIN && t < closeMin) state = "open";
-    else if (t >= closeMin && t < POST_END_MIN) state = "post";
+    else if (t >= closeMin && t < postEndMin) state = "post";
   }
 
   let countdownTo;
@@ -124,13 +127,24 @@ export function nyseSession(now = new Date()) {
   return { state, early, ymd: p.ymd, countdownTo, countdownLabel: state === "open" ? "closes" : "opens", tableStale };
 }
 
-// Yahoo's marketState on ^GSPC, when present, is the ground truth for the label.
+// Yahoo's marketState on ^GSPC mapped to our session states.
 export function stateFromMarketState(ms) {
   if (ms === "REGULAR") return "open";
   if (ms === "PRE") return "pre";
   if (ms === "POST") return "post";
   if (typeof ms === "string" && ms) return "closed";
   return null;
+}
+
+// The state the NYSE label shows. A fresh marketState wins, since it knows
+// about closures the holiday table does not. A stale one does not: the pool
+// keeps its last good rows through failed polls, so Friday's "REGULAR" would
+// otherwise read NYSE OPEN all weekend. A stale report is only used where it
+// agrees with the clock, which is the same as using the clock.
+export function displayState(clockState, marketState, fresh) {
+  const reported = stateFromMarketState(marketState);
+  if (reported == null || !fresh) return clockState;
+  return reported;
 }
 
 export const SESSION_LABELS = {

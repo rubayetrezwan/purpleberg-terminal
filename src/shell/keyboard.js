@@ -1,4 +1,4 @@
-import { closeTopLayer, layerCount } from "../ui/layers.js";
+import { closeTopLayer, hasModalLayer } from "../ui/layers.js";
 import { focusCommandLine } from "./commandLine.js";
 import { openHelp } from "./help.js";
 
@@ -21,8 +21,10 @@ export function installKeyboard() {
     // key inside the quick-look drawer, a confirm dialog, or the shortcut sheet
     // focused the command line behind the scrim — out of an aria-modal layer
     // that the focus trap cannot pull it back into, since the trap only
-    // intercepts Tab. Escape above is the way out.
-    if (layerCount() > 0) return;
+    // intercepts Tab. Escape above is the way out. A popover (alerts, session
+    // clocks) is not modal and must not block anything: it closes when the
+    // command line opens.
+    if (hasModalLayer()) return;
     if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") {
       e.preventDefault();
       focusCommandLine("");

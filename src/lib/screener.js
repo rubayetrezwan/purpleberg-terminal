@@ -28,19 +28,37 @@ export const PRESETS = [
 ];
 
 export const FILTER_DEFAULTS = {
-  q: "", exchange: "", peMin: "", peMax: "", priceMin: "", priceMax: "",
+  q: "", exchange: "", sector: "", index: "", peMin: "", peMax: "", priceMin: "", priceMax: "",
   capMin: "", yieldMin: "", betaMin: "", betaMax: "", posMin: "", posMax: "",
 };
 
-const num = (v) => (v === "" || v == null ? null : Number(v));
+// Index filter values. Rows carry `spx` and `ndx` flags from the universe;
+// "other" is a tracked stock in neither index.
+export const INDEX_FILTERS = [
+  { value: "spx", label: "S&P 500", test: (r) => Boolean(r.spx) },
+  { value: "ndx", label: "NASDAQ 100", test: (r) => Boolean(r.ndx) },
+  { value: "other", label: "OTHER", test: (r) => !r.spx && !r.ndx },
+];
+
+// A bound that is not a finite number (peMin=abc from a hand-edited URL) is
+// ignored like a blank one, rather than failing every row.
+const num = (v) => {
+  if (v === "" || v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
 
 // A row passes when every provided bound holds. Blank fields are ignored.
-// P/E bounds drop non-positive P/E so a "max 30" screen cannot include loss-makers.
+// P/E bounds drop non-positive P/E so a "max 30" screen cannot include loss-makers,
+// and price bounds drop a missing (0) price so "max 20" is not a list of blanks.
 export function matchesFilters(row, filters = {}) {
   const f = { ...FILTER_DEFAULTS, ...filters };
   const q = String(f.q || "").trim().toUpperCase();
   if (q && !(row.symbol.includes(q) || String(row.name || "").toUpperCase().includes(q))) return false;
   if (f.exchange && row.exchange !== f.exchange) return false;
+  if (f.sector && row.sector !== f.sector) return false;
+  const ix = f.index ? INDEX_FILTERS.find((x) => x.value === f.index) : null;
+  if (ix && !ix.test(row)) return false;
   const pe = Number(row.pe);
   const peMin = num(f.peMin);
   const peMax = num(f.peMax);
@@ -49,8 +67,8 @@ export function matchesFilters(row, filters = {}) {
   const px = Number(row.price);
   const priceMin = num(f.priceMin);
   const priceMax = num(f.priceMax);
-  if (priceMin != null && !(px >= priceMin)) return false;
-  if (priceMax != null && !(px <= priceMax)) return false;
+  if (priceMin != null && !(px > 0 && px >= priceMin)) return false;
+  if (priceMax != null && !(px > 0 && px <= priceMax)) return false;
   const capMin = num(f.capMin);
   if (capMin != null && !(Number(row.marketCap) >= capMin * 1e9)) return false;
   const yieldMin = num(f.yieldMin);
@@ -87,6 +105,15 @@ export function filtersFromQuery(query = {}) {
     if (query[k] != null && query[k] !== "") out[k] = String(query[k]);
   }
   return out;
+}
+
+// Sort value for a column the proxy fills with 0 when it has nothing (P/E,
+// beta, dividend, market cap, volume). Those cells print "—", and sortRows
+// sinks null to the bottom in both directions, so an ascending P/E sort starts
+// at the cheapest real P/E instead of a block of blanks.
+export function positiveOrNull(v) {
+  const n = Number(v);
+  return n > 0 ? n : null;
 }
 
 // Column value helpers the screen shares with the sort comparator.

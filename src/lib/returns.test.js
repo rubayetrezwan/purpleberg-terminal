@@ -64,6 +64,31 @@ test("YTD measures from last year's final close, not the edge of the window", ()
   assert.equal(out.YTD, 30, "260 against 200, not against 220");
 });
 
+test("YTD for an exchange series follows the New York year, not the viewer's", () => {
+  // 14:00 ET on Dec 31 is already Jan 1 in Dhaka; the session is still 2025's.
+  const now = new Date("2025-12-31T19:00:00Z");
+  const rows = [
+    { date: "2024-12-31", close: 100 },
+    { date: "2025-06-02", close: 110 },
+    { date: "2025-12-31", close: 120 },
+  ];
+  assert.equal(periodReturns(rows, TRADING_DAY_OFFSETS, { now }).YTD, 20);
+  // Just after the New York midnight the year has turned and has no session yet.
+  assert.equal(periodReturns(rows, TRADING_DAY_OFFSETS, { now: new Date("2026-01-01T05:30:00Z") }).YTD, null);
+});
+
+test("YTD for a crypto series follows the UTC year its bars are dated in", () => {
+  // 00:30 UTC on Jan 1: the new UTC bar exists while New York is still in Dec 31.
+  const now = new Date("2026-01-01T00:30:00Z");
+  const rows = [
+    { date: "2024-12-31", close: 50 },
+    { date: "2025-12-31", close: 100 },
+    { date: "2026-01-01", close: 105 },
+  ];
+  assert.equal(periodReturns(rows, CALENDAR_DAY_OFFSETS, { now }).YTD, 5);
+  assert.equal(periodReturns(rows, {}, { now, timeZone: "UTC" }).YTD, 5);
+});
+
 test("YTD is null when the window does not reach into last year", () => {
   // A 3-month window opened inside the year: the first row is the edge of the
   // window, so calling its return "YTD" would be a different number wearing

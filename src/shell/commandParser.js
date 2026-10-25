@@ -8,11 +8,16 @@ import { ROUTES, ALIASES } from "../router/routes.js";
 const BY_MNEMONIC = new Map(ROUTES.map((r) => [r.mnemonic, r]));
 export const COMMANDS = { THEME: "theme", DENSITY: "density", HELP: "help" };
 
+// The FX and commodity headers show Yahoo's symbol ("USDJPY=X", "GC=F"), so
+// people type it back; the screens add the suffix themselves, so it comes off
+// here. Crypto keeps what was typed, lowercased: the screen matches it
+// against CoinGecko ids, tickers and names alike ("bitcoin", "eth").
 export function normaliseArg(routeName, arg) {
   if (routeName === "fx") {
-    const letters = arg.replace(/[^A-Z]/g, "");
-    return letters.length === 6 ? letters : arg;
+    const letters = arg.replace(/=X$/i, "").replace(/[^A-Z]/gi, "");
+    return letters.length === 6 ? letters.toUpperCase() : arg;
   }
+  if (routeName === "commodities") return arg.replace(/=F$/i, "");
   if (routeName === "crypto") return arg.toLowerCase();
   return arg;
 }
