@@ -43,14 +43,14 @@ export const FX_SYMBOLS = [
 ];
 
 export const COMMODITY_SYMBOLS = [
-  { symbol: "CL=F", name: "Crude Oil (WTI)", unit: "$/bbl" },
-  { symbol: "BZ=F", name: "Brent Crude", unit: "$/bbl" },
-  { symbol: "GC=F", name: "Gold", unit: "$/oz" },
-  { symbol: "SI=F", name: "Silver", unit: "$/oz" },
-  { symbol: "NG=F", name: "Natural Gas", unit: "$/MMBtu" },
-  { symbol: "HG=F", name: "Copper", unit: "$/lb" },
-  { symbol: "ZW=F", name: "Wheat", unit: "¢/bu" },
-  { symbol: "ZC=F", name: "Corn", unit: "¢/bu" },
+  { symbol: "CL=F", name: "Crude Oil (WTI)", unit: "$/BBL" },
+  { symbol: "BZ=F", name: "Brent Crude", unit: "$/BBL" },
+  { symbol: "GC=F", name: "Gold", unit: "$/OZ" },
+  { symbol: "SI=F", name: "Silver", unit: "$/OZ" },
+  { symbol: "NG=F", name: "Natural Gas", unit: "$/MMBTU" },
+  { symbol: "HG=F", name: "Copper", unit: "$/LB" },
+  { symbol: "ZW=F", name: "Wheat", unit: "¢/BU" },
+  { symbol: "ZC=F", name: "Corn", unit: "¢/BU" },
 ];
 
 export const BOND_SYMBOLS = [

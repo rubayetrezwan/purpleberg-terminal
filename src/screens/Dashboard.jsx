@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { INDEX_SYMBOLS, COMMODITY_SYMBOLS, BOND_SYMBOLS } from "../config.js";
-import { fmt, fmtK, fmtNum, fmtNewsTime, LOCAL_TZ } from "../lib/format.js";
+import { fmt, fmtK, fmtNum, fmtSigned, fmtNewsTime, LOCAL_TZ } from "../lib/format.js";
 import { breadth } from "../lib/breadth.js";
 import { useQuotes } from "../data/hooks.js";
 import { useQuotePool } from "../data/quotePool.jsx";
@@ -230,7 +230,7 @@ function RatesPanel() {
             />
           );
         })}
-        <KV k="10Y-3M" v={y10 != null && y3m != null ? `${fmt((y10 - y3m) * 100, 0)} bp` : "—"} />
+        <KV k="10Y-3M" v={y10 != null && y3m != null ? `${fmtSigned((y10 - y3m) * 100, 0)}bp` : "—"} />
         <KV
           k="Curve"
           v={y10 != null && y3m != null ? <Tag tone={y10 > y3m ? undefined : "warn"}>{y10 > y3m ? "NORMAL" : "INVERTED"}</Tag> : "—"}

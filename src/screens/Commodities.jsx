@@ -65,7 +65,7 @@ export default function Commodities() {
       // "=F" is a continuous front-month series: keep the clean config name
       // and show the rolling contract month separately. Units are upper-cased
       // here so "$/MMBtu" matches the spec's "MMBTU".
-      return { ...q, ...c, unit: String(c.unit || "").toUpperCase(), spec, contract: contractMonth(q.longName || q.shortName || q.name) };
+      return { ...q, ...c, unit: c.unit || "", spec, contract: contractMonth(q.longName || q.shortName || q.name) };
     }),
     [data]
   );
