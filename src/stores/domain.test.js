@@ -5,7 +5,8 @@ import { migrateSettings, sanitizeSettings, SETTINGS_DEFAULTS, setSetting } from
 import { addToList, removeFromList, moveInList, normalizeSymbol, WATCHLIST_MAX, sanitizeWatchlist } from "./watchlist.js";
 import { sanitizeAlerts, addAlert, rearmAlert, replaceAlertItems, alerts as alertsStore } from "./alerts.js";
 import { migratePortfolio, sanitizePortfolio, localYmd } from "./portfolio.js";
-import { savedScreens, sanitizeSavedScreens, saveScreen, deleteScreen, restoreScreen } from "./savedScreens.js";
+import { savedScreens, sanitizeSavedScreens, saveScreen, deleteScreen, restoreScreen, screenMatches } from "./savedScreens.js";
+import { FILTER_DEFAULTS } from "../lib/screener.js";
 import { STORES, exportAll, importAll, validateExport, resetAll } from "./index.js";
 
 test("settings migrate from the old purpleberg_theme key", () => {
@@ -144,6 +145,18 @@ test("a saved screen keeps its preset and sort, and older saves still load", () 
   assert.equal(junk.preset, null);
   assert.equal(junk.sort, null);
   savedScreens.reset();
+});
+
+test("a saved screen matches the screen on show only while filters and preset agree", () => {
+  const item = { id: "s", name: "cheap tech", filters: { peMax: "15", sector: "Technology", q: "" }, preset: "value", sort: { key: "pe", dir: "asc" } };
+  const shown = { ...FILTER_DEFAULTS, peMax: "15", sector: "Technology" };
+  assert.equal(screenMatches(item, shown, "value"), true);
+  assert.equal(screenMatches(item, shown, null), false); // preset dropped
+  assert.equal(screenMatches(item, { ...shown, peMax: "20" }, "value"), false);
+  assert.equal(screenMatches(item, { ...shown, priceMin: "5" }, "value"), false); // extra filter
+  assert.equal(screenMatches({ ...item, filters: { ...item.filters, q: "bank" } }, { ...shown, q: "BANK" }, "value"), true);
+  assert.equal(screenMatches({ id: "o", name: "old", filters: { peMax: 15 } }, { peMax: "15" }), true); // old save, numbers
+  assert.equal(screenMatches(null, shown, "value"), false);
 });
 
 test("a deleted saved screen can be put back in its old slot", () => {

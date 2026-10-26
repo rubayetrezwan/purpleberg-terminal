@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { RefreshCw } from "lucide-react";
 import { BOND_SYMBOLS } from "../config.js";
-import { fmt } from "../lib/format.js";
+import { fmt, fmtSigned } from "../lib/format.js";
+import { niceTicks } from "../lib/axis.js";
 import { useRoute, updateQuery } from "../router/index.jsx";
 import { useQuotes, useIsMobile } from "../data/hooks.js";
 import { api } from "../data/api.js";
@@ -21,29 +22,15 @@ import { ChartFrame, useChartTheme } from "../ui/ChartFrame.jsx";
 
 const TABS = [{ value: "curve", label: "CURVE" }, { value: "calendar", label: "CALENDAR" }];
 const bondSymbols = BOND_SYMBOLS.map((b) => b.symbol);
-const TREASURY_ROWS = [
-  ["us3m", "3M", "US 3-month bill"],
-  ["us5y", "5Y", "US 5-year note"],
-  ["us10y", "10Y", "US 10-year note"],
-  ["us30y", "30Y", "US 30-year bond"],
-];
+
+// A spread in basis points, signed and written like the monitor's CHG
+// column: "+33bp", "-12bp".
+const spread = (a, b) => (a != null && b != null ? `${fmtSigned((a - b) * 100, 0)}bp` : "—");
 
 function CurveTab() {
   const { data, loading, updatedAt, intervalMs } = useQuotes(bondSymbols, 60000);
   const { colors, gridProps, axisProps, tooltipProps, areaProps } = useChartTheme();
   const isMobile = useIsMobile(768);
-  const [rates, setRates] = useState({});
-  const [ratesLoading, setRatesLoading] = useState(true);
-
-  useEffect(() => {
-    let live = true;
-    const load = () => api.treasuryRates()
-      .then((r) => { if (live) { setRates(r || {}); setRatesLoading(false); } })
-      .catch(() => { if (live) setRatesLoading(false); });
-    load();
-    const iv = setInterval(load, 300_000);
-    return () => { live = false; clearInterval(iv); };
-  }, []);
 
   const bySym = new Map(data.map((d) => [d.symbol, d]));
   // A tenor with no yield stays in the series as a null so the line breaks
@@ -54,12 +41,18 @@ function CurveTab() {
     return { tenor: b.tenor, yield: q && q.price > 0 ? q.price : null };
   });
   const curvePoints = curve.filter((r) => r.yield != null).length;
+  // Scaled to the yields with a margin either side, not pinned at zero: a
+  // 4.0-5.3% curve on a 0-8% axis drew as a flat line.
+  const yields = curve.map((r) => r.yield).filter((v) => v != null);
+  const pad = yields.length ? Math.max((Math.max(...yields) - Math.min(...yields)) * 0.15, 0.1) : 0;
+  const scale = yields.length ? niceTicks([Math.min(...yields) - pad, Math.max(...yields) + pad], 5) : null;
 
   const y = (sym) => {
     const q = bySym.get(sym);
     return q && q.price > 0 ? q.price : null;
   };
   const y3m = y("^IRX");
+  const y5 = y("^FVX");
   const y10 = y("^TNX");
   const y30 = y("^TYX");
 
@@ -77,12 +70,19 @@ function CurveTab() {
 
   return (
     <>
-      <Section title="US treasury yield curve" meta={<Freshness updatedAt={updatedAt} intervalMs={intervalMs} />}>
-        <ChartFrame height={isMobile ? 220 : 280} loading={loading && !curvePoints} empty={!loading && !curvePoints ? "NO YIELD DATA" : null}>
-          <AreaChart data={curve}>
+      <Section className="pb-rates__curve" title="US treasury yield curve" meta={<Freshness updatedAt={updatedAt} intervalMs={intervalMs} />}>
+        <ChartFrame height="fill" minHeight={isMobile ? 220 : 280} loading={loading && !curvePoints} empty={!loading && !curvePoints ? "NO YIELD DATA" : null}>
+          {/* The right margin keeps the 30Y label clear of the plot edge. */}
+          <AreaChart data={curve} margin={{ top: 8, right: 24, bottom: 0, left: 4 }}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey="tenor" {...axisProps} />
-            <YAxis {...axisProps} domain={[0, "auto"]} width={48} tickFormatter={(v) => `${fmt(v, 1)}%`} />
+            <YAxis
+              {...axisProps}
+              domain={scale ? scale.domain : ["auto", "auto"]}
+              ticks={scale ? scale.ticks : undefined}
+              width={48}
+              tickFormatter={(v) => `${fmt(v, scale ? scale.decimals : 1)}%`}
+            />
             <Tooltip {...tooltipProps} formatter={(v) => `${fmt(v)}%`} />
             <Area dataKey="yield" name="YIELD" stroke={colors.series[0]} fill={colors.series[0]} {...areaProps} />
           </AreaChart>
@@ -93,13 +93,13 @@ function CurveTab() {
         <Section title="Treasury monitor" flush>
           <DataTable label="Treasury yields" columns={bondColumns} rows={bondRows} rowKey={(r) => r.symbol} numbered empty="NO DATA" />
         </Section>
-        <Section title="Spreads">
+        {/* Spreads only: the yields themselves are in the monitor beside it. */}
+        <Section title="Spreads" meta="LONG MINUS SHORT">
           <KVList>
-            <KV k="3M" v={y3m != null ? `${fmt(y3m)}%` : "—"} />
-            <KV k="10Y" v={y10 != null ? `${fmt(y10)}%` : "—"} />
-            <KV k="30Y" v={y30 != null ? `${fmt(y30)}%` : "—"} />
-            <KV k="10Y-3M" v={y10 != null && y3m != null ? `${fmt((y10 - y3m) * 100, 0)} bp` : "—"} />
-            <KV k="30Y-10Y" v={y30 != null && y10 != null ? `${fmt((y30 - y10) * 100, 0)} bp` : "—"} />
+            <KV k="10Y-3M" v={spread(y10, y3m)} />
+            <KV k="10Y-5Y" v={spread(y10, y5)} />
+            <KV k="5Y-3M" v={spread(y5, y3m)} />
+            <KV k="30Y-10Y" v={spread(y30, y10)} />
             <KV
               k="CURVE SHAPE"
               v={y10 != null && y3m != null ? <Tag tone={y10 > y3m ? undefined : "warn"}>{y10 > y3m ? "NORMAL" : "INVERTED"}</Tag> : "—"}
@@ -107,27 +107,6 @@ function CurveTab() {
           </KVList>
         </Section>
       </Grid>
-
-      <Section title="Treasury rates endpoint" meta="server /api/treasury-rates" flush>
-        <DataTable
-          label="Treasury rates from the proxy"
-          columns={[
-            { key: "tenor", label: "TENOR", align: "left", render: (r) => r.tenor },
-            { key: "name", label: "INSTRUMENT", align: "left", render: (r) => <span className="pb-muted">{r.name}</span> },
-            { key: "value", label: "YIELD", render: (r) => (r.value == null ? "—" : `${fmt(r.value)}%`) },
-            { key: "state", label: "STATE", render: (r) => (r.value == null ? <Tag tone="warn">NO DATA</Tag> : <Tag tone="up">OK</Tag>) },
-          ]}
-          rows={TREASURY_ROWS.map(([key, tenor, name]) => {
-            // Coerce first: Number.isNaN("4.2") is false, so a stringified
-            // yield would slip past a raw NaN check and throw on toFixed.
-            const n = Number(rates[key]);
-            return { key, tenor, name, value: rates[key] != null && rates[key] !== "" && Number.isFinite(n) && n > 0 ? n : null };
-          })}
-          rowKey={(r) => r.key}
-          loading={ratesLoading}
-          empty="NO DATA"
-        />
-      </Section>
     </>
   );
 }
@@ -187,11 +166,16 @@ function CalendarTab() {
     { key: "impact", label: "IMPACT", render: (r) => <Tag tone={r.impact === "high" ? "warn" : undefined}>{(r.impact || "med").toUpperCase()}</Tag> },
   ].filter(Boolean);
 
+  const meta = <><span>{rows.length} EVENTS · TIMES ET</span>{" · "}<Freshness updatedAt={updatedAt} intervalMs={120_000} /></>;
+
+  // On a phone the head row cannot hold the title, the count and the
+  // controls: the title was squeezed to "ECO ECO…". The count moves to its
+  // own line under the head and the title shortens.
   return (
     <Section
       mnemonic="ECO"
-      title="Economic calendar"
-      meta={<><span>{rows.length} events, times ET</span>{" · "}<Freshness updatedAt={updatedAt} intervalMs={120_000} /></>}
+      title={isMobile ? "Calendar" : "Economic calendar"}
+      meta={isMobile ? null : meta}
       actions={
         <>
           <Segmented
@@ -206,6 +190,7 @@ function CalendarTab() {
       }
       flush
     >
+      {isMobile && <div className="pb-econ__meta pb-label">{meta}</div>}
       {isMobile ? (
         loading && !rows.length ? <EmptyState>LOADING…</EmptyState> : !rows.length ? <EmptyState>{emptyMsg}</EmptyState> : (
           <ol className="pb-econ">
@@ -246,7 +231,9 @@ export default function Rates() {
   const { query } = useRoute();
   const tab = query.tab === "calendar" ? "calendar" : "curve";
   return (
-    <Page>
+    // The curve tab's chart takes the height left over, so the page's own
+    // filler underneath is switched off there.
+    <Page className={tab === "curve" ? "pb-rates pb-rates--curve" : "pb-rates"}>
       <Tabs label="Rates views" tabs={TABS} active={tab} onChange={(v) => updateQuery({ tab: v === "curve" ? null : v })} />
       {tab === "curve" ? <CurveTab /> : <CalendarTab />}
     </Page>

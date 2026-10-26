@@ -89,6 +89,42 @@ test("YTD for a crypto series follows the UTC year its bars are dated in", () =>
   assert.equal(periodReturns(rows, {}, { now, timeZone: "UTC" }).YTD, 5);
 });
 
+const daily = (from, closes) => closes.map((close, i) => {
+  const d = new Date(Date.parse(`${from}T00:00:00Z`) + i * 86_400_000);
+  return { date: d.toISOString().slice(0, 10), close };
+});
+
+test("calendar-day returns are measured by date, not by counting rows", () => {
+  // Ten years of daily closes, then every 6th row only, as a chart thins it.
+  const full = daily("2016-10-25", Array.from({ length: 3653 }, (_, i) => 100 + i));
+  const thinned = full.filter((_, i) => (full.length - 1 - i) % 6 === 0);
+  const a = periodReturns(full, CALENDAR_DAY_OFFSETS);
+  const b = periodReturns(thinned, CALENDAR_DAY_OFFSETS);
+  const last = 100 + 3652;
+  assert.equal(a["1Y"].toFixed(6), ((last / (last - 365) - 1) * 100).toFixed(6));
+  // Counting 365 rows back in the thinned series would reach six years back.
+  assert.ok(Math.abs(b["1Y"] - a["1Y"]) < 0.5, `thinned 1Y ${b["1Y"]} vs full ${a["1Y"]}`);
+});
+
+test("a window of N days whose newest row is live still has its N-day return", () => {
+  // CoinGecko's 1y window: 365 rows, first one 364 days before the live row.
+  const rows = daily("2025-10-26", Array.from({ length: 365 }, (_, i) => (i === 0 ? 4000 : i === 364 ? 2400 : 3000)));
+  const out = periodReturns(rows, CALENDAR_DAY_OFFSETS);
+  assert.equal(out["1Y"], -40, "start to end of the 1Y chart");
+  // A window two days short of the period has no base.
+  const short = daily("2025-10-28", Array.from({ length: 363 }, () => 10));
+  assert.equal(periodReturns(short, CALENDAR_DAY_OFFSETS)["1Y"], null);
+});
+
+test("a gap in the dates falls back to the last close on or before the target", () => {
+  const rows = [
+    { date: "2026-01-01", close: 100 },
+    { date: "2026-01-05", close: 120 }, // Jan 2-4 missing
+    { date: "2026-01-09", close: 150 },
+  ];
+  assert.equal(periodReturns(rows, { "1W": 7 }, { byDate: true })["1W"], 50, "Jan 2 target resolves to Jan 1");
+});
+
 test("YTD is null when the window does not reach into last year", () => {
   // A 3-month window opened inside the year: the first row is the edge of the
   // window, so calling its return "YTD" would be a different number wearing

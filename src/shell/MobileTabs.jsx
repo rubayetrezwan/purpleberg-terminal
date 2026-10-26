@@ -30,7 +30,8 @@ export function MobileTabs() {
               <Link to={pathFor(r.name)} className={`pb-menu__item${route && route.name === r.name ? " pb-menu__item--on" : ""}`} onClick={() => setMenu(false)}>
                 <span className="pb-menu__mn">{r.mnemonic}</span>
                 <span>{r.label}</span>
-                <span className="pb-muted pb-menu__title">{r.title}</span>
+                {/* Settings is titled "Settings"; repeating the label says nothing. */}
+                {r.title !== r.label && <span className="pb-muted pb-menu__title">{r.title}</span>}
               </Link>
             </li>
           ))}

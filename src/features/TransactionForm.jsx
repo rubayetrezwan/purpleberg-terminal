@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Segmented } from "../ui/Segmented.jsx";
 import { Input } from "../ui/Input.jsx";
 import { Button } from "../ui/Button.jsx";
@@ -6,6 +6,8 @@ import { normalizeSymbol } from "../lib/ticker.js";
 import { DATE_RE, sharesHeldOn, newlyRejected } from "../lib/portfolio.js";
 import { etParts, tradeDate } from "../lib/session.js";
 import { fmtNum } from "../lib/format.js";
+import { universeEntry } from "../data/universe.js";
+import { api } from "../data/api.js";
 
 const shareStr = (n) => fmtNum(n, n % 1 === 0 ? 0 : 4);
 
@@ -25,6 +27,21 @@ export function TransactionForm({ transactions, initialSymbol, onAdd }) {
   const [shares, setShares] = useState("");
   const [price, setPrice] = useState("");
   const [fees, setFees] = useState("");
+  // Set when the symbol was checked on ADD and nothing quotes it.
+  const [symbolError, setSymbolError] = useState(null);
+  const [checking, setChecking] = useState(false);
+  const symRef = useRef(null);
+  const sharesRef = useRef(null);
+
+  // Opening the form puts the cursor where typing starts: the symbol, or the
+  // shares when ADD TO PORTFOLIO already filled the symbol in. Not on a touch
+  // screen, where focusing raises the keyboard over the page being looked at.
+  useEffect(() => {
+    const fine = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(pointer: fine)").matches;
+    if (!fine) return;
+    const el = initialSymbol ? sharesRef.current : symRef.current;
+    if (el) el.focus();
+  }, [initialSymbol]);
 
   // A new seed replaces the symbol. What the user types afterwards stays,
   // because the seed itself does not change while they type.
@@ -60,13 +77,39 @@ export function TransactionForm({ transactions, initialSymbol, onAdd }) {
     }
   }
 
-  const ready = Boolean(sym) && nShares > 0 && nPrice > 0 && nFees >= 0 && !error;
+  const ready = Boolean(sym) && nShares > 0 && nPrice > 0 && nFees >= 0 && !error && !checking;
+  // What ADD is waiting for, so a disabled button is never a mystery.
+  const missing = [!sym && "SYMBOL", !(nShares > 0) && "SHARES", !(nPrice > 0) && "PRICE"].filter(Boolean);
+  const waiting = !error && missing.length
+    ? `ENTER ${missing.length > 1 ? `${missing.slice(0, -1).join(", ")} AND ${missing[missing.length - 1]}` : missing[0]}`
+    : null;
 
-  const submit = (e) => {
+  // A symbol nothing quotes would sit in the holdings as NO QUOTE with no
+  // history, so it is checked before it goes in: the tracked universe and
+  // anything already traded pass at once; anything else must be an exact
+  // match in the symbol search.
+  const known = async (s) => {
+    if (universeEntry(s) || list.some((t) => String(t.symbol || "").toUpperCase() === s)) return true;
+    const rows = await api.search(s);
+    return Array.isArray(rows) && rows.some((r) => String(r.symbol || "").toUpperCase() === s);
+  };
+
+  const submit = async (e) => {
     e.preventDefault();
     if (!ready) return;
+    setChecking(true);
+    let ok = false;
+    try {
+      ok = await known(sym);
+      if (!ok) setSymbolError("UNKNOWN SYMBOL");
+    } catch {
+      setSymbolError("COULD NOT CHECK THE SYMBOL, TRY AGAIN");
+    }
+    setChecking(false);
+    if (!ok) return;
     onAdd({ date, symbol: sym, side, shares: nShares, price: nPrice, fees: nFees });
     setSymbol("");
+    setSide("buy");
     setShares("");
     setPrice("");
     setFees("");
@@ -79,7 +122,9 @@ export function TransactionForm({ transactions, initialSymbol, onAdd }) {
         <Input
           mono
           value={symbol}
-          onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+          onChange={(e) => { setSymbol(e.target.value.toUpperCase()); setSymbolError(null); }}
+          ref={symRef}
+          aria-invalid={symbolError ? true : undefined}
           placeholder="SYMBOL"
           aria-label="Symbol"
           maxLength={12}
@@ -92,12 +137,14 @@ export function TransactionForm({ transactions, initialSymbol, onAdd }) {
           onChange={setSide}
           options={[{ value: "buy", label: "BUY" }, { value: "sell", label: "SELL" }]}
         />
-        <Input mono type="number" step="any" min="0" value={shares} onChange={(e) => setShares(e.target.value)} placeholder="SHARES" aria-label="Shares" className="pb-txform__n" />
+        <Input mono type="number" step="any" min="0" value={shares} onChange={(e) => setShares(e.target.value)} placeholder="SHARES" aria-label="Shares" ref={sharesRef} className="pb-txform__n" />
         <Input mono type="number" step="any" min="0" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="PRICE" aria-label="Price per share" className="pb-txform__n" />
         <Input mono type="number" step="any" min="0" value={fees} onChange={(e) => setFees(e.target.value)} placeholder="FEES" aria-label="Fees" className="pb-txform__n" />
-        <Button type="submit" variant="primary" disabled={!ready}>ADD</Button>
+        <Button type="submit" variant="primary" disabled={!ready} loading={checking}>ADD</Button>
       </div>
-      {error && <div className="pb-txform__note pb-warn">{error}</div>}
+      {symbolError && <div className="pb-txform__note pb-warn" role="alert">{symbolError}: {sym}</div>}
+      {!symbolError && error && <div className="pb-txform__note pb-warn">{error}</div>}
+      {!symbolError && waiting && <div className="pb-txform__note pb-muted">{waiting}</div>}
       {!error && side === "sell" && sym && held > 0 && (
         <div className="pb-txform__note pb-muted">
           {shareStr(held)} {sym} held on {date}.

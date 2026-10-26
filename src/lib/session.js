@@ -147,6 +147,14 @@ export function displayState(clockState, marketState, fresh) {
   return reported;
 }
 
+// The short tag beside a quote. Yahoo also reports PREPRE and POSTPOST
+// overnight, which must not leak onto the screen as raw codes.
+const STATE_TAGS = { open: "OPEN", pre: "PRE-MKT", post: "AFTER HRS", closed: "CLOSED" };
+export function marketStateTag(ms) {
+  const s = stateFromMarketState(ms);
+  return s ? { label: STATE_TAGS[s], tone: s === "open" ? "up" : undefined } : null;
+}
+
 export const SESSION_LABELS = {
   open: "NYSE OPEN",
   pre: "NYSE PRE-MKT",

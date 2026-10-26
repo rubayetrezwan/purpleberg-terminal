@@ -1,6 +1,6 @@
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
-import { nyseSession, etParts, etOffsetMinutes, etInstant, nextTradingDay, previousTradingDay, tradeDate, isTradingDay, stateFromMarketState, displayState } from "./session.js";
+import { nyseSession, etParts, etOffsetMinutes, etInstant, nextTradingDay, previousTradingDay, tradeDate, isTradingDay, stateFromMarketState, displayState, marketStateTag } from "./session.js";
 
 const at = (iso) => new Date(iso);
 const iso = (d) => d.toISOString();
@@ -143,4 +143,13 @@ test("tradeDate is the New York trading day, not the local calendar day", () => 
   assert.equal(tradeDate(at("2026-10-26T13:30:00Z")), "2026-10-26");
   // Thanksgiving: no session, so the day before.
   assert.equal(tradeDate(at("2026-11-26T17:00:00Z")), "2026-11-25");
+});
+
+test("marketStateTag never shows Yahoo's raw overnight codes", () => {
+  assert.deepEqual(marketStateTag("REGULAR"), { label: "OPEN", tone: "up" });
+  assert.equal(marketStateTag("PRE").label, "PRE-MKT");
+  assert.equal(marketStateTag("POST").label, "AFTER HRS");
+  assert.equal(marketStateTag("PREPRE").label, "CLOSED");
+  assert.equal(marketStateTag("POSTPOST").label, "CLOSED");
+  assert.equal(marketStateTag(undefined), null);
 });

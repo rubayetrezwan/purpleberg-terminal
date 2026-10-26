@@ -1,5 +1,6 @@
 // Pure screener logic: derived columns, presets, and the filter predicate.
 // No React; the screen owns state and the URL.
+import { exchangeLabel } from "./exchange.js";
 
 // Position in the 52-week range, 0 to 1, or null when the range is unusable.
 export function pos52(row) {
@@ -55,7 +56,9 @@ export function matchesFilters(row, filters = {}) {
   const f = { ...FILTER_DEFAULTS, ...filters };
   const q = String(f.q || "").trim().toUpperCase();
   if (q && !(row.symbol.includes(q) || String(row.name || "").toUpperCase().includes(q))) return false;
-  if (f.exchange && row.exchange !== f.exchange) return false;
+  // Grouped by the name a user knows: NMS, NGM and NCM are all NASDAQ. A raw
+  // code from an old link or saved screen maps to the same name.
+  if (f.exchange && exchangeLabel(row.exchange) !== exchangeLabel(f.exchange)) return false;
   if (f.sector && row.sector !== f.sector) return false;
   const ix = f.index ? INDEX_FILTERS.find((x) => x.value === f.index) : null;
   if (ix && !ix.test(row)) return false;
@@ -73,17 +76,52 @@ export function matchesFilters(row, filters = {}) {
   if (capMin != null && !(Number(row.marketCap) >= capMin * 1e9)) return false;
   const yieldMin = num(f.yieldMin);
   if (yieldMin != null && !(Number(row.dividendYield) >= yieldMin)) return false;
-  const beta = Number(row.beta);
+  const beta = nonZeroOrNull(row.beta);
   const betaMin = num(f.betaMin);
   const betaMax = num(f.betaMax);
-  if (betaMin != null && !(beta > 0 && beta >= betaMin)) return false;
-  if (betaMax != null && !(beta > 0 && beta <= betaMax)) return false;
+  if (betaMin != null && !(beta != null && beta >= betaMin)) return false;
+  if (betaMax != null && !(beta != null && beta <= betaMax)) return false;
   const pos = pos52(row);
   const posMin = num(f.posMin);
   const posMax = num(f.posMax);
   if (posMin != null && !(pos != null && pos * 100 >= posMin)) return false;
   if (posMax != null && !(pos != null && pos * 100 <= posMax)) return false;
   return true;
+}
+
+// How many filter fields hold a value. Drives the phone FILTERS count and
+// decides whether there is anything worth saving.
+export function activeFilterCount(filters = {}) {
+  return Object.keys(FILTER_DEFAULTS).filter((k) => String(filters[k] ?? "").trim() !== "").length;
+}
+
+// Bounds that can never match, so an empty table can say why instead of a bare
+// NO MATCH. Beta is the one field that may go below zero.
+const BOUNDS = [
+  { label: "P/E", min: "peMin", max: "peMax", floor: 0 },
+  { label: "PRICE", min: "priceMin", max: "priceMax", floor: 0 },
+  { label: "MKT CAP", min: "capMin", floor: 0 },
+  { label: "DIV %", min: "yieldMin", floor: 0 },
+  { label: "BETA", min: "betaMin", max: "betaMax" },
+  { label: "52W POS", min: "posMin", max: "posMax", floor: 0, ceil: 100 },
+];
+
+// [{ keys, text }]: the offending field keys (to mark the inputs) and a terse
+// reason ("P/E MIN > MAX").
+export function filterProblems(filters = {}) {
+  const out = [];
+  for (const b of BOUNDS) {
+    const lo = num(filters[b.min]);
+    const hi = b.max ? num(filters[b.max]) : null;
+    if (lo != null && hi != null && lo > hi) {
+      out.push({ keys: [b.min, b.max], text: `${b.label} MIN > MAX` });
+      continue;
+    }
+    if (b.floor != null && lo != null && lo < b.floor) out.push({ keys: [b.min], text: `${b.label} MIN < ${b.floor}` });
+    if (b.floor != null && hi != null && hi < b.floor) out.push({ keys: [b.max], text: `${b.label} MAX < ${b.floor}` });
+    if (b.ceil != null && lo != null && lo > b.ceil) out.push({ keys: [b.min], text: `${b.label} MIN > ${b.ceil}` });
+  }
+  return out;
 }
 
 export function presetById(id) {
@@ -108,12 +146,20 @@ export function filtersFromQuery(query = {}) {
 }
 
 // Sort value for a column the proxy fills with 0 when it has nothing (P/E,
-// beta, dividend, market cap, volume). Those cells print "—", and sortRows
-// sinks null to the bottom in both directions, so an ascending P/E sort starts
-// at the cheapest real P/E instead of a block of blanks.
+// dividend, market cap, volume). Those cells print "—", and sortRows sinks
+// null to the bottom in both directions, so an ascending P/E sort starts at the
+// cheapest real P/E instead of a block of blanks.
 export function positiveOrNull(v) {
   const n = Number(v);
   return n > 0 ? n : null;
+}
+
+// Beta can be negative (BP, an oil major, sits near -0.2 against the S&P), so
+// only the proxy's placeholder 0 and junk count as missing.
+export function nonZeroOrNull(v) {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n !== 0 ? n : null;
 }
 
 // Column value helpers the screen shares with the sort comparator.

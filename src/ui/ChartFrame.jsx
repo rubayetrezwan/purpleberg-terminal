@@ -13,10 +13,17 @@ function readColors(theme) {
   const g = (n) => cs.getPropertyValue(n).trim();
   const accentText = g("--c-accent-text");
   const muted = g("--c-text-muted");
+  // Series 2 is the plain text colour: two violets side by side (Compare's A
+  // and B lines, revenue against earnings) could not be told apart.
+  const text = g("--c-text");
   const series = theme === "light"
-    ? [accentText, "#8b5cf6", muted, "#9d4edd", "#3f3f46", "#a855f7"]
-    : [accentText, "#8b5cf6", muted, "#c4b5fd", "#6b6b78", "#ddd6fe"];
+    ? [accentText, text, muted, "#9d4edd", "#3f3f46", "#a855f7"]
+    : [accentText, text, muted, "#c4b5fd", "#6b6b78", "#ddd6fe"];
+  // Axis labels: muted is too faint on the light canvas at 10px, so light
+  // theme uses the dim text colour.
+  const tick = theme === "light" ? g("--c-text-dim") : muted;
   return {
+    tick,
     accent: g("--c-accent"), accentText, text: g("--c-text"), dim: g("--c-text-dim"),
     muted, line: g("--c-line"), lineStrong: g("--c-line-strong"), up: g("--c-up"),
     down: g("--c-down"), warn: g("--c-warn"), raised: g("--c-raised"), bg: g("--c-bg"), series,
@@ -34,7 +41,7 @@ export function useChartTheme() {
   return useMemo(() => ({
     colors,
     gridProps: { stroke: colors.line, vertical: false },
-    axisProps: { tick: { fill: colors.muted, fontSize: 10, fontFamily: "inherit" }, tickLine: false, axisLine: false, stroke: colors.muted },
+    axisProps: { tick: { fill: colors.tick, fontSize: 10, fontFamily: "inherit" }, tickLine: false, axisLine: false, stroke: colors.muted },
     tooltipProps: {
       contentStyle: { background: colors.raised, border: `1px solid ${colors.lineStrong}`, borderRadius: 0, fontSize: 11, fontFamily: "inherit", padding: "6px 8px" },
       labelStyle: { color: colors.muted, fontSize: 10, marginBottom: 2 },

@@ -18,6 +18,12 @@ test("breadth reports the median absolute move for odd and even counts", () => {
   assert.equal(breadth([q("A", 1), q("B", -3)]).medianAbs, 2);
 });
 
+test("breadth reports the signed median, so a down day reads as one", () => {
+  assert.equal(breadth([q("A", -1), q("B", -3), q("C", 5)]).median, -1);
+  assert.equal(breadth([q("A", -1), q("B", -3)]).median, -2);
+  assert.equal(breadth([q("A", -1), q("B", -3)]).medianAbs, 2);
+});
+
 test("breadth names the best and worst mover", () => {
   const b = breadth([q("A", 2), q("B", -6), q("C", 9)]);
   assert.deepEqual(b.best, { symbol: "C", chg: 9 });
@@ -32,6 +38,6 @@ test("breadth skips rows without a usable quote", () => {
 
 test("breadth on an empty list returns zeros and nulls", () => {
   const b = breadth([]);
-  assert.deepEqual(b, { total: 0, up: 0, down: 0, flat: 0, pctUp: null, medianAbs: null, best: null, worst: null });
+  assert.deepEqual(b, { total: 0, up: 0, down: 0, flat: 0, pctUp: null, median: null, medianAbs: null, best: null, worst: null });
   assert.equal(breadth().total, 0);
 });

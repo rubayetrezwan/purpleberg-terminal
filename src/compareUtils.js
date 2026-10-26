@@ -1,5 +1,8 @@
-// Pure helpers for CompareStocks screen. No React, no DOM — just data.
-// Kept out of the component so node:test can exercise them without a UI harness.
+// Pure helpers for the Compare screen, and the fundamentals and chart-axis
+// helpers Equities shares with it. No React, no DOM — just data. Kept out of
+// the components so node:test can exercise them without a UI harness.
+import { fmtNum } from "./lib/format.js";
+import { niceTicks } from "./lib/axis.js";
 
 /**
  * Convert a historical price series into a "% from start" series.
@@ -69,4 +72,64 @@ export function winnerOf(aVal, bVal, higherIsBetter) {
   if (aVal === bVal) return null;
   const aBetter = higherIsBetter ? aVal > bVal : aVal < bVal;
   return aBetter ? "a" : "b";
+}
+
+/**
+ * The currency a company's statements are in, when it is not the currency its
+ * shares are quoted in; null when they match or either is unknown. An ADR such
+ * as TSM reports in Taiwan dollars but trades in US dollars, so its revenue
+ * must carry "TWD", and any ratio that divides a dollar price by a Taiwan
+ * dollar figure is meaningless.
+ */
+export function statementCurrency(fin, quote) {
+  const fc = fin && fin.financialCurrency;
+  const qc = quote && quote.currency;
+  return fc && qc && fc !== qc ? fc : null;
+}
+
+// Yahoo's P/S, P/B and EV/EBITDA put the quoted price or market cap over a
+// statement figure, so they are wrong whenever statementCurrency() is set.
+// P/E and forward P/E use per-share earnings Yahoo already quotes in the
+// trading currency; ROE, ROA, debt to equity and the current ratio divide one
+// statement figure by another, so the currencies cancel.
+export const CROSS_CURRENCY_RATIOS = ["ps", "pb", "evEbitda"];
+
+/**
+ * Everything a Recharts value axis needs, from the values on screen:
+ * { ticks, domain, format, width }. A $12 stock needs decimals on its ticks or
+ * neighbouring labels repeat; a $500 one does not. `width` fits the longest
+ * label at the charts' 10px monospace. With no finite values the axis falls
+ * back to Recharts' own "auto" range.
+ */
+export function valueAxis(values, suffix = "") {
+  const finite = (Array.isArray(values) ? values : []).filter(Number.isFinite);
+  const scale = niceTicks(finite);
+  const ticks = scale ? scale.ticks : [];
+  const decimals = scale ? scale.decimals : 2;
+  const format = (v) => fmtNum(v, decimals) + suffix;
+  const longest = Math.max(4, ...ticks.map((t) => format(t).length));
+  return {
+    ticks: ticks.length ? ticks : undefined,
+    domain: ticks.length ? [ticks[0], ticks[ticks.length - 1]] : ["auto", "auto"],
+    format,
+    width: Math.max(40, (longest + 1) * 6 + 8),
+  };
+}
+
+/**
+ * Whole-number shares of `total` that add up to exactly `total`, by largest
+ * remainder: floor every share, then give the units left over to the largest
+ * fractional parts. Rounding each share on its own can print 57/35/9 = 101%.
+ * Non-finite or negative inputs count as 0; an all-zero input stays all zero.
+ */
+export function largestRemainder(values, total = 100) {
+  const v = (Array.isArray(values) ? values : []).map((x) => (Number.isFinite(Number(x)) && Number(x) > 0 ? Number(x) : 0));
+  const sum = v.reduce((s, x) => s + x, 0);
+  if (!sum) return v.map(() => 0);
+  const exact = v.map((x) => (x / sum) * total);
+  const out = exact.map(Math.floor);
+  let left = total - out.reduce((s, x) => s + x, 0);
+  const order = exact.map((x, i) => [x - Math.floor(x), i]).sort((p, q) => q[0] - p[0] || p[1] - q[1]);
+  for (let k = 0; left > 0 && k < order.length; k += 1, left -= 1) out[order[k][1]] += 1;
+  return out;
 }

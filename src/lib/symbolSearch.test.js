@@ -48,3 +48,17 @@ test("the universe holds the S&P 500 and the big names outside it", () => {
   assert.equal(syms.size, UNIVERSE.length, "duplicate symbols");
   assert.ok(UNIVERSE.every((u) => u.name && u.sector), "every row has a name and a sector");
 });
+
+test("an exchange suffix keeps its dot; a share class reads as a dash", () => {
+  const list = [
+    { symbol: "000001.SS", name: "SSE Composite Index" },
+    { symbol: "RY.TO", name: "Royal Bank of Canada" },
+    { symbol: "BRK-B", name: "Berkshire Hathaway Inc." },
+  ];
+  assert.deepEqual(filterRows(list, "000001.ss").map((r) => r.symbol), ["000001.SS"]);
+  assert.deepEqual(filterRows(list, "ry.to").map((r) => r.symbol), ["RY.TO"]);
+  assert.deepEqual(filterRows(list, "brk.").map((r) => r.symbol), ["BRK-B"], "half-typed class");
+  assert.deepEqual(filterRows(list, "brk/b").map((r) => r.symbol), ["BRK-B"]);
+  assert.equal(pickFromFilter([], "000001.ss"), "000001.SS");
+  assert.equal(pickFromFilter([], "bf.b"), "BF-B");
+});

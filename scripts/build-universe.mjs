@@ -212,7 +212,10 @@ async function main() {
   const asOf = new Date().toISOString().slice(0, 10);
   const rows = universe.map((q) => {
     const tags = [spxSet.has(q.symbol) && "SPX", ndxSet.has(q.symbol) && "NDX"].filter(Boolean).join(" ");
-    const name = String(q.longName || q.shortName || q.symbol).replace(/\s+/g, " ").trim();
+    const raw = String(q.longName || q.shortName || q.symbol).replace(/\s+/g, " ").trim();
+    // A brand styled all in lowercase ("lululemon athletica inc.") reads as a
+    // data error in a column of proper names.
+    const name = raw === raw.toLowerCase() ? raw.replace(/\b[a-z]/g, (c) => c.toUpperCase()) : raw;
     return `  [${JSON.stringify(q.symbol)}, ${JSON.stringify(name)}, ${JSON.stringify(sector.get(q.symbol) || "")}, ${JSON.stringify(tags)}],`;
   });
   const counts = {

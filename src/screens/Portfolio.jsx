@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from "recharts";
+import { ChartKey } from "../ui/ChartKey.jsx";
 import { Trash2 } from "lucide-react";
 import { useRoute, updateQuery } from "../router/index.jsx";
 import { api } from "../data/api.js";
@@ -11,13 +12,13 @@ import {
   appendTransactions, removeTransaction,
 } from "../stores/portfolio.js";
 import {
-  positionsFrom, enrichPositions, portfolioTotals, allocation, valueSeries,
-  flowsByDate, alignFlows, dietzSeries, normalizeTo100, riskMetrics, beta,
+  positionsFrom, enrichPositions, portfolioTotals, allocation, performanceSeries, riskMetrics, beta,
   sortTransactions, toCsv, parseCsv, sampleTransactions, newlyRejected, MIN_RISK_POINTS,
 } from "../lib/portfolio.js";
 import { normalizeSymbol } from "../lib/ticker.js";
 import { tradeDate } from "../lib/session.js";
-import { fmtNum, fmtPct, fmtSigned, fmtAxisDate, fmtTooltipDate } from "../lib/format.js";
+import { fmtNum, fmtPct, fmtSigned, fmtAxisDate } from "../lib/format.js";
+import { niceTicks } from "../lib/axis.js";
 import { Page, Grid } from "../ui/Grid.jsx";
 import { Section } from "../ui/Section.jsx";
 import { Tabs } from "../ui/Tabs.jsx";
@@ -206,34 +207,17 @@ export default function Portfolio() {
     // the missing symbols at nothing while their buys still count as cash in,
     // which the chain reads as a crash.
     if (closesLoading) return null;
-    const benchDates = (benchRows || []).filter((r) => Number(r.close) > 0);
-    if (!benchDates.length || !accepted.length) return null;
-    const first = sortTransactions(accepted)[0].date;
-    const at = benchDates.findIndex((r) => r.date >= first);
-    if (at < 0) return null;
-    // Start one session before the first trade so the opening day's move is
-    // measured from cost rather than being swallowed by the index base.
-    const window = benchDates.slice(Math.max(0, at - 1));
-    const dates = window.map((r) => r.date);
-    const values = valueSeries(accepted, closes, dates);
-    const { returns, index } = dietzSeries(values, alignFlows(flowsByDate(accepted), dates));
-    const benchIndex = normalizeTo100(window);
-    const benchByDate = new Map(benchIndex.map((r) => [r.date, r.value]));
-    const benchReturns = window.slice(1).map((r, i) => ({
-      date: r.date,
-      r: Number(window[i].close) > 0 ? Number(r.close) / Number(window[i].close) - 1 : 0,
-    }));
-    const chart = index.map((p) => ({ date: p.date, port: p.value, bench: benchByDate.get(p.date) ?? null }));
-    const last = index.length ? index[index.length - 1].value : null;
-    const lastBench = benchIndex.length ? benchIndex[benchIndex.length - 1].value : null;
-    return {
-      chart, returns, index, benchReturns,
-      portPct: last == null ? null : last - 100,
-      benchPct: lastBench == null ? null : lastBench - 100,
-      from: dates[0],
-      days: dates.length,
-    };
+    return performanceSeries(accepted, closes, benchRows);
   }, [benchRows, closes, closesLoading, accepted]);
+  const chartReady = Boolean(series && series.chart.length >= 2);
+  // Round ticks over both lines and the 100 base, so the base is always on
+  // the axis and neighbouring labels never repeat ("100, 100, 100, 99").
+  const yScale = useMemo(() => {
+    if (!chartReady) return null;
+    const vals = [100];
+    for (const p of series.chart) vals.push(p.port, p.bench);
+    return niceTicks(vals, isMobile ? 4 : 5);
+  }, [chartReady, series, isMobile]);
 
   const rf = useMemo(() => {
     const bill = bySymbol.get(BILL);
@@ -357,8 +341,8 @@ export default function Portfolio() {
       <Page>
         <Section mnemonic="PORT" title="Portfolio">
           <EmptyState>
-            NO TRANSACTIONS. ADD TRADES ON THE TRANSACTIONS TAB, IMPORT A CSV, OR LOAD THE
-            SAMPLE PORTFOLIO. EVERYTHING STAYS IN THIS BROWSER.
+            NO TRANSACTIONS YET. LOAD THE SAMPLE PORTFOLIO, OR ADD A TRANSACTION (A CSV CAN
+            BE IMPORTED THERE TOO). EVERYTHING STAYS IN THIS BROWSER.
           </EmptyState>
           <div className="pb-txform__row pb-port__emptyactions">
             <Button variant="primary" loading={samplePending} onClick={loadSample}>LOAD SAMPLE</Button>
@@ -370,22 +354,28 @@ export default function Portfolio() {
   }
 
   const staleNote = totals.staleCount > 0 ? `${totals.staleCount} without a live quote` : null;
-  const totalPnl = totals.unrealised == null ? totals.realised : totals.unrealised + totals.realised;
+  // Nothing traded is no P&L, not a P&L of zero: "+$0" beside three em dashes.
+  const totalPnl = !accepted.length ? null
+    : totals.unrealised == null ? totals.realised : totals.unrealised + totals.realised;
 
   const holdingColumns = [
     { key: "symbol", label: "SYMBOL", align: "left", render: (r) => <Ticker symbol={r.symbol} name={r.name} /> },
     { key: "shares", label: "SHARES", render: (r) => shareStr(r.shares) },
+    // Every money column in cents with a "$", so AVG COST and LAST compare
+    // digit for digit and VALUE and P&L do not drop precision beside them.
     { key: "avgCost", label: "AVG COST", render: (r) => money(r.avgCost) },
-    { key: "price", label: "LAST", sortValue: (r) => r.price, render: (r) => (r.price == null ? <Tag tone="warn">NO QUOTE</Tag> : <Price value={r.price} format={(v) => fmtNum(v)} />) },
+    { key: "price", label: "LAST", sortValue: (r) => r.price, render: (r) => (r.price == null ? <Tag tone="warn">NO QUOTE</Tag> : <Price value={r.price} format={(v) => money(v)} />) },
     { key: "chg", label: "CHG", sortValue: (r) => r.changePercent, render: (r) => <Change value={r.changePercent} /> },
     { key: "dayPnl", label: "DAY P&L", sortValue: (r) => r.dayPnl, render: (r) => <span className={r.dayPnl == null ? "" : `pb-${tone(r.dayPnl) || "muted"}`}>{moneySigned(r.dayPnl)}</span> },
-    { key: "value", label: "VALUE", sortValue: (r) => r.value, render: (r) => money(r.value, 0) },
-    { key: "unrealised", label: "UNREAL P&L", sortValue: (r) => r.unrealised, render: (r) => <span className={r.unrealised == null ? "" : `pb-${tone(r.unrealised) || "muted"}`}>{moneySigned(r.unrealised, 0)}</span> },
+    { key: "value", label: "VALUE", sortValue: (r) => r.value, render: (r) => money(r.value) },
+    { key: "unrealised", label: "UNREAL P&L", sortValue: (r) => r.unrealised, render: (r) => <span className={r.unrealised == null ? "" : `pb-${tone(r.unrealised) || "muted"}`}>{moneySigned(r.unrealised)}</span> },
     { key: "unrealisedPct", label: "RETURN", sortValue: (r) => r.unrealisedPct, render: (r) => <Change value={r.unrealisedPct} /> },
     { key: "weight", label: "WEIGHT", sortValue: (r) => (r.live && totals.value > 0 ? (r.value / totals.value) * 100 : null), render: (r) => (r.live && totals.value > 0 ? `${fmtNum((r.value / totals.value) * 100, 1)}%` : "—") },
   ];
 
-  const txColumns = [
+  // A phone drops FEES and NOTE so AMOUNT and the delete button stay on screen.
+  const PHONE_HIDDEN = new Set(["fees", "note"]);
+  const txColumnsAll = [
     { key: "date", label: "DATE", align: "left", render: (t) => <span className="pb-muted">{t.date}</span> },
     { key: "symbol", label: "SYMBOL", align: "left", render: (t) => <Ticker symbol={t.symbol} star={false} /> },
     { key: "side", label: "SIDE", align: "left", render: (t) => <Tag tone={t.side === "buy" ? "up" : "down"}>{t.side.toUpperCase()}</Tag> },
@@ -404,13 +394,14 @@ export default function Portfolio() {
       ),
     },
   ];
+  const txColumns = isMobile ? txColumnsAll.filter((c) => !PHONE_HIDDEN.has(c.key)) : txColumnsAll;
 
   return (
     <Page>
       <Section
         mnemonic="PORT"
         title="Portfolio"
-        meta={<><span>{totals.holdings} holdings, {transactions.length} transactions{staleNote ? `, ${staleNote}` : ""}</span>{" · "}<Freshness updatedAt={updatedAt} intervalMs={intervalMs} /></>}
+        meta={<><span>{totals.holdings} holding{totals.holdings === 1 ? "" : "s"}, {transactions.length} transaction{transactions.length === 1 ? "" : "s"}{staleNote ? `, ${staleNote}` : ""}</span>{" · "}<Freshness updatedAt={updatedAt} intervalMs={intervalMs} /></>}
       >
         <StatRow cols={isMobile ? "1fr 1fr" : "repeat(5, 1fr)"}>
           <Stat label="VALUE" value={money(totals.value, 0)} size="lg" />
@@ -441,19 +432,31 @@ export default function Portfolio() {
 
       <Section
         title="Performance"
-        meta={series ? `time-weighted, ${series.days} sessions from ${series.from}` : "since the first transaction"}
+        meta={series ? `time-weighted, ${series.days} session${series.days === 1 ? "" : "s"} from ${series.from}` : "since the first transaction"}
       >
+        {chartReady && (
+          <div className="pb-chartbar">
+            <ChartKey items={[{ label: "PORTFOLIO", color: colors.series[0], line: true }, { label: "S&P 500", color: colors.series[2], dashed: true }]} />
+          </div>
+        )}
         <ChartFrame
           height={isMobile ? 200 : 260}
           loading={(benchLoading || closesLoading) && !series}
-          empty={!series || series.chart.length < 2 ? "NOT ENOUGH HISTORY YET" : null}
+          empty={!chartReady ? "NOT ENOUGH HISTORY YET" : null}
         >
           <LineChart data={series ? series.chart : []}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey="date" {...axisProps} tickFormatter={(d) => fmtAxisDate(d, false)} minTickGap={40} />
-            <YAxis {...axisProps} width={44} domain={["auto", "auto"]} tickFormatter={(v) => fmtNum(v, 0)} />
-            <Tooltip {...tooltipProps} labelFormatter={fmtTooltipDate} formatter={(v, n) => [fmtNum(v, 1), n]} />
-            <Legend wrapperStyle={{ fontSize: 10, color: colors.muted }} />
+            <YAxis
+              {...axisProps}
+              width={44}
+              domain={yScale ? yScale.domain : ["auto", "auto"]}
+              ticks={yScale ? yScale.ticks : undefined}
+              tickFormatter={(v) => fmtNum(v, yScale ? yScale.decimals : 0)}
+            />
+            <ReferenceLine y={100} stroke={colors.muted} strokeWidth={1} ifOverflow="extendDomain" />
+            {/* ISO, as in the transactions table. */}
+            <Tooltip {...tooltipProps} labelFormatter={(d) => d} formatter={(v, n) => [fmtNum(v, 1), n]} />
             <Line dataKey="port" name="PORTFOLIO" stroke={colors.series[0]} {...lineProps} />
             <Line dataKey="bench" name="S&P 500" stroke={colors.series[2]} {...lineProps} strokeDasharray="3 3" connectNulls />
           </LineChart>
@@ -463,10 +466,12 @@ export default function Portfolio() {
             No history for {noHistory.join(", ")}; carried flat at the last trade price.
           </div>
         )}
-        <div className="pb-form__hint pb-muted">
-          Both lines start at 100. The portfolio line is a daily Dietz chain, so deposits and
-          withdrawals do not count as gains.
-        </div>
+        {chartReady && (
+          <div className="pb-form__hint pb-muted">
+            Both lines start at 100 on the close before the first trade. Time-weighted:
+            deposits and withdrawals are not gains.
+          </div>
+        )}
       </Section>
 
       <Tabs label="Portfolio views" tabs={TABS} active={tab} onChange={(v) => updateQuery({ tab: v === "holdings" ? null : v })} />
@@ -538,8 +543,9 @@ export default function Portfolio() {
               columns={txColumns}
               rows={sortTransactions(transactions).slice().reverse()}
               rowKey={(t) => t.id}
-              numbered
+              numbered={!isMobile}
               navigable
+              className="pb-port__tx"
               empty="NO TRANSACTIONS"
             />
             <div className="pb-form__hint pb-muted">
@@ -567,7 +573,7 @@ export default function Portfolio() {
       {tab === "risk" && (
         <Section
           title="Risk"
-          meta={risk ? `${risk.n} daily returns, risk-free ${fmtNum(rf * 100, 2)}% from the 3-month bill` : null}
+          meta={risk ? `${risk.n} days, rf ${fmtNum(rf * 100, 2)}%` : null}
         >
           {!risk ? (
             <EmptyState>
@@ -600,6 +606,7 @@ export default function Portfolio() {
           <div className="pb-form__hint pb-muted">
             Measured on the daily Dietz series above, not on the holdings as they stand today.
             Volatility is the standard deviation of daily returns times the square root of 252.
+            Sharpe uses the 3-month bill as the risk-free rate (rf).
           </div>
         </Section>
       )}

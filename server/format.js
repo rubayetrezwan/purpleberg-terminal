@@ -13,6 +13,15 @@ export const raw = (v) => {
   return v;
 };
 
+// A valuation multiple that cannot be real becomes 0, which the client shows
+// as "—": negative ones (EV/EBITDA on negative EBITDA, forward P/E for a
+// loss-maker) have no meaning as a multiple, and Yahoo sends some companies
+// a P/B of 0.00x.
+export function plausibleMultiple(v, min = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > min ? n : 0;
+}
+
 // ── Finnhub IPO calendar normaliser ─────────────────────
 // Finnhub returns { ipoCalendar: [{ date, exchange, name, numberOfShares,
 // price, status, symbol, totalSharesValue }] }. Flatten to the row shape the

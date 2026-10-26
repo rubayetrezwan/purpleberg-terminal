@@ -6,7 +6,8 @@ import { ROUTES, ALIASES } from "../router/routes.js";
 //   "THEME" | "DENSITY" | "HELP" -> command
 //   anything else       -> search
 const BY_MNEMONIC = new Map(ROUTES.map((r) => [r.mnemonic, r]));
-export const COMMANDS = { THEME: "theme", DENSITY: "density", HELP: "help" };
+// "?" is the shortcut-sheet key everywhere else, so typed here it means HELP.
+export const COMMANDS = { THEME: "theme", DENSITY: "density", HELP: "help", "?": "help" };
 
 // The FX and commodity headers show Yahoo's symbol ("USDJPY=X", "GC=F"), so
 // people type it back; the screens add the suffix themselves, so it comes off

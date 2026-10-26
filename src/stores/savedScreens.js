@@ -1,5 +1,6 @@
 import { createStore } from "./createStore.js";
 import { newId } from "../lib/id.js";
+import { FILTER_DEFAULTS, filtersFromQuery } from "../lib/screener.js";
 
 // items: [{ id, name, filters, preset, sort }]. preset and sort came later, so
 // a screen saved before them has neither and loads with both null.
@@ -39,6 +40,22 @@ export function deleteScreen(id) {
   const item = savedScreens.get().items[index];
   savedScreens.update((s) => ({ ...s, items: s.items.filter((x) => x.id !== id) }));
   return { item, index };
+}
+
+// True while the screen on show is this saved one, so its chip can be marked.
+// Fields are compared as the URL holds them (blank and missing are the same,
+// search ignores case); sort is left out, since re-sorting the same rows is
+// still the same screen.
+export function screenMatches(item, filters, preset = null) {
+  if (!item) return false;
+  if ((item.preset || null) !== (preset || null)) return false;
+  const a = filtersFromQuery(item.filters || {});
+  const b = filtersFromQuery(filters || {});
+  return Object.keys(FILTER_DEFAULTS).every((k) => {
+    const x = a[k].trim();
+    const y = b[k].trim();
+    return k === "q" ? x.toUpperCase() === y.toUpperCase() : x === y;
+  });
 }
 
 // Puts a deleted screen back in its old slot. A screen that is already back

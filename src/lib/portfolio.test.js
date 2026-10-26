@@ -5,6 +5,7 @@ import {
   valueSeries, flowsByDate, alignFlows, dietzSeries, normalizeTo100,
   riskMetrics, beta, maxDrawdown, toCsv, parseCsv,
   sampleTransactions, localYmd, MIN_RISK_POINTS, sharesHeldOn, newlyRejected,
+  performanceSeries,
 } from "./portfolio.js";
 
 const tx = (over) => ({ id: over.id || Math.random().toString(36).slice(2), fees: 0, ...over });
@@ -175,16 +176,50 @@ test("shares held on a date reflect only transactions up to that date", () => {
   assert.deepEqual(out.map((r) => r.value), [1000, 0]);
 });
 
-test("shares bought on a session are valued at cost that day, not at the close", () => {
-  // Entered at 100 on a day that closed at 130: without this the chain would
-  // book a 30% one-day gain that never happened to this holder.
+test("the trade day's return is the move from the trade price to that close", () => {
+  // Entered at 100 on a day that closed at 130: the holder is up 30% that
+  // day, as the return on cost says, and the next day runs from 130.
   const txs = [tx({ date: "2026-01-02", symbol: "AAPL", side: "buy", shares: 10, price: 100 })];
   const closes = { AAPL: [{ date: "2026-01-02", close: 130 }, { date: "2026-01-05", close: 140 }] };
   const out = valueSeries(txs, closes, ["2026-01-01", "2026-01-02", "2026-01-05"]);
-  assert.deepEqual(out.map((r) => r.value), [0, 1000, 1400]);
+  assert.deepEqual(out.map((r) => r.value), [0, 1300, 1400]);
   const { returns } = dietzSeries(out, alignFlows(flowsByDate(txs), out.map((r) => r.date)));
-  assert.equal(returns[0].r, 0, "the entry day is flat");
-  assert.equal(returns[1].r.toFixed(4), (0.4).toFixed(4));
+  assert.equal(returns[0].r.toFixed(4), (0.3).toFixed(4));
+  assert.equal(returns[1].r.toFixed(4), (100 / 1300).toFixed(4));
+});
+
+test("the performance chart starts on the first trade, already counting its day", () => {
+  // 10 ARM bought at 150.50 on a session that closed at 210.35, while the
+  // index fell 0.5%. The chart is not a flat line at 100 and does not show
+  // the session before the trade.
+  const bench = [
+    { date: "2026-10-21", close: 6000 },
+    { date: "2026-10-22", close: 6010 },
+    { date: "2026-10-23", close: 5979.95 },
+  ];
+  const txs = [tx({ date: "2026-10-23", symbol: "ARM", side: "buy", shares: 10, price: 150.5 })];
+  const closes = { ARM: [{ date: "2026-10-22", close: 148 }, { date: "2026-10-23", close: 210.35 }] };
+  const s = performanceSeries(txs, closes, bench);
+  assert.equal(s.from, "2026-10-23");
+  assert.equal(s.chart.length, 1);
+  assert.equal(s.portPct.toFixed(2), ((210.35 / 150.5 - 1) * 100).toFixed(2));
+  assert.equal(s.benchPct.toFixed(2), "-0.50");
+  assert.equal(s.chart[0].port.toFixed(2), (100 * 210.35 / 150.5).toFixed(2));
+  // A second trade later on runs from where the chain stood.
+  const two = performanceSeries(
+    [tx({ date: "2026-10-22", symbol: "ARM", side: "buy", shares: 10, price: 148 })],
+    closes,
+    bench
+  );
+  assert.deepEqual(two.chart.map((p) => p.date), ["2026-10-22", "2026-10-23"]);
+  assert.equal(two.chart[0].port.toFixed(4), "100.0000", "bought at the close: a flat first day");
+  assert.equal(two.chart[0].bench.toFixed(4), (100 * 6010 / 6000).toFixed(4), "the index from the prior close");
+  // History that starts after the first trade opens the window on its first session.
+  const late = performanceSeries([tx({ date: "2026-01-02", symbol: "ARM", side: "buy", shares: 1, price: 100 })], closes, bench);
+  assert.equal(late.from, "2026-10-21");
+  assert.equal(late.chart[0].port, 100);
+  assert.equal(performanceSeries([], closes, bench), null);
+  assert.equal(performanceSeries(txs, closes, []), null);
 });
 
 test("a sale on a session still marks the remaining shares to the close", () => {
@@ -210,19 +245,20 @@ test("shares bought and sold on the same session are not counted as still held",
   assert.deepEqual(out.map((r) => r.value), [100, 102]);
 });
 
-test("a buy dated on a weekend is valued at cost on the session it books to", () => {
+test("a buy dated on a weekend is held from the session it books to", () => {
   const txs = [tx({ date: "2026-01-03", symbol: "AAPL", side: "buy", shares: 10, price: 98 })];
   const closes = { AAPL: [{ date: "2026-01-02", close: 100 }, { date: "2026-01-05", close: 100 }, { date: "2026-01-06", close: 110 }] };
   const dates = ["2026-01-02", "2026-01-05", "2026-01-06"];
   const out = valueSeries(txs, closes, dates);
-  assert.deepEqual(out.map((r) => r.value), [0, 980, 1100]);
+  assert.deepEqual(out.map((r) => r.value), [0, 1000, 1100]);
   const { returns } = dietzSeries(out, alignFlows(flowsByDate(txs), dates));
-  assert.equal(returns[0].r, 0, "the Saturday entry is flat on Monday, not a 2% gain");
+  assert.equal(returns[0].r.toFixed(6), (20 / 980).toFixed(6), "Monday runs from the Saturday price");
+  assert.equal(returns[1].r.toFixed(6), (0.1).toFixed(6));
 });
 
 test("switching one holding for another on a session nets to no flow", () => {
-  // AAA is sold 1% down and the proceeds go straight into BBB at cost. The day
-  // reads as AAA's move; BBB's own move starts the next session.
+  // AAA is sold 1% down and the proceeds go straight into BBB at 99, which
+  // closes at 101. The day is both moves together: -10 and +20 on 1000.
   const dates = ["2026-03-02", "2026-03-03", "2026-03-04"];
   const closes = {
     AAA: [{ date: "2026-03-02", close: 100 }, { date: "2026-03-03", close: 99 }],
@@ -234,10 +270,10 @@ test("switching one holding for another on a session nets to no flow", () => {
     tx({ date: "2026-03-03", symbol: "BBB", side: "buy", shares: 10, price: 99 }),
   ];
   const values = valueSeries(txs, closes, dates);
-  assert.deepEqual(values.map((r) => r.value), [1000, 990, 1010]);
+  assert.deepEqual(values.map((r) => r.value), [1000, 1010, 1010]);
   const { returns } = dietzSeries(values, alignFlows(flowsByDate(txs), dates));
-  assert.equal(returns[0].r.toFixed(6), (-0.01).toFixed(6));
-  assert.equal(returns[1].r.toFixed(6), (20 / 990).toFixed(6));
+  assert.equal(returns[0].r.toFixed(6), (0.01).toFixed(6));
+  assert.equal(returns[1].r.toFixed(6), (0).toFixed(6));
 });
 
 test("selling out reads as the day's price move, not as a total loss", () => {
@@ -448,9 +484,19 @@ test("a back-dated sell that strands a later sell is caught before it is added",
 
 test("sample dates count back from today in New York, not the local day", () => {
   // Fri 23 Oct 21:30 EDT is Saturday morning in Dhaka; the newest sample buy
-  // is 20 days before the 23rd.
+  // is 20 days before the 23rd, a Saturday, so it moves back to Friday 2nd.
   const rows = sampleTransactions(new Date("2026-10-24T01:30:00Z"));
-  assert.equal(rows.map((r) => r.date).sort().at(-1), "2026-10-03");
+  assert.equal(rows.map((r) => r.date).sort().at(-1), "2026-10-02");
+});
+
+test("no sample buy lands on a weekend", () => {
+  for (let i = 0; i < 7; i += 1) {
+    const rows = sampleTransactions(new Date(Date.UTC(2026, 9, 19 + i, 16)));
+    for (const r of rows) {
+      const dow = new Date(`${r.date}T12:00:00Z`).getUTCDay();
+      assert.ok(dow >= 1 && dow <= 5, `${r.date} is a weekday`);
+    }
+  }
 });
 
 test("local calendar day, so a late-evening date is not tomorrow", () => {

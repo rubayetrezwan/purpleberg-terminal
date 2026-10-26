@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  fmt, fmtNum, fmtK, fmtPct, fmtSigned, fmtLevel, fmtAgo, fmtCountdown,
+  fmt, fmtNum, fmtK, fmtPct, fmtSigned, fmtLevel, fmtAgo, fmtCountdown, fmtNewsTime,
   fmtDateTable, fmtAxisDate, fmtTooltipDate, fmtClock, ts,
 } from "./format.js";
 
@@ -24,6 +24,7 @@ test("fmtLevel keeps the precision a price level needs", () => {
   assert.equal(fmtLevel(1.2), "1.20");
   assert.equal(fmtLevel(0.4512), "0.4512");
   assert.equal(fmtLevel(null), "—");
+  assert.equal(fmtLevel(3574.2), "3,574", "an index level keeps its thousands separator");
 });
 
 test("fmt: fixed decimals, em dash for missing", () => {
@@ -77,9 +78,11 @@ test("fmtCountdown: h:mm:ss, never negative", () => {
   assert.equal(fmtCountdown(59_000), "0:00:59");
   assert.equal(fmtCountdown(-5), "0:00:00");
   assert.equal(fmtCountdown(null), "—");
-  // A weekend wait is over a day: "24:13:51" read like a time of day.
-  assert.equal(fmtCountdown(24 * 3_600_000 + 13 * 60_000 + 51_000), "1D 0:13:51");
-  assert.equal(fmtCountdown(62 * 3_600_000), "2D 14:00:00");
+  // A weekend wait is over a day: "24:13:51" and "1D 00:13:51" both read
+  // like a time of day, so it switches to units and drops the seconds.
+  assert.equal(fmtCountdown(24 * 3_600_000 + 13 * 60_000 + 51_000), "1D 00H 13M");
+  assert.equal(fmtCountdown(62 * 3_600_000), "2D 14H 00M");
+  assert.equal(fmtCountdown(24 * 3_600_000 - 1_000), "23:59:59", "under a day keeps the clock form");
 });
 
 test("date formatters", () => {
@@ -101,4 +104,13 @@ test("fmtClock: 24-hour clock in a given zone", () => {
   assert.equal(fmtClock("2026-09-04", "UTC"), "—");
   assert.equal(fmtClock(d, ""), fmtClock(d));
   assert.match(ts(), /^\d{2}:\d{2}:\d{2}$/);
+});
+
+test("fmtNewsTime shows the clock for today and the date for older stories", () => {
+  const now = new Date(2026, 9, 25, 23, 0);
+  const at = (d) => Math.floor(d.getTime() / 1000);
+  assert.equal(fmtNewsTime(at(new Date(2026, 9, 25, 19, 6)), now), "19:06");
+  assert.equal(fmtNewsTime(at(new Date(2026, 9, 24, 19, 6)), now), "24 OCT 19:06");
+  assert.equal(fmtNewsTime(0, now), "—");
+  assert.equal(fmtNewsTime("junk", now), "—");
 });

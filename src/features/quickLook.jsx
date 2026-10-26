@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Star, X } from "lucide-react";
 import { QuickLookContext } from "../ui/quickLookContext.js";
 import { Drawer } from "../ui/Drawer.jsx";
@@ -16,7 +16,9 @@ import { watchlist, normalizeSymbol } from "../stores/watchlist.js";
 import { useQuote, useQuotePool, usePoolExtra } from "../data/quotePool.jsx";
 import { useHistorical } from "../data/hooks.js";
 import { navigate, pathFor } from "../router/index.jsx";
-import { fmt, fmtK, fmtLevel, fmtNum, fmtSigned } from "../lib/format.js";
+import { fmt, fmtK, fmtNum, fmtSigned } from "../lib/format.js";
+import { exchangeLabel } from "../lib/exchange.js";
+import { marketStateTag } from "../lib/session.js";
 import { useNewsFeed } from "./newsFeed.jsx";
 import { AlertForm } from "./AlertForm.jsx";
 
@@ -36,6 +38,7 @@ export function QuickLookProvider({ children }) {
 function QuickLookDrawer({ symbol, onClose }) {
   usePoolExtra(symbol);
   const q = useQuote(symbol);
+  const stateTag = q ? marketStateTag(q.marketState) : null;
   const pool = useQuotePool();
   const { data: hist, loading: histLoading } = useHistorical(symbol, "1mo");
   // Joining the pool restarts its poll, so a missing row only means "no
@@ -53,6 +56,27 @@ function QuickLookDrawer({ symbol, onClose }) {
   useEffect(() => { setAlertOpen(false); }, [symbol]);
   const starred = useStore(watchlist, (s) => (symbol ? s.symbols.includes(symbol) : false));
   const closes = useMemo(() => hist.map((d) => d.close), [hist]);
+  // The sparkline is a month, so it is coloured by the month (Sparkline's own
+  // rule) and labelled with that month's change; the day's move is the
+  // figure next to the price above it.
+  const monthPct = useMemo(() => {
+    const xs = closes.filter((v) => Number(v) > 0);
+    return xs.length > 1 ? (xs[xs.length - 1] / xs[0] - 1) * 100 : null;
+  }, [closes]);
+  // Drawn at the width it is given, so it spans a phone-wide sheet too.
+  const sparkRef = useRef(null);
+  const [sparkW, setSparkW] = useState(330);
+  useEffect(() => {
+    const el = sparkRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(() => {
+      const cs = getComputedStyle(el);
+      const w = Math.floor(el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight));
+      if (w > 40) setSparkW(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [symbol, q != null]); // eslint-disable-line react-hooks/exhaustive-deps
   const headlines = useMemo(
     () => (news || []).filter((n) => (n.relatedSymbol || "").toUpperCase() === symbol).slice(0, 3),
     [news, symbol]
@@ -60,6 +84,11 @@ function QuickLookDrawer({ symbol, onClose }) {
 
   const goEquities = () => { navigate(pathFor("equities", { symbol })); onClose(); };
   const goPortfolio = () => { navigate(pathFor("portfolio", {}, { tab: "transactions", symbol })); onClose(); };
+
+  // One precision for both ends and the rest of this list: cents, or four
+  // places for a sub-dollar stock. fmtLevel dropped the cents from 100 up, so
+  // AAPL read "243 – 352" beside GMAB's "23.62 – 44.34".
+  const lvl = q && q.week52Low > 0 && q.week52Low < 1 ? 4 : 2;
 
   const range52 = q && q.week52High > q.week52Low && q.week52Low > 0
     ? Math.min(100, Math.max(0, ((q.price - q.week52Low) / (q.week52High - q.week52Low)) * 100))
@@ -103,12 +132,17 @@ function QuickLookDrawer({ symbol, onClose }) {
                 <Price value={q.price} format={(v) => fmtNum(v, 2)} className="pb-ql__last" />
                 <span className={q.change == null ? "" : q.change >= 0 ? "pb-up" : "pb-down"}>{fmtSigned(q.change)} <Change value={q.changePercent} /></span>
                 <span className="pb-ql__tags">
-                  <Tag>{q.exchange || "—"}</Tag>
-                  {q.marketState && <Tag tone={q.marketState === "REGULAR" ? "up" : undefined}>{q.marketState === "REGULAR" ? "OPEN" : q.marketState}</Tag>}
+                  <Tag>{exchangeLabel(q.exchange) || "—"}</Tag>
+                  {stateTag && <Tag tone={stateTag.tone}>{stateTag.label}</Tag>}
                 </span>
               </div>
-              <div className="pb-ql__spark">
-                {closes.length > 1 ? <Sparkline values={closes} width={330} height={56} /> : <span className="pb-label">{histLoading ? "1M CHART LOADING…" : "NO CHART DATA"}</span>}
+              <div className="pb-ql__spark" ref={sparkRef}>
+                {closes.length > 1 ? (
+                  <>
+                    <span className="pb-ql__sparklbl pb-label">1M <Change value={monthPct} /></span>
+                    <Sparkline values={closes} width={sparkW} height={56} />
+                  </>
+                ) : <span className="pb-label">{histLoading ? "1M CHART LOADING…" : "NO CHART DATA"}</span>}
               </div>
               {alertOpen && <div className="pb-ql__alert"><AlertForm symbol={symbol} currentPrice={q.price} onDone={() => setAlertOpen(false)} /></div>}
               <KVList cols={2}>
@@ -123,7 +157,7 @@ function QuickLookDrawer({ symbol, onClose }) {
                 <KV k="EPS" v={q.eps ? fmt(q.eps) : "—"} />
                 <KV k="DIV YLD" v={q.dividendYield > 0 ? fmt(q.dividendYield) + "%" : "—"} />
                 <KV k="BETA" v={q.beta ? fmt(q.beta) : "—"} />
-                <KV k="52W" v={q.week52Low > 0 ? `${fmtLevel(q.week52Low)} – ${fmtLevel(q.week52High)}` : "—"} />
+                <KV k="52W" v={q.week52Low > 0 ? `${fmtNum(q.week52Low, lvl)} – ${fmtNum(q.week52High, lvl)}` : "—"} />
               </KVList>
               {range52 != null && (
                 <div className="pb-ql__range" title="Position in the 52-week range">

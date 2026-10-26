@@ -160,6 +160,9 @@ export function DataTable({
   };
 
   const colCount = columns.length + (numbered ? 1 : 0);
+  // Sized for the largest rank ("696)") so the column never changes width as
+  // rows scroll in, which used to shift every other column sideways.
+  const numWidth = `calc(${String(Math.max(sorted.length, 9)).length + 1}ch + var(--cell-px))`;
   const headerCell = (c) => {
     const active = sort && sort.key === c.key;
     const ariaSort = active ? (sort.dir === "asc" ? "ascending" : "descending") : "none";
@@ -207,7 +210,7 @@ export function DataTable({
       >
         <thead>
           <tr>
-            {numbered && <th className="pb-dt__th pb-dt__num" aria-label="Row number" />}
+            {numbered && <th className="pb-dt__th pb-dt__num" aria-label="Row number" style={{ width: numWidth }} />}
             {columns.map(headerCell)}
           </tr>
         </thead>

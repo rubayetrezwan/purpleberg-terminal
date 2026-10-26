@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { INDEX_SYMBOLS, COMMODITY_SYMBOLS, BOND_SYMBOLS } from "../config.js";
-import { fmt, fmtK, fmtNum } from "../lib/format.js";
+import { fmt, fmtK, fmtNum, fmtNewsTime, LOCAL_TZ } from "../lib/format.js";
 import { breadth } from "../lib/breadth.js";
 import { useQuotes } from "../data/hooks.js";
 import { useQuotePool } from "../data/quotePool.jsx";
@@ -67,13 +67,13 @@ function WatchlistPanel() {
   const columns = [
     { key: "symbol", label: "TICKER", align: "left", width: "22%", render: (r) => <Ticker symbol={r.symbol} name={r.name} /> },
     { key: "spark", label: "5D", align: "left", width: "20%", render: (r) => <Sparkline values={series.get(r.symbol) || []} width={56} height={14} /> },
-    { key: "price", label: "LAST", render: (r) => (r.price > 0 ? <Price value={r.price} format={(v) => fmtNum(v, v >= 1000 ? 0 : 2)} /> : "—") },
+    { key: "price", label: "LAST", render: (r) => (r.price > 0 ? <Price value={r.price} format={(v) => fmtNum(v, 2)} /> : "—") },
     { key: "changePercent", label: "CHG", render: (r) => <Change value={r.changePercent} /> },
     { key: "marketCap", label: "MKT CAP", render: (r) => (r.marketCap > 0 ? fmtK(r.marketCap) : "—") },
   ];
 
   return (
-    <Section title="Watchlist" meta={`${symbols.length} names`}>
+    <Section title="Watchlist" meta={`${symbols.length} NAMES`}>
       <DataTable
         label="Watchlist"
         columns={columns}
@@ -101,6 +101,9 @@ function MoversPanel() {
     if (sorted.length <= 11) return sorted;
     return [...sorted.slice(0, 6), ...sorted.slice(-5)];
   }, [pool.equities]);
+  // Bars are scaled to the biggest move on show. A fixed scale saturated at
+  // about 7%, so on a busy day every bar was full length and said nothing.
+  const maxAbs = useMemo(() => movers.reduce((m, r) => Math.max(m, Math.abs(Number(r.changePercent))), 0), [movers]);
 
   const columns = [
     { key: "symbol", label: "TICKER", align: "left", width: "30%", render: (r) => <Ticker symbol={r.symbol} name={r.name} /> },
@@ -112,7 +115,7 @@ function MoversPanel() {
           <span className="pb-moverow__bar" aria-hidden="true">
             <i
               className={r.changePercent >= 0 ? "pb-moverow__fill" : "pb-moverow__fill pb-moverow__fill--down"}
-              style={{ width: `${Math.min(Math.abs(r.changePercent) * 15, 100)}%` }}
+              style={{ width: maxAbs > 0 ? `${(Math.abs(r.changePercent) / maxAbs) * 100}%` : 0 }}
             />
           </span>
           <Change value={r.changePercent} />
@@ -122,7 +125,7 @@ function MoversPanel() {
   ];
 
   return (
-    <Section title="Movers" meta={`${pool.equities.length} tracked`}>
+    <Section title="Movers" meta={`${pool.equities.length} TRACKED`}>
       <DataTable
         label="Biggest movers"
         columns={columns}
@@ -142,7 +145,13 @@ function NewsPanel() {
   const { news, loading, updatedAt, intervalMs } = useNewsFeed();
   const items = (news || []).slice(0, 10);
   return (
-    <Section title="News" mnemonic="TOP" meta={<Freshness updatedAt={updatedAt} intervalMs={intervalMs} />} flush>
+    <Section
+      title="News"
+      mnemonic="TOP"
+      className="pb-dash__news"
+      meta={<><span>TIMES {LOCAL_TZ}</span>{" · "}<Freshness updatedAt={updatedAt} intervalMs={intervalMs} /></>}
+      flush
+    >
       {loading && !items.length ? (
         <EmptyState>LOADING NEWS…</EmptyState>
       ) : !items.length ? (
@@ -153,14 +162,13 @@ function NewsPanel() {
             <li key={n.link || n.title} className="pb-newslist__row">
               <span className="pb-newslist__num pb-muted">{i + 1})</span>
               <a className="pb-newslist__body" href={n.link} target="_blank" rel="noopener noreferrer">
-                <span className="pb-newslist__meta pb-muted">
-                  {n.publishedAt ? new Date(n.publishedAt * 1000).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) : "—"}
-                  {" · "}
-                  <span className="pb-clip" style={{ "--clip": "22ch" }}>{n.publisher || ""}</span>
+                <span className="pb-newslist__meta pb-newslist__meta--row pb-muted">
+                  <span>{fmtNewsTime(n.publishedAt)}</span>
+                  {n.publisher && <span className="pb-newslist__pub" title={n.publisher}>{n.publisher}</span>}
                 </span>
                 <span className="pb-newslist__title">{n.title}</span>
               </a>
-              {n.relatedSymbol && <Ticker symbol={n.relatedSymbol} star={false} />}
+              {n.relatedSymbol && <span className="pb-news__tags"><Ticker symbol={n.relatedSymbol} star={false} /></span>}
             </li>
           ))}
         </ol>
@@ -176,12 +184,13 @@ function BreadthPanel() {
   const members = useMemo(() => pool.equities.filter((q) => q.spx), [pool.equities]);
   const b = useMemo(() => breadth(members), [members]);
   return (
-    <Section title="S&P 500 breadth" meta={b.total ? `${b.total} of ${members.length} quoted, today` : "today"}>
+    <Section title="S&P 500 breadth" meta={b.total ? `${b.total}/${members.length} QUOTED · TODAY` : "TODAY"}>
       <StatRow>
         <Stat label="Advancing" value={b.total ? b.up : "—"} tone={b.up ? "up" : undefined} />
         <Stat label="Declining" value={b.total ? b.down : "—"} tone={b.down ? "down" : undefined} />
         <Stat label="Positive" value={b.pctUp == null ? "—" : `${fmt(b.pctUp, 0)}%`} />
-        <Stat label="Median move" value={b.medianAbs == null ? "—" : `${fmt(b.medianAbs)}%`} />
+        {/* Signed, so a down day reads as one; the unsigned median looked like a gain. */}
+        <Stat label="Median chg" value={<Change value={b.median} />} />
       </StatRow>
       <KVList>
         <KV k="Best" v={b.best ? <span><Ticker symbol={b.best.symbol} /> <Change value={b.best.chg} /></span> : "—"} />
@@ -252,7 +261,7 @@ function CommoditiesPanel() {
 
 export default function Dashboard() {
   return (
-    <Page>
+    <Page className="pb-page--grow-last">
       <IndexStrip />
       <Grid cols="1.2fr 1fr 1fr" colsTablet="1fr 1fr" colsMobile="1fr">
         <WatchlistPanel />

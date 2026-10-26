@@ -33,7 +33,11 @@ export function SessionClock({ compact = false }) {
           {WORLD_CLOCKS.map((c) => (
             <div key={c.tz} className="pb-kv"><span className="pb-kv__k">{c.label}</span><span className="pb-kv__v">{fmtClock(new Date(now), c.tz)}</span></div>
           ))}
-          <div className="pb-kv"><span className="pb-kv__k">NYSE</span><span className="pb-kv__v">{SESSION_LABELS[state]} · {session.countdownLabel} {fmtCountdown(remaining)}</span></div>
+          {/* The label already says NYSE, so the state drops its own prefix.
+              The countdown gets its own row: the phone top bar has no room
+              for it, so this is where a phone reads it. */}
+          <div className="pb-kv"><span className="pb-kv__k">NYSE</span><span className="pb-kv__v">{SESSION_LABELS[state].replace(/^NYSE /, "")}</span></div>
+          <div className="pb-kv"><span className="pb-kv__k">{session.countdownLabel}</span><span className="pb-kv__v">{fmtCountdown(remaining)}</span></div>
           {session.early && <div className="pb-session__note pb-warn">EARLY CLOSE 13:00 ET</div>}
           {session.tableStale && <div className="pb-session__note pb-warn">HOLIDAY CALENDAR ENDS {HOLIDAY_TABLE_THROUGH}</div>}
         </div>

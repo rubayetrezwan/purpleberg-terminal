@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import { AreaChart, Area, LineChart, Line, ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { COMMODITY_SYMBOLS } from "../config.js";
-import { fmtK, fmtNum, fmtPct, fmtAxisDate, fmtTooltipDate } from "../lib/format.js";
+import { fmtK, fmtNum, fmtPct, fmtLevel, fmtAxisDate, fmtTooltipDate } from "../lib/format.js";
+import { niceTicks, monthTicks } from "../lib/axis.js";
+import { contractMonth, hasRollLull } from "../lib/futures.js";
 import { periodReturns, TRADING_DAY_OFFSETS } from "../lib/returns.js";
 import { useRoute, updateQuery, navigate, pathFor } from "../router/index.jsx";
 import { useQuotes, useHistorical, useIsMobile } from "../data/hooks.js";
@@ -24,26 +26,15 @@ import { ChartFrame, useChartTheme } from "../ui/ChartFrame.jsx";
 // Yahoo's quote endpoint does not expose futures contract specs, so these are
 // static reference data from each exchange's rulebook.
 const CONTRACT_SPECS = {
-  "CL=F": { exchange: "NYMEX", contractSize: "1,000 barrels", tickSize: "$0.01 / bbl", tickValue: "$10.00", category: "Energy" },
-  "BZ=F": { exchange: "ICE", contractSize: "1,000 barrels", tickSize: "$0.01 / bbl", tickValue: "$10.00", category: "Energy" },
-  "GC=F": { exchange: "COMEX", contractSize: "100 troy oz", tickSize: "$0.10 / oz", tickValue: "$10.00", category: "Precious metal" },
-  "SI=F": { exchange: "COMEX", contractSize: "5,000 troy oz", tickSize: "$0.005 / oz", tickValue: "$25.00", category: "Precious metal" },
-  "NG=F": { exchange: "NYMEX", contractSize: "10,000 MMBtu", tickSize: "$0.001 / MMBtu", tickValue: "$10.00", category: "Energy" },
-  "HG=F": { exchange: "COMEX", contractSize: "25,000 lbs", tickSize: "$0.0005 / lb", tickValue: "$12.50", category: "Industrial metal" },
-  "ZW=F": { exchange: "CBOT", contractSize: "5,000 bushels", tickSize: "¢0.25 / bu", tickValue: "$12.50", category: "Agriculture" },
-  "ZC=F": { exchange: "CBOT", contractSize: "5,000 bushels", tickSize: "¢0.25 / bu", tickValue: "$12.50", category: "Agriculture" },
+  "CL=F": { exchange: "NYMEX", contractSize: "1,000 BBL", tickSize: "$0.01 / BBL", tickValue: "$10.00", category: "ENERGY" },
+  "BZ=F": { exchange: "ICE", contractSize: "1,000 BBL", tickSize: "$0.01 / BBL", tickValue: "$10.00", category: "ENERGY" },
+  "GC=F": { exchange: "COMEX", contractSize: "100 TROY OZ", tickSize: "$0.10 / OZ", tickValue: "$10.00", category: "PRECIOUS METAL" },
+  "SI=F": { exchange: "COMEX", contractSize: "5,000 TROY OZ", tickSize: "$0.005 / OZ", tickValue: "$25.00", category: "PRECIOUS METAL" },
+  "NG=F": { exchange: "NYMEX", contractSize: "10,000 MMBTU", tickSize: "$0.001 / MMBTU", tickValue: "$10.00", category: "ENERGY" },
+  "HG=F": { exchange: "COMEX", contractSize: "25,000 LB", tickSize: "$0.0005 / LB", tickValue: "$12.50", category: "INDUSTRIAL METAL" },
+  "ZW=F": { exchange: "CBOT", contractSize: "5,000 BU", tickSize: "¢0.25 / BU", tickValue: "$12.50", category: "AGRICULTURE" },
+  "ZC=F": { exchange: "CBOT", contractSize: "5,000 BU", tickSize: "¢0.25 / BU", tickValue: "$12.50", category: "AGRICULTURE" },
 };
-
-// Yahoo names the front month verbosely ("Crude Oil May 26", "Chicago SRW
-// Wheat Futures,May-2026"); pull out just the contract month.
-const MONTH_RE = /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,-]?(\d{2,4})/i;
-function contractMonth(longName) {
-  if (!longName) return "";
-  const m = String(longName).match(MONTH_RE);
-  if (!m) return "";
-  const yr = m[2].length === 4 ? m[2].slice(-2) : m[2];
-  return `${m[1].slice(0, 3).toUpperCase()} '${yr}`;
-}
 
 const TABS = ["CHART", "STATS", "SPEC"];
 const RANGES = ["1mo", "3mo", "6mo", "1y", "5y"];
@@ -53,6 +44,10 @@ const slugOf = (symbol) => symbol.replace("=F", "");
 // A URL may carry the Yahoo symbol itself ("/commodities/GC=F"), which must
 // not become GC=F=F.
 const symbolOf = (slug) => `${String(slug || "").toUpperCase().replace(/=F$/, "")}=F`;
+
+// Room for the last date label, which is centred on the final point and was
+// cut to "Oct" at the plot's right edge.
+const CHART_MARGIN = { top: 8, right: 24, bottom: 0, left: 4 };
 
 export default function Commodities() {
   const { params, query } = useRoute();
@@ -68,8 +63,9 @@ export default function Commodities() {
       const q = data.find((d) => d.symbol === c.symbol) || {};
       const spec = CONTRACT_SPECS[c.symbol] || {};
       // "=F" is a continuous front-month series: keep the clean config name
-      // and show the rolling contract month separately.
-      return { ...q, ...c, spec, contract: contractMonth(q.longName || q.shortName || q.name) };
+      // and show the rolling contract month separately. Units are upper-cased
+      // here so "$/MMBtu" matches the spec's "MMBTU".
+      return { ...q, ...c, unit: String(c.unit || "").toUpperCase(), spec, contract: contractMonth(q.longName || q.shortName || q.name) };
     }),
     [data]
   );
@@ -82,7 +78,7 @@ export default function Commodities() {
   const missing = Boolean(requested) && !match;
   const selected = match || rows[0];
   const symbol = selected.symbol;
-  const isCents = String(selected.unit || "").startsWith("¢");
+  const isCents = selected.unit.startsWith("¢");
   const money = (v, d = 2) => (v == null || Number.isNaN(Number(v)) ? "—" : `${isCents ? "¢" : "$"}${fmtNum(v, d)}`);
 
   const { data: hist, loading: histLoading } = useHistorical(missing ? null : symbol, range);
@@ -92,14 +88,38 @@ export default function Commodities() {
   );
   const returns = useMemo(() => periodReturns(hist, TRADING_DAY_OFFSETS), [hist]);
   const showYear = range === "1y" || range === "5y";
-  const interval = Math.max(1, Math.floor(chartRows.length / (isMobile ? 6 : 12)));
-  const axis = { ...axisProps, tick: { ...axisProps.tick, fontSize: 9 } };
+  // The day's high and low as dashed lines read up to six months; over a year
+  // or more they are a few pixels apart and turn into fuzz around the close.
+  const bands = type === "line" && !showYear;
+  const scale = useMemo(
+    () => niceTicks(bands ? chartRows.flatMap((r) => [r.price, r.high, r.low]) : chartRows.map((r) => r.price), isMobile ? 5 : 6),
+    [chartRows, bands, isMobile]
+  );
+  const yAxis = {
+    ...axisProps,
+    domain: scale ? scale.domain : ["auto", "auto"],
+    ticks: scale ? scale.ticks : undefined,
+    width: 60,
+    tickFormatter: (v) => money(v, scale ? scale.decimals : 2),
+  };
+  // Multi-year axes label month starts, once each; shorter ranges label days.
+  const xTicks = showYear ? monthTicks(chartRows.map((r) => r.date), isMobile ? 6 : 12) : undefined;
+  const xAxis = {
+    ...axisProps,
+    dataKey: "date",
+    ticks: xTicks,
+    interval: xTicks ? 0 : Math.max(1, Math.floor(chartRows.length / (isMobile ? 6 : 12))),
+    tickFormatter: (v) => fmtAxisDate(v, showYear),
+    minTickGap: 20,
+  };
+  const lull = type === "volume" && hasRollLull(hist);
   const tip = { ...tooltipProps, labelFormatter: fmtTooltipDate };
 
   const select = (sym) => navigate(pathFor("commodities", { symbol: slugOf(sym) }, query));
 
   const listColumns = [
-    { key: "name", label: "COMMODITY", align: "left", render: (r) => <span className="pb-eq__sym">{r.name}</span> },
+    // Clipped so LAST and CHG always fit; the full name is in the header.
+    { key: "name", label: "COMMODITY", align: "left", render: (r) => <span className="pb-eq__sym pb-clip" style={{ "--clip": "15ch" }} title={r.name}>{r.name}</span> },
     { key: "price", label: "LAST", render: (r) => (r.price > 0 ? <Price value={r.price} format={(v) => fmtNum(v)} /> : "—") },
     { key: "changePercent", label: "CHG", render: (r) => <Change value={r.changePercent} /> },
   ];
@@ -126,21 +146,21 @@ export default function Commodities() {
     : null;
 
   const detail = missing ? (
-    <div className="pb-eq__detail">
+    <div className="pb-eq__detail pb-des">
       <EmptyState>CONTRACT {slugOf(requested)} NOT FOUND</EmptyState>
     </div>
   ) : (
-    <div className="pb-eq__detail">
+    <div className="pb-eq__detail pb-des">
       <header className="pb-eq__head">
         <span className="pb-eq__symbig">{selected.name}</span>
         <span className="pb-eq__name pb-muted">{symbol}</span>
         {selected.spec.exchange && <Tag>{selected.spec.exchange}</Tag>}
-        {selected.spec.category && <Tag>{selected.spec.category.toUpperCase()}</Tag>}
+        {selected.spec.category && <Tag>{selected.spec.category}</Tag>}
         {selected.contract && <span className="pb-muted">FRONT MONTH {selected.contract}</span>}
       </header>
 
       <StatRow>
-        <Stat label={`Last (${selected.unit || ""})`} value={selected.price > 0 ? fmtNum(selected.price) : "—"} size="lg" />
+        <Stat label={`Last (${selected.unit})`} value={selected.price > 0 ? fmtNum(selected.price) : "—"} size="lg" />
         <Stat label="Chg" value={selected.changePercent == null ? "—" : fmtPct(selected.changePercent)} tone={selected.changePercent == null ? undefined : selected.changePercent >= 0 ? "up" : "down"} />
         <Stat label="Hi" value={selected.high > 0 ? fmtNum(selected.high) : "—"} />
         <Stat label="Lo" value={selected.low > 0 ? fmtNum(selected.low) : "—"} />
@@ -154,44 +174,59 @@ export default function Commodities() {
           <div className="pb-eq__toolbar">
             <Segmented size="sm" label="Chart type" value={type} onChange={(v) => updateQuery({ type: v === "area" ? null : v })} options={TYPES} />
             <Segmented size="sm" label="Range" value={range} onChange={(v) => updateQuery({ range: v === "6mo" ? null : v })} options={RANGES.map((r) => ({ value: r, label: r.toUpperCase() }))} />
+            {bands && (
+              <span className="pb-key">
+                <span className="pb-key__item">
+                  <i className="pb-key__swatch pb-key__swatch--line" style={{ color: colors.series[0] }} aria-hidden="true" />CLOSE
+                </span>
+                <span className="pb-key__item">
+                  <i className="pb-key__swatch pb-key__swatch--dash" style={{ color: colors.series[2] }} aria-hidden="true" />DAY HI / LO
+                </span>
+              </span>
+            )}
           </div>
-          <ChartFrame height={isMobile ? 240 : 340} loading={histLoading && !chartRows.length} empty={!histLoading && !chartRows.length ? `NO HISTORY FOR ${selected.name}` : null}>
+          <ChartFrame height="fill" minHeight={isMobile ? 240 : 340} loading={histLoading && !chartRows.length} empty={!histLoading && !chartRows.length ? `NO HISTORY FOR ${selected.name.toUpperCase()}` : null}>
             {type === "line" ? (
-              <LineChart data={chartRows}>
+              <LineChart data={chartRows} margin={CHART_MARGIN}>
                 <CartesianGrid {...gridProps} />
-                <XAxis dataKey="date" {...axis} interval={interval} tickFormatter={(v) => fmtAxisDate(v, showYear)} minTickGap={20} />
-                <YAxis {...axis} domain={["auto", "auto"]} width={60} tickFormatter={(v) => money(v, v >= 100 ? 0 : 2)} />
+                <XAxis {...xAxis} />
+                <YAxis {...yAxis} />
                 <Tooltip {...tip} formatter={(v) => money(v)} />
                 <Line dataKey="price" name="CLOSE" stroke={colors.series[0]} {...lineProps} />
-                <Line dataKey="high" name="HIGH" stroke={colors.series[2]} {...lineProps} strokeDasharray="3 3" strokeWidth={1} />
-                <Line dataKey="low" name="LOW" stroke={colors.series[2]} {...lineProps} strokeDasharray="3 3" strokeWidth={1} />
+                {bands && <Line dataKey="high" name="HIGH" stroke={colors.series[2]} {...lineProps} strokeDasharray="3 3" strokeWidth={1} />}
+                {bands && <Line dataKey="low" name="LOW" stroke={colors.series[2]} {...lineProps} strokeDasharray="3 3" strokeWidth={1} />}
               </LineChart>
             ) : type === "volume" ? (
-              <ComposedChart data={chartRows}>
+              <ComposedChart data={chartRows} margin={CHART_MARGIN}>
                 <CartesianGrid {...gridProps} />
-                <XAxis dataKey="date" {...axis} interval={interval} tickFormatter={(v) => fmtAxisDate(v, showYear)} minTickGap={20} />
-                <YAxis yAxisId="p" {...axis} domain={["auto", "auto"]} width={60} tickFormatter={(v) => money(v, v >= 100 ? 0 : 2)} />
-                <YAxis yAxisId="v" orientation="right" {...axis} width={48} tickFormatter={(v) => fmtK(v)} />
+                <XAxis {...xAxis} />
+                <YAxis yAxisId="p" {...yAxis} />
+                <YAxis yAxisId="v" orientation="right" {...axisProps} width={48} tickFormatter={(v) => fmtK(v)} />
                 <Tooltip {...tip} formatter={(v, n) => (n === "VOLUME" ? fmtK(v) : money(v))} />
                 <Bar yAxisId="v" dataKey="volume" name="VOLUME" fill={colors.series[2]} isAnimationActive={false} />
                 <Line yAxisId="p" dataKey="price" name="CLOSE" stroke={colors.series[0]} {...lineProps} />
               </ComposedChart>
             ) : (
-              <AreaChart data={chartRows}>
+              <AreaChart data={chartRows} margin={CHART_MARGIN}>
                 <CartesianGrid {...gridProps} />
-                <XAxis dataKey="date" {...axis} interval={interval} tickFormatter={(v) => fmtAxisDate(v, showYear)} minTickGap={20} />
-                <YAxis {...axis} domain={["auto", "auto"]} width={60} tickFormatter={(v) => money(v, v >= 100 ? 0 : 2)} />
+                <XAxis {...xAxis} />
+                <YAxis {...yAxis} />
                 <Tooltip {...tip} formatter={(v) => money(v)} />
                 <Area dataKey="price" name="CLOSE" stroke={colors.series[0]} fill={colors.series[0]} {...areaProps} />
               </AreaChart>
             )}
           </ChartFrame>
+          {lull && (
+            <div className="pb-form__hint pb-muted pb-mkt__note">
+              NEAR-ZERO VOLUME RUNS: FRONT MONTH IN DELIVERY, TRADING ALREADY ROLLED TO THE NEXT CONTRACT.
+            </div>
+          )}
         </>
       )}
 
       {tab === "STATS" && (
         <div className="pb-grid" style={{ gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
-          <Section title="Price action" meta={selected.unit || ""}>
+          <Section title="Price action" meta={selected.unit}>
             <KVList cols={2}>
               <KV k="OPEN" v={selected.open > 0 ? fmtNum(selected.open) : "—"} />
               <KV k="LAST" v={selected.price > 0 ? fmtNum(selected.price) : "—"} />
@@ -204,21 +239,21 @@ export default function Commodities() {
             </KVList>
             {yearPct != null && (
               <div className="pb-eq__rangewrap">
-                <RangeBar pct={yearPct} lo={fmtNum(selected.week52Low, 0)} hi={fmtNum(selected.week52High, 0)} />
+                <RangeBar pct={yearPct} lo={fmtLevel(selected.week52Low)} hi={fmtLevel(selected.week52High)} />
               </div>
             )}
           </Section>
-          <Section title="Period returns" meta="trading-day offsets">
+          <Section title="Period returns" meta="TRADING DAYS">
             <PeriodReturns
               returns={returns}
-              note="Offsets are 5, 21, 63, 126, and 252 trading days from the loaded window. Extend the chart range to unlock longer periods. YTD measures from last year's final close and only appears once the range reaches back that far."
+              note="OFFSETS 5 / 21 / 63 / 126 / 252 SESSIONS ON THE LOADED RANGE; A LONGER RANGE UNLOCKS LONGER PERIODS. YTD FROM LAST YEAR'S FINAL CLOSE."
             />
           </Section>
         </div>
       )}
 
       {tab === "SPEC" && (
-        <Section title="Contract specification" meta={`${symbol} front month`}>
+        <Section title="Contract specification" meta={`${symbol} FRONT MONTH`}>
           <KVList cols={2}>
             <KV k="YAHOO SYMBOL" v={symbol} />
             <KV k="EXCHANGE" v={selected.spec.exchange || "—"} />
@@ -230,9 +265,8 @@ export default function Commodities() {
             <KV k="FRONT MONTH" v={selected.contract || "—"} />
           </KVList>
           <div className="pb-form__hint pb-muted">
-            Yahoo publishes a continuous front-month series for each futures ticker, so roll
-            effects can distort returns around expiry, especially in energy. Contract specs are
-            static reference data from each exchange rulebook, not from the quote feed.
+            CONTINUOUS FRONT-MONTH SERIES: ROLLS CAN DISTORT RETURNS NEAR EXPIRY, ESPECIALLY IN ENERGY.
+            SPECS FROM EXCHANGE RULEBOOKS, NOT THE QUOTE FEED.
           </div>
         </Section>
       )}
@@ -245,7 +279,8 @@ export default function Commodities() {
 
   return (
     <ListDetail
-      listWidth={200}
+      className="pb-mkt"
+      listWidth={288}
       list={list}
       detail={detail}
       mobile={{

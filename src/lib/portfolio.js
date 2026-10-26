@@ -239,16 +239,13 @@ export function allocation(rows, keyFn = (r) => r.symbol) {
  * holding being lost, which is a crash that never happened; a flat line is
  * the smaller lie, and the caller can say which symbols it applies to.
  *
- * Shares bought on one of these sessions are valued at what they cost that
- * day, not at that day's close. Otherwise the gap between an entry price and
- * the close would show up as a one-day return, which is how a rough cost basis
- * (or a migrated holding dated today) turns into a fake several-hundred-percent
- * day. From the next session on, everything is marked to the close.
- *
- * "That day" is every trade since the previous session, so a buy dated on a
- * weekend or a holiday counts as new on the session it books to (the same
- * rule alignFlows uses for its cash). A sale on the same session comes out of
- * that session's buys first; only what is left of them is held at cost.
+ * Every share is marked to the session's close, including shares bought that
+ * session. dietzSeries counts a buy as money in from the start of the day, so
+ * the trade day's return is the move from the trade price to that close: a
+ * buy at 150.50 on a day that closed at 210 is a +39.5% day, which is what the
+ * holder actually made and what the return on cost says. A trade dated on a
+ * weekend or a holiday is held from the session it books to (the same rule
+ * alignFlows uses for its cash).
  */
 export function valueSeries(transactions, closesBySymbol, dates) {
   const txs = sortTransactions(transactions);
@@ -261,23 +258,10 @@ export function valueSeries(transactions, closesBySymbol, dates) {
   let ti = 0;
   const out = [];
   for (const date of list) {
-    // Per symbol, what was traded since the previous session.
-    const session = new Map();
     while (ti < txs.length && txs[ti].date <= date) {
       const t = txs[ti++];
       const s = String(t.symbol || "").toUpperCase();
       const q = num(t.shares);
-      // A trade dated before the window is already in its opening value.
-      if (t.date >= list[0]) {
-        const e = session.get(s) || { bought: 0, cost: 0, sold: 0 };
-        if (t.side === "buy") {
-          e.bought += q;
-          e.cost += q * num(t.price);
-        } else {
-          e.sold += q;
-        }
-        session.set(s, e);
-      }
       held.set(s, (held.get(s) || 0) + (t.side === "sell" ? -q : q));
       if (num(t.price) > 0) tradePrice.set(s, num(t.price));
     }
@@ -290,15 +274,9 @@ export function valueSeries(transactions, closesBySymbol, dates) {
         if (Number.isFinite(v) && v > 0) c.last = v;
         c.i++;
       }
-      const traded = session.get(s);
       const total = held.get(s) || 0;
-      const atCost = traded && traded.bought > 0
-        ? Math.min(total, Math.max(0, traded.bought - traded.sold))
-        : 0;
-      const marked = total - atCost;
       const mark = c.last != null ? c.last : tradePrice.get(s);
-      if (marked > EPS && mark != null) value += marked * mark;
-      if (atCost > EPS) value += traded.cost * (atCost / traded.bought);
+      if (total > EPS && mark != null) value += total * mark;
     }
     out.push({ date, value });
   }
@@ -387,6 +365,44 @@ export function normalizeTo100(rows) {
   if (!list.length) return [];
   const base = Number(list[0].close);
   return list.map((r) => ({ date: r.date, value: (Number(r.close) / base) * 100 }));
+}
+
+/**
+ * The performance chart: the portfolio's daily Dietz index against the
+ * benchmark, both at 100 at the close before the first trade. At that close
+ * the portfolio is cash about to be spent at cost, so the first session's
+ * return is the move from the trade price to its close, as it is for the
+ * benchmark from its previous close. That base session held nothing, so the
+ * chart starts on the first trade's session. When the history does not reach
+ * back before the first trade, the window opens on its first session instead.
+ * `benchRows` are the benchmark's daily closes and set the session calendar.
+ * Pass accepted transactions only. Null when there is nothing to measure.
+ */
+export function performanceSeries(transactions, closesBySymbol, benchRows) {
+  const bench = (Array.isArray(benchRows) ? benchRows : []).filter((r) => Number(r.close) > 0);
+  const txs = sortTransactions(transactions);
+  if (!bench.length || !txs.length) return null;
+  const at = bench.findIndex((r) => r.date >= txs[0].date);
+  if (at < 0) return null;
+  const window = bench.slice(Math.max(0, at - 1));
+  const dates = window.map((r) => r.date);
+  const values = valueSeries(txs, closesBySymbol, dates);
+  const { returns, index } = dietzSeries(values, alignFlows(flowsByDate(txs), dates));
+  const benchIndex = normalizeTo100(window);
+  const benchByDate = new Map(benchIndex.map((r) => [r.date, r.value]));
+  const benchReturns = window.slice(1).map((r, i) => ({ date: r.date, r: Number(r.close) / Number(window[i].close) - 1 }));
+  const shown = at > 0 ? index.slice(1) : index;
+  if (!shown.length) return null;
+  const chart = shown.map((p) => ({ date: p.date, port: p.value, bench: benchByDate.has(p.date) ? benchByDate.get(p.date) : null }));
+  const last = index[index.length - 1].value;
+  const lastBench = benchIndex.length ? benchIndex[benchIndex.length - 1].value : null;
+  return {
+    chart, returns, index, benchReturns,
+    portPct: last - 100,
+    benchPct: lastBench == null ? null : lastBench - 100,
+    from: chart[0].date,
+    days: chart.length,
+  };
 }
 
 const asReturns = (rs) =>
@@ -542,10 +558,16 @@ const SAMPLE = [
 
 // Days are counted back from today in New York. East of New York the local
 // calendar is a day ahead for most of the US evening, and these are US trades.
+// A count that lands on a weekend moves back to the Friday, since nobody buys
+// stock on a Saturday.
 export function sampleTransactions(today = new Date()) {
   const [y, m, d] = etParts(today).ymd.split("-").map(Number);
   return SAMPLE.map(([daysAgo, symbol, shares, price]) => {
-    const date = new Date(Date.UTC(y, m - 1, d - daysAgo)).toISOString().slice(0, 10);
+    const at = new Date(Date.UTC(y, m - 1, d - daysAgo));
+    const dow = at.getUTCDay();
+    if (dow === 6) at.setUTCDate(at.getUTCDate() - 1);
+    else if (dow === 0) at.setUTCDate(at.getUTCDate() - 2);
+    const date = at.toISOString().slice(0, 10);
     return { id: newId(), date, symbol, side: "buy", shares, price, fees: 0, note: "sample" };
   });
 }

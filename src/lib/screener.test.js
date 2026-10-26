@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   pos52, offHigh, PRESETS, presetById, matchesFilters,
   FILTER_DEFAULTS, filtersToQuery, filtersFromQuery, positiveOrNull,
+  nonZeroOrNull, activeFilterCount, filterProblems,
 } from "./screener.js";
 import { sortRows } from "../ui/tableUtils.js";
 
@@ -122,6 +123,54 @@ test("positiveOrNull sorts placeholder zeros last in both directions", () => {
   const order = (dir) => sortRows(rows, columns, { key: "pe", dir }).map((r) => r.symbol);
   assert.deepEqual(order("asc"), ["C", "B", "A", "D"]);
   assert.deepEqual(order("desc"), ["B", "C", "A", "D"]);
+});
+
+test("a negative beta is a real beta: it shows, sorts and filters", () => {
+  assert.equal(nonZeroOrNull(-0.661), -0.661);
+  assert.equal(nonZeroOrNull("-0.196"), -0.196);
+  assert.equal(nonZeroOrNull(1.2), 1.2);
+  assert.equal(nonZeroOrNull(0), null);
+  assert.equal(nonZeroOrNull(null), null);
+  assert.equal(nonZeroOrNull(""), null);
+  assert.equal(nonZeroOrNull("abc"), null);
+  const bp = row({ symbol: "BP", beta: -0.196 });
+  assert.equal(matchesFilters(bp, { betaMax: "0" }), true);
+  assert.equal(matchesFilters(bp, { betaMin: "-1", betaMax: "1" }), true);
+  assert.equal(matchesFilters(bp, { betaMin: "0" }), false);
+  assert.equal(matchesFilters(row({ beta: 0 }), { betaMax: "1" }), false); // placeholder 0 is still missing
+  assert.equal(presetById("highbeta").test(bp), false);
+  const rows = [row({ symbol: "A", beta: 0 }), bp, row({ symbol: "C", beta: 1.4 })];
+  const columns = [{ key: "beta", sortValue: (r) => nonZeroOrNull(r.beta) }];
+  assert.deepEqual(sortRows(rows, columns, { key: "beta", dir: "asc" }).map((r) => r.symbol), ["BP", "C", "A"]);
+});
+
+test("matchesFilters: exchange groups Yahoo codes by name", () => {
+  assert.equal(matchesFilters(row({ exchange: "NMS" }), { exchange: "NASDAQ" }), true);
+  assert.equal(matchesFilters(row({ exchange: "NGM" }), { exchange: "NASDAQ" }), true);
+  assert.equal(matchesFilters(row({ exchange: "NCM" }), { exchange: "NMS" }), true); // an old link's raw code
+  assert.equal(matchesFilters(row({ exchange: "NYQ" }), { exchange: "NASDAQ" }), false);
+  assert.equal(matchesFilters(row({ exchange: "NYQ" }), { exchange: "NYSE" }), true);
+});
+
+test("activeFilterCount counts filled fields only", () => {
+  assert.equal(activeFilterCount(FILTER_DEFAULTS), 0);
+  assert.equal(activeFilterCount({}), 0);
+  assert.equal(activeFilterCount({ ...FILTER_DEFAULTS, q: "  " }), 0);
+  assert.equal(activeFilterCount({ ...FILTER_DEFAULTS, peMin: "5", peMax: "20", sector: "Energy" }), 3);
+  assert.equal(activeFilterCount({ junk: "x" }), 0);
+});
+
+test("filterProblems names bounds that can never match", () => {
+  assert.deepEqual(filterProblems(FILTER_DEFAULTS), []);
+  assert.deepEqual(filterProblems({ peMin: "10", peMax: "50" }), []);
+  assert.deepEqual(filterProblems({ peMin: "50", peMax: "10" }), [{ keys: ["peMin", "peMax"], text: "P/E MIN > MAX" }]);
+  assert.deepEqual(filterProblems({ priceMin: "-5" }).map((p) => p.text), ["PRICE MIN < 0"]);
+  assert.deepEqual(filterProblems({ priceMax: "-1" }).map((p) => p.text), ["PRICE MAX < 0"]);
+  assert.deepEqual(filterProblems({ posMin: "120" }).map((p) => p.text), ["52W POS MIN > 100"]);
+  assert.deepEqual(filterProblems({ betaMin: "-1", betaMax: "-0.1" }), []); // beta may be negative
+  assert.deepEqual(filterProblems({ betaMin: "2", betaMax: "1" }).map((p) => p.text), ["BETA MIN > MAX"]);
+  assert.deepEqual(filterProblems({ peMin: "abc", peMax: "10" }), []); // junk is ignored, as in matching
+  assert.equal(filterProblems({ peMin: "50", peMax: "10", capMin: "-1" }).length, 2);
 });
 
 test("matchesFilters: every bound must hold together", () => {

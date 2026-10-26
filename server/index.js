@@ -4,9 +4,10 @@ import path from "path";
 import { fileURLToPath } from "url";
 import rateLimit from "express-rate-limit";
 import { LRUCache } from "lru-cache";
-import { raw, normalizeFinnhubIpo, crossRate } from "./format.js";
+import { raw, plausibleMultiple, normalizeFinnhubIpo, crossRate } from "./format.js";
 import { createCache } from "./cache.js";
 import { createQuoteCache, mapWithConcurrency } from "./quotes.js";
+import { UNIVERSE_SYMBOLS } from "../src/data/universe.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -459,7 +460,11 @@ async function yahooHistorical(symbol, range = "3mo", interval = "1d") {
     low: quotes.low?.[i] ?? 0,
     close: quotes.close?.[i] ?? 0,
     volume: quotes.volume?.[i] ?? 0,
-  })).filter((d) => d.close > 0);
+  })).filter((d) => d.close > 0)
+    // FX does not trade at the weekend, but Yahoo adds a bar for the Sunday
+    // evening reopen. For USD/BDT that bar sat 3% off Friday's close and drew
+    // a vertical spike at the right edge of every chart.
+    .filter((d) => !(result.meta?.instrumentType === "CURRENCY" && isWeekend(d.date)));
 
   // Yahoo sometimes appends today's live bar next to the daily bar it already
   // sent for the same date. Daily and longer bars keep one row per date: the last.
@@ -467,6 +472,12 @@ async function yahooHistorical(symbol, range = "3mo", interval = "1d") {
   const byDate = new Map();
   for (const b of bars) byDate.set(b.date, b);
   return Array.from(byDate.values());
+}
+
+// "2026-10-25" -> true for a Saturday or Sunday (the date's own weekday).
+function isWeekend(ymd) {
+  const d = new Date(`${ymd}T12:00:00Z`).getUTCDay();
+  return d === 0 || d === 6;
 }
 
 const dayFormatters = new Map();
@@ -690,6 +701,13 @@ app.get("/api/financials/:symbol", apiLimiter, async (req, res) => {
     const buyPct = totalRec ? Math.round(((recTrend.strongBuy || 0) + (recTrend.buy || 0)) / totalRec * 100) : 0;
     const holdPct = totalRec ? Math.round((recTrend.hold || 0) / totalRec * 100) : 0;
     const sellPct = totalRec ? Math.round(((recTrend.sell || 0) + (recTrend.strongSell || 0)) / totalRec * 100) : 0;
+    // Raw analyst counts, so the client can split 100% exactly; the rounded
+    // percentages above stay for older clients.
+    const recCounts = [
+      (recTrend.strongBuy || 0) + (recTrend.buy || 0),
+      recTrend.hold || 0,
+      (recTrend.sell || 0) + (recTrend.strongSell || 0),
+    ];
 
     const result = {
       profile: {
@@ -712,10 +730,13 @@ app.get("/api/financials/:symbol", apiLimiter, async (req, res) => {
         // P/E is trailing only: falling back to forward P/E put a forecast (or
         // a negative one, for a loss-maker) under a P/E (TTM) label.
         pe: raw(sd.trailingPE),
-        forwardPe: raw(sd.forwardPE) || raw(ks.forwardPE),
-        pb: raw(ks.priceToBook) || raw(sd.priceToBook),
-        ps: raw(sd.priceToSalesTrailing12Months),
-        evEbitda: raw(ks.enterpriseToEbitda),
+        // Multiples that cannot be real are dropped to 0 ("—"): Yahoo sends
+        // BRK-B a P/B of 0.00x and a negative EV/EBITDA, and a negative
+        // forward P/E or EV/EBITDA has no meaning as a multiple.
+        forwardPe: plausibleMultiple(raw(sd.forwardPE) || raw(ks.forwardPE)),
+        pb: plausibleMultiple(raw(ks.priceToBook) || raw(sd.priceToBook), 0.05),
+        ps: plausibleMultiple(raw(sd.priceToSalesTrailing12Months)),
+        evEbitda: plausibleMultiple(raw(ks.enterpriseToEbitda)),
         roe: fd.returnOnEquity ? (raw(fd.returnOnEquity) * 100).toFixed(1) : "0",
         roa: fd.returnOnAssets ? (raw(fd.returnOnAssets) * 100).toFixed(1) : "0",
         debtToEquity: raw(fd.debtToEquity),
@@ -730,8 +751,12 @@ app.get("/api/financials/:symbol", apiLimiter, async (req, res) => {
         epsEstimate: raw(earningsTrend[0]?.earningsEstimate?.avg),
         epsPrev: raw(earningsTrend[0]?.earningsEstimate?.yearAgoEps),
       },
-      recommendations: { buy: buyPct, hold: holdPct, sell: sellPct },
+      recommendations: { buy: buyPct, hold: holdPct, sell: sellPct, counts: recCounts },
       quarterlyRevenue,
+      // The currency the statements are reported in. ADRs report at home:
+      // TSM's revenue is in Taiwan dollars, so it must not read as US dollars,
+      // and ratios mixing it with a dollar price are meaningless.
+      financialCurrency: fd.financialCurrency || "",
     };
 
     // Don't cache empty results (they indicate API failure)
@@ -755,6 +780,12 @@ app.get("/api/financials/:symbol", apiLimiter, async (req, res) => {
   }
 });
 
+function storySymbol(item, searched) {
+  const related = (Array.isArray(item.relatedTickers) ? item.relatedTickers : []).filter(isTicker);
+  if (related.includes(searched)) return searched;
+  return related.find((t) => !t.startsWith("^") && !t.includes("=")) || "";
+}
+
 // ── GET /api/news ───────────────────────────────────────
 app.get("/api/news", apiLimiter, async (req, res) => {
   try {
@@ -777,7 +808,10 @@ app.get("/api/news", apiLimiter, async (req, res) => {
                 link: n.link,
                 publisher: n.publisher,
                 publishedAt: n.providerPublishTime,
-                relatedSymbol: sym,
+                // Yahoo returns market-wide stories for a symbol search too
+                // ("GE Vernova's gas turbines" for NVDA). Tag a story only
+                // with a ticker Yahoo says it is about.
+                relatedSymbol: storySymbol(n, sym),
                 thumbnail: n.thumbnail?.resolutions?.[0]?.url || "",
               }))
             );
@@ -1072,12 +1106,10 @@ async function yahooCryptoHistory(id, range) {
   const rows = await yahooHistorical(ticker, range === "5y" ? "5y" : "10y", "1d");
   const last = rows[rows.length - 1];
   if (rows.length < 400 || !last || Math.abs(last.close / coin.price - 1) > 0.15) return null;
-  // Thin to about 600 points, counting back from the latest close so it is
-  // always kept. Thousands of daily points make the chart crawl on a phone.
-  const step = Math.ceil(rows.length / 600);
-  const out = [];
-  for (let i = rows.length - 1; i >= 0; i -= step) out.push({ date: rows[i].date, close: rows[i].close, volume: rows[i].volume });
-  return out.reverse();
+  // Every daily row is sent: the screen's period returns count back in days
+  // (365 rows = 1Y), so a thinned series made "1Y" reach five years back.
+  // The client thins the series for drawing only.
+  return rows.map((r) => ({ date: r.date, close: r.close, volume: r.volume }));
 }
 
 // ── GET /api/crypto/:id/chart ───────────────────────────
@@ -1236,6 +1268,19 @@ if (fs.existsSync(distPath)) {
 
 // ── Start server ────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
+
+// Betas come from one quoteSummary call per symbol, so after a restart the
+// Screener's BETA column and HIGH BETA preset undercounted for minutes. Warm
+// the whole universe in the background, 50 symbols every 10 seconds (about
+// two and a half minutes for ~700), well under Yahoo's pace limits.
+function warmUniverseBetas() {
+  const pending = UNIVERSE_SYMBOLS.filter((s) => betaCache.get(s) === undefined);
+  if (!pending.length) return;
+  warmBetas(pending);
+  setTimeout(warmUniverseBetas, 10_000).unref?.();
+}
+
+setTimeout(warmUniverseBetas, 15_000).unref?.();
 
 // Pre-fetch crumb at startup
 refreshCrumb()

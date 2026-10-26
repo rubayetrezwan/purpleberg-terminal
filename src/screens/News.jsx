@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRoute, updateQuery } from "../router/index.jsx";
 import { useNewsFeed } from "../features/newsFeed.jsx";
+import { fmtNewsTime, LOCAL_TZ } from "../lib/format.js";
+import { useIsMobile } from "../data/hooks.js";
 import { Page } from "../ui/Grid.jsx";
 import { Section } from "../ui/Section.jsx";
 import { Input } from "../ui/Input.jsx";
@@ -8,16 +10,6 @@ import { Ticker } from "../ui/Ticker.jsx";
 import { Tag } from "../ui/Tag.jsx";
 import { Freshness } from "../ui/Freshness.jsx";
 import { EmptyState } from "../ui/EmptyState.jsx";
-
-// Short local-timezone label, so the times below are unambiguous.
-const LOCAL_TZ = (() => {
-  try {
-    const parts = new Intl.DateTimeFormat(undefined, { timeZoneName: "short" }).formatToParts(new Date());
-    return parts.find((p) => p.type === "timeZoneName")?.value || "local";
-  } catch {
-    return "local";
-  }
-})();
 
 const startOfToday = () => {
   const d = new Date();
@@ -28,16 +20,14 @@ const startOfToday = () => {
 function Group({ title, items, offset }) {
   if (!items.length) return null;
   return (
-    <Section title={title} meta={`${items.length}`} flush>
+    <Section title={title} meta={`${items.length} STORIES`} flush>
       <ol className="pb-newslist">
         {items.map((n, i) => (
           <li key={n.link || `${n.title}-${i}`} className="pb-newslist__row">
             <span className="pb-newslist__num pb-muted">{offset + i + 1})</span>
             <a className="pb-newslist__body" href={n.link} target="_blank" rel="noopener noreferrer">
               <span className="pb-newslist__meta pb-muted">
-                {n.publishedAt
-                  ? new Date(n.publishedAt * 1000).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })
-                  : "—"}
+                {fmtNewsTime(n.publishedAt)}
               </span>
               <span className="pb-newslist__title">{n.title}</span>
             </a>
@@ -54,7 +44,8 @@ function Group({ title, items, offset }) {
 
 export default function News() {
   const { query } = useRoute();
-  const { news, loading, updatedAt, intervalMs } = useNewsFeed();
+  const { news, loading, updatedAt, intervalMs, symbols, fromWatchlist } = useNewsFeed();
+  const isPhone = useIsMobile(768);
   // Seeded from the URL and kept in step with it, so Back and Forward across a
   // ?q= change move the input and the list together with the address bar.
   const [filter, setFilter] = useState(query.q || "");
@@ -88,16 +79,19 @@ export default function News() {
       <Section
         mnemonic="TOP"
         title="News"
-        meta={<><span>{filtered.length} stories, times in {LOCAL_TZ}</span>{" · "}<Freshness updatedAt={updatedAt} intervalMs={intervalMs} /></>}
+        meta={<><span>{filtered.length} STORIES · TIMES {LOCAL_TZ}</span>{" · "}<Freshness updatedAt={updatedAt} intervalMs={intervalMs} /></>}
       >
         <Input
           value={filter}
           onChange={(e) => { lastQ.current = e.target.value; setFilter(e.target.value); updateQuery({ q: e.target.value || null }); }}
-          placeholder="FILTER BY KEYWORD, PUBLISHER, OR SYMBOL"
+          // The long hint is wider than a phone-width field.
+          placeholder={isPhone ? "KEYWORD, SOURCE, SYMBOL" : "FILTER BY KEYWORD, PUBLISHER, OR SYMBOL"}
           aria-label="Filter news"
+          className="pb-news__filter"
+          mono
         />
-        <div className="pb-form__hint pb-muted">
-          The feed follows the first four symbols in your watchlist.
+        <div className="pb-form__hint pb-muted pb-news__feed">
+          FEED: {symbols.join(" ")} · {fromWatchlist ? "FIRST 4 WATCHLIST SYMBOLS" : "DEFAULT SET, WATCHLIST EMPTY"}
         </div>
       </Section>
 

@@ -1,5 +1,6 @@
 import { ROUTES } from "../router/routes.js";
 import { filterRows } from "../lib/symbolSearch.js";
+import { exchangeLabel } from "../lib/exchange.js";
 
 // Suggestion rows for the command line. Plain data (no closures) so it is
 // testable; CommandLine.jsx maps `kind` to an action.
@@ -15,8 +16,19 @@ const fnItem = (r, params = {}, query = {}) => ({
 
 const symItem = (kind, row) => ({
   id: `${kind}:${row.symbol}`, kind, label: row.symbol, sub: row.name || "", symbol: row.symbol,
-  price: row.price, changePercent: row.changePercent, right: row.exchange || "",
+  price: row.price, changePercent: row.changePercent, right: exchangeLabel(row.exchange),
 });
+
+// Yahoo ranks by its own relevance, which put Under Armour (UA) above ARMP
+// for "ARM". A ticker that is or starts with the text leads; the rest keep
+// Yahoo's order.
+const symbolRank = (symbol, sq) => (symbol === sq ? 0 : symbol.startsWith(sq) ? 1 : 2);
+function rankBySymbol(rows, sq) {
+  return rows
+    .map((r, i) => ({ r, i, k: symbolRank(String(r.symbol || ""), sq) }))
+    .sort((a, b) => a.k - b.k || a.i - b.i)
+    .map((x) => x.r);
+}
 
 // A bare word that could be a US ticker: one to five letters, optionally with
 // a share class (BRK.B, BF-B).
@@ -64,21 +76,23 @@ export function buildSuggestions({ value, parsed, poolList = [], watch = [], yah
 
   // Ticker matches rank above name matches (filterRows), so a name that merely
   // contains the text cannot take Enter from a ticker that starts with it.
-  for (const row of filterRows(watch.map((s) => bySym.get(s) || { symbol: s }), q)) {
+  // Names match only at a word start: "ARM" is not Garmin or Pharma, and "MS"
+  // is not Systems.
+  for (const row of filterRows(watch.map((s) => bySym.get(s) || { symbol: s }), q, { wordStart: true })) {
     pushSymbol(symItem("watch", row));
   }
   let tracked = 0;
-  for (const row of filterRows(poolList, q)) {
+  for (const row of filterRows(poolList, q, { wordStart: true })) {
     if (tracked >= 6) break;
     if (row.symbol.startsWith("^") || seenSymbols.has(row.symbol)) continue;
     pushSymbol(symItem("tracked", row));
     tracked += 1;
   }
   let found = 0;
-  for (const r of yahoo) {
+  for (const r of rankBySymbol(yahoo, sq)) {
     if (found >= 6) break;
     if (!r.symbol || seenSymbols.has(r.symbol)) continue;
-    pushSymbol({ id: `search:${r.symbol}`, kind: "search", label: r.symbol, sub: r.name || "", symbol: r.symbol, right: [r.type, r.exchange].filter(Boolean).join(" · ") });
+    pushSymbol({ id: `search:${r.symbol}`, kind: "search", label: r.symbol, sub: r.name || "", symbol: r.symbol, right: [r.type, exchangeLabel(r.exchange)].filter(Boolean).join(" · ") });
     found += 1;
   }
   for (const r of ROUTES) {

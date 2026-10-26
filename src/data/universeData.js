@@ -683,7 +683,7 @@ export const UNIVERSE_ROWS = [
   ["DVA", "DaVita Inc.", "Healthcare", "SPX"],
   ["COO", "The Cooper Companies, Inc.", "Healthcare", "SPX"],
   ["HRL", "Hormel Foods Corporation", "Consumer Defensive", "SPX"],
-  ["LULU", "lululemon athletica inc.", "Consumer Cyclical", "SPX"],
+  ["LULU", "Lululemon Athletica Inc.", "Consumer Cyclical", "SPX"],
   ["JKHY", "Jack Henry & Associates, Inc.", "Technology", "SPX"],
   ["TECH", "Bio-Techne Corporation", "Healthcare", "SPX"],
   ["BXP", "BXP, Inc.", "Real Estate", "SPX"],

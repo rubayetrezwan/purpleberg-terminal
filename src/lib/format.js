@@ -31,7 +31,7 @@ export const fmtNum = (n, d = 2) =>
 export const fmtLevel = (n) => {
   if (missing(n)) return "—";
   const a = Math.abs(Number(n));
-  return fmt(n, a >= 100 ? 0 : a >= 1 ? 2 : 4);
+  return fmtNum(n, a >= 100 ? 0 : a >= 1 ? 2 : 4);
 };
 
 // Magnitude abbreviation. Abbreviates on |n| so negatives collapse too, and
@@ -100,7 +100,9 @@ export function fmtAgo(ms) {
   return `${Math.floor(h / 24)}d`;
 }
 
-// h:mm:ss countdown, clamped at zero. Over a day it leads with days ("1D 0:13:51").
+// h:mm:ss countdown, clamped at zero. From a day out it reads in units
+// ("1D 00H 13M"): "1D 00:13:51" looked like a clock time, and seconds a day
+// away are noise.
 export function fmtCountdown(ms) {
   if (ms == null || !Number.isFinite(ms)) return "—";
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -108,7 +110,9 @@ export function fmtCountdown(ms) {
   const h = Math.floor((total % 86400) / 3600);
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
-  return `${d ? `${d}D ` : ""}${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  const p = (n) => String(n).padStart(2, "0");
+  if (d) return `${d}D ${p(h)}H ${p(m)}M`;
+  return `${h}:${p(m)}:${p(s)}`;
 }
 
 // Table dates: "2026-09-04" -> "04 SEP 26".
@@ -140,3 +144,27 @@ export const fmtTooltipDate = (iso) => {
   const mon = MONTHS_SHORT[parseInt(m, 10) - 1] || m;
   return `${mon} ${parseInt(d, 10)}, ${y}`;
 };
+
+const pad2 = (n) => String(n).padStart(2, "0");
+
+// Short name of the user's own zone ("GMT+6"). Headline times are on this
+// clock, and the section meta says so once rather than on every row.
+export const LOCAL_TZ = (() => {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", { timeZoneName: "short" }).formatToParts(new Date());
+    return (parts.find((p) => p.type === "timeZoneName")?.value || "LOCAL").toUpperCase();
+  } catch {
+    return "LOCAL";
+  }
+})();
+
+// Headline time on the user's clock: "19:06" for today, "24 OCT 19:06" for
+// anything older, so last night's 19:06 is never read as this evening's.
+export function fmtNewsTime(sec, now = new Date()) {
+  const n = Number(sec);
+  if (!Number.isFinite(n) || n <= 0) return "—";
+  const d = new Date(n * 1000);
+  const hm = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  if (d.toDateString() === now.toDateString()) return hm;
+  return `${pad2(d.getDate())} ${MONTHS_SHORT[d.getMonth()].toUpperCase()} ${hm}`;
+}

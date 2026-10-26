@@ -7,7 +7,7 @@ import { useLayer } from "../ui/useLayer.js";
 import { useQuickLook } from "../ui/quickLookContext.js";
 import { toast } from "../ui/toasts.js";
 import { useQuotePool } from "../data/quotePool.jsx";
-import { useSearch } from "../data/hooks.js";
+import { useSearch, useIsMobile } from "../data/hooks.js";
 import { useStore } from "../stores/useStore.js";
 import { watchlist } from "../stores/watchlist.js";
 import { settings, setSetting } from "../stores/settings.js";
@@ -39,6 +39,9 @@ export function CommandLine() {
   const pool = useQuotePool();
   const watch = useStore(watchlist, (s) => s.symbols);
   const quickLook = useQuickLook();
+  // The phone's field is a few characters wide: the long placeholder was cut
+  // to "FUNCTION OR".
+  const isMobile = useIsMobile(768);
 
   const parsed = useMemo(() => parseCommand(value), [value]);
   const searchQuery = parsed.kind === "search" && parsed.query.length >= 2 ? parsed.query : "";
@@ -110,7 +113,7 @@ export function CommandLine() {
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         onKeyDown={onKeyDown}
-        placeholder="FUNCTION OR SYMBOL"
+        placeholder={isMobile ? "SYMBOL" : "FUNCTION OR SYMBOL"}
         aria-label="Command line"
         role="combobox"
         aria-expanded={open}
@@ -149,7 +152,7 @@ export function CommandLine() {
                     <span className="pb-cmd__optright">
                       {item.price > 0 && <>{fmtNum(item.price)} <Change value={item.changePercent} /></>}
                       {!(item.price > 0) && item.right && <span className="pb-muted">{item.right}</span>}
-                      <span className="pb-cmd__hint pb-muted">{item.kind === "function" || item.kind === "command" ? "GO" : "GO · ⇧ QUICK LOOK"}</span>
+                      {on && <span className="pb-cmd__hint pb-muted">{item.kind === "function" || item.kind === "command" ? "GO" : "GO · ⇧ QUICK LOOK"}</span>}
                     </span>
                   </div>
                 );

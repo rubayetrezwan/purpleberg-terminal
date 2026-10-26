@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Page, Grid } from "../ui/Grid.jsx";
+import { Page } from "../ui/Grid.jsx";
 import { Section } from "../ui/Section.jsx";
 import { Segmented } from "../ui/Segmented.jsx";
 import { Select } from "../ui/Select.jsx";
@@ -25,11 +25,6 @@ const DATA_SOURCES = [
 ];
 
 const VERSION = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev";
-// Release name follows the package version, so it cannot drift: 3.0.0 reads
-// "TERMINAL V3.0". An unbuilt dev server has no version to derive from.
-const RELEASE = /^\d+\.\d+/.test(VERSION)
-  ? `TERMINAL V${VERSION.split(".").slice(0, 2).join(".")}`
-  : "TERMINAL (DEV)";
 
 export default function Settings() {
   const s = useStore(settings);
@@ -93,110 +88,115 @@ export default function Settings() {
     setNewSym("");
   };
 
-  const keyTag = (configured, offLabel) => (
-    status ? (status.error ? "—" : <Tag tone={configured ? "up" : undefined}>{configured ? "CONFIGURED" : offLabel}</Tag>) : "…"
-  );
+  // `howTo` says what to do about a missing key; it is the variable the
+  // server reads, so a user who wants the feature knows where to put it.
+  const keyTag = (configured, offLabel, howTo) => {
+    if (!status) return "…";
+    if (status.error) return "—";
+    if (!configured && howTo) return <span className="pb-muted" title={offLabel}>{howTo}</span>;
+    return <Tag tone={configured ? "up" : undefined}>{configured ? "CONFIGURED" : offLabel}</Tag>;
+  };
 
   return (
-    <Page>
-      <Grid cols="1fr 1fr" colsMobile="1fr">
-        <Section mnemonic="SET" title="Appearance">
-          <div className="pb-form">
-            <div className="pb-form__row">
-              <span className="pb-form__label">THEME</span>
-              <Segmented label="Theme" value={s.theme} onChange={(v) => setSetting("theme", v)} options={THEMES.map((t) => ({ value: t, label: t.toUpperCase() }))} />
+    <Page className="pb-page--grow-last">
+      {/* Two independent columns rather than one grid: grid rows stretched
+          ALERTS and STORAGE to the height of their tall neighbours. */}
+      <div className="pb-set">
+        <div className="pb-set__col">
+          <Section mnemonic="SET" title="Appearance">
+            <div className="pb-form">
+              <div className="pb-form__row">
+                <span className="pb-form__label">THEME</span>
+                <Segmented label="Theme" value={s.theme} onChange={(v) => setSetting("theme", v)} options={THEMES.map((t) => ({ value: t, label: t.toUpperCase() }))} />
+              </div>
+              <div className="pb-form__row">
+                <span className="pb-form__label">DENSITY</span>
+                <Segmented label="Density" value={s.density} onChange={(v) => setSetting("density", v)} options={DENSITIES.map((d) => ({ value: d, label: d.toUpperCase() }))} />
+              </div>
             </div>
-            <div className="pb-form__row">
-              <span className="pb-form__label">DENSITY</span>
-              <Segmented label="Density" value={s.density} onChange={(v) => setSetting("density", v)} options={DENSITIES.map((d) => ({ value: d, label: d.toUpperCase() }))} />
+          </Section>
+          <Section title="Data">
+            <div className="pb-form">
+              <div className="pb-form__row">
+                <span className="pb-form__label">REFRESH</span>
+                <Segmented label="Refresh rate" value={String(s.refreshSec)} onChange={(v) => setSetting("refreshSec", Number(v))} options={REFRESH_OPTIONS.map((r) => ({ value: String(r), label: `${r}S` }))} />
+              </div>
+              <div className="pb-form__row">
+                <span className="pb-form__label">DEFAULT SCREEN</span>
+                <Select aria-label="Default screen" value={s.defaultScreen} onChange={(v) => setSetting("defaultScreen", v)} options={ROUTES.map((r) => ({ value: r.mnemonic, label: `${r.mnemonic} · ${r.label}` }))} />
+              </div>
+              <div className="pb-form__hint pb-muted">Every poll scales with the refresh rate. 15s is what the proxy is tuned for.</div>
             </div>
-          </div>
-        </Section>
-
-        <Section title="Data">
-          <div className="pb-form">
-            <div className="pb-form__row">
-              <span className="pb-form__label">REFRESH</span>
-              <Segmented label="Refresh rate" value={String(s.refreshSec)} onChange={(v) => setSetting("refreshSec", Number(v))} options={REFRESH_OPTIONS.map((r) => ({ value: String(r), label: `${r}S` }))} />
+          </Section>
+          <Section title="Alerts">
+            <div className="pb-form">
+              <div className="pb-form__row">
+                <span className="pb-form__label">BROWSER NOTIFICATIONS</span>
+                {perm === "granted" ? (
+                  <Segmented label="Notifications" value={s.notifications ? "on" : "off"} onChange={(v) => setSetting("notifications", v === "on")} options={[{ value: "on", label: "ON" }, { value: "off", label: "OFF" }]} />
+                ) : perm === "denied" ? (
+                  <span className="pb-warn">BLOCKED IN BROWSER</span>
+                ) : perm === "unsupported" ? (
+                  <span className="pb-muted">NOT SUPPORTED</span>
+                ) : (
+                  <Button onClick={requestNotifications}>ENABLE</Button>
+                )}
+              </div>
+              <div className="pb-form__hint pb-muted">Alerts always show in the app. Notifications also fire while the tab is in the background.</div>
             </div>
-            <div className="pb-form__row">
-              <span className="pb-form__label">DEFAULT SCREEN</span>
-              <Select aria-label="Default screen" value={s.defaultScreen} onChange={(v) => setSetting("defaultScreen", v)} options={ROUTES.map((r) => ({ value: r.mnemonic, label: `${r.mnemonic} · ${r.label}` }))} />
+          </Section>
+          <Section title="Storage">
+            <div className="pb-form">
+              <div className="pb-form__row">
+                <Button onClick={doExport}>EXPORT JSON</Button>
+                <Button onClick={() => fileRef.current && fileRef.current.click()}>IMPORT JSON</Button>
+                <input ref={fileRef} type="file" accept="application/json,.json" className="pb-sr-only" onChange={(e) => doImport(e.target.files && e.target.files[0])} aria-label="Import file" />
+                <Button variant="danger" onClick={doReset}>RESET ALL</Button>
+              </div>
+              <div className="pb-form__hint pb-muted">Everything lives in this browser only: watchlist, alerts, portfolio, saved screens, settings.</div>
             </div>
-            <div className="pb-form__hint pb-muted">Every poll scales with the refresh rate. 15s is what the proxy is tuned for.</div>
-          </div>
-        </Section>
-
-        <Section title="Alerts">
-          <div className="pb-form">
-            <div className="pb-form__row">
-              <span className="pb-form__label">BROWSER NOTIFICATIONS</span>
-              {perm === "granted" ? (
-                <Segmented label="Notifications" value={s.notifications ? "on" : "off"} onChange={(v) => setSetting("notifications", v === "on")} options={[{ value: "on", label: "ON" }, { value: "off", label: "OFF" }]} />
-              ) : perm === "denied" ? (
-                <span className="pb-warn">BLOCKED IN BROWSER</span>
-              ) : perm === "unsupported" ? (
-                <span className="pb-muted">NOT SUPPORTED</span>
-              ) : (
-                <Button onClick={requestNotifications}>ENABLE</Button>
-              )}
-            </div>
-            <div className="pb-form__hint pb-muted">Alerts always show in the app. Notifications also fire while the tab is in the background.</div>
-          </div>
-        </Section>
-
-        <Section title="Watchlist" meta={`${symbols.length} / ${WATCHLIST_MAX}`}>
-          <form className="pb-form__row" onSubmit={addWatch}>
-            <Input mono value={newSym} onChange={(e) => setNewSym(e.target.value)} placeholder="ADD SYMBOL" aria-label="Add symbol" style={{ maxWidth: 160 }} />
-            <Button type="submit" variant="primary">ADD</Button>
-          </form>
-          <ul className="pb-watchlist">
-            {symbols.map((sym, i) => (
-              <li key={sym} className="pb-watchlist__row">
-                <span className="pb-muted">{i + 1})</span>
-                <span className="pb-watchlist__sym">{sym}</span>
-                <span className="pb-watchlist__tools">
-                  <Button size="sm" onClick={() => moveSymbol(sym, -1)} disabled={i === 0} aria-label={`Move ${sym} up`}>▲</Button>
-                  <Button size="sm" onClick={() => moveSymbol(sym, 1)} disabled={i === symbols.length - 1} aria-label={`Move ${sym} down`}>▼</Button>
-                  <Button size="sm" variant="danger" onClick={() => removeSymbol(sym)} aria-label={`Remove ${sym}`}>DEL</Button>
-                </span>
-              </li>
-            ))}
-            {!symbols.length && <li className="pb-muted pb-watchlist__empty">Empty. Star any ticker to add it.</li>}
-          </ul>
-        </Section>
-
-        <Section title="Storage">
-          <div className="pb-form">
-            <div className="pb-form__row">
-              <Button onClick={doExport}>EXPORT JSON</Button>
-              <Button onClick={() => fileRef.current && fileRef.current.click()}>IMPORT JSON</Button>
-              <input ref={fileRef} type="file" accept="application/json,.json" className="pb-sr-only" onChange={(e) => doImport(e.target.files && e.target.files[0])} aria-label="Import file" />
-              <Button variant="danger" onClick={doReset}>RESET ALL</Button>
-            </div>
-            <div className="pb-form__hint pb-muted">Everything lives in this browser only: watchlist, alerts, portfolio, saved screens, settings.</div>
-          </div>
-        </Section>
-
-        <Section title="About">
-          <KVList>
-            <KV k="RELEASE" v={RELEASE} />
-            <KV k="VERSION" v={VERSION} />
-            <KV k="BUILT BY" v="Rubayet Rezwan" />
-            <KV k="FINNHUB KEY" v={keyTag(status && status.finnhub, "NOT SET")} />
-            <KV k="COINGECKO KEY" v={keyTag(status && status.coingecko, "PUBLIC TIER")} />
-          </KVList>
-          <div className="pb-about">
-            <div className="pb-label">DATA SOURCES</div>
-            <ul className="pb-about__list">
-              {DATA_SOURCES.map((d) => <li key={d.name}><span>{d.name}</span><span className="pb-muted">{d.what}</span></li>)}
+          </Section>
+        </div>
+        <div className="pb-set__col">
+          <Section title="Watchlist" meta={`${symbols.length} / ${WATCHLIST_MAX}`}>
+            <form className="pb-form__row" onSubmit={addWatch}>
+              <Input mono value={newSym} onChange={(e) => setNewSym(e.target.value)} placeholder="ADD SYMBOL" aria-label="Add symbol" style={{ maxWidth: 160 }} />
+              <Button type="submit" variant="primary">ADD</Button>
+            </form>
+            <ul className="pb-watchlist">
+              {symbols.map((sym, i) => (
+                <li key={sym} className="pb-watchlist__row">
+                  <span className="pb-muted">{i + 1})</span>
+                  <span className="pb-watchlist__sym">{sym}</span>
+                  <span className="pb-watchlist__tools">
+                    <Button size="sm" onClick={() => moveSymbol(sym, -1)} disabled={i === 0} aria-label={`Move ${sym} up`}>▲</Button>
+                    <Button size="sm" onClick={() => moveSymbol(sym, 1)} disabled={i === symbols.length - 1} aria-label={`Move ${sym} down`}>▼</Button>
+                    <Button size="sm" variant="danger" onClick={() => removeSymbol(sym)} aria-label={`Remove ${sym}`}>DEL</Button>
+                  </span>
+                </li>
+              ))}
+              {!symbols.length && <li className="pb-muted pb-watchlist__empty">Empty. Star any ticker to add it.</li>}
             </ul>
-            <div className="pb-about__disclaimer pb-muted">
-              Educational project. Yahoo Finance endpoints are unofficial and not licensed for redistribution. Do not trade on this data.
+          </Section>
+          <Section title="About">
+            <KVList>
+              <KV k="VERSION" v={VERSION} />
+              <KV k="BUILT BY" v="Rubayet Rezwan" />
+              <KV k="FINNHUB KEY" v={keyTag(status && status.finnhub, "NOT SET", "SET FINNHUB_API_KEY ON THE SERVER")} />
+              <KV k="COINGECKO KEY" v={keyTag(status && status.coingecko, "PUBLIC TIER")} />
+            </KVList>
+            <div className="pb-about">
+              <div className="pb-label">DATA SOURCES</div>
+              <ul className="pb-about__list">
+                {DATA_SOURCES.map((d) => <li key={d.name}><span>{d.name}</span><span className="pb-muted">{d.what}</span></li>)}
+              </ul>
+              <div className="pb-about__disclaimer pb-muted">
+                Educational project. Yahoo Finance endpoints are unofficial and not licensed for redistribution. Do not trade on this data.
+              </div>
             </div>
-          </div>
-        </Section>
-      </Grid>
+          </Section>
+        </div>
+      </div>
     </Page>
   );
 }

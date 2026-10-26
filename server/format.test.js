@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { raw, normalizeFinnhubIpo, crossRate } from "./format.js";
+import { raw, plausibleMultiple, normalizeFinnhubIpo, crossRate } from "./format.js";
 
 test("raw unwraps Yahoo's { raw, fmt } shape to the numeric value", () => {
   assert.equal(raw({ raw: 36.2, fmt: "36.20" }), 36.2);
@@ -66,4 +66,13 @@ test("crossRate returns null when a leg is missing or input is bad", () => {
   assert.equal(crossRate("EUR=X", rates), null); // malformed
   assert.equal(crossRate(null, rates), null);
   assert.equal(crossRate("EURUSD=X", null), null);
+});
+
+test("plausibleMultiple drops multiples that cannot be real", () => {
+  assert.equal(plausibleMultiple(12.5), 12.5);
+  assert.equal(plausibleMultiple(-1.79), 0); // EV/EBITDA on negative EBITDA
+  assert.equal(plausibleMultiple(0.001, 0.05), 0); // a P/B of 0.00x
+  assert.equal(plausibleMultiple(1.4, 0.05), 1.4);
+  assert.equal(plausibleMultiple(NaN), 0);
+  assert.equal(plausibleMultiple(undefined), 0);
 });

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AreaChart, Area, LineChart, Line, ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
-import { fmtK, fmtPct, fmtAxisDate, fmtTooltipDate, MONTHS_SHORT } from "../lib/format.js";
+import { fmtK, fmtNum, fmtPct, fmtAxisDate, fmtTooltipDate, MONTHS_SHORT } from "../lib/format.js";
+import { niceTicks, monthTicks, thinForDrawing } from "../lib/axis.js";
 import { periodReturns, CALENDAR_DAY_OFFSETS } from "../lib/returns.js";
 import { useRoute, updateQuery, navigate, pathFor } from "../router/index.jsx";
 import { useCryptoMarkets, useCryptoChart, useIsMobile } from "../data/hooks.js";
@@ -34,12 +35,13 @@ function tierFor(rank) {
 }
 
 // Crypto prices span ten orders of magnitude, so precision follows magnitude:
-// a SHIB tick must not render as 0.00.
+// a SHIB tick must not render as 0.00. Everything from a cent to $10 gets four
+// places, so the stablecoins line up: USDS read "1.00" next to USDC "0.9996".
 function decimalsFor(price) {
   const p = Math.abs(Number(price));
   if (!(p > 0)) return 2;
   if (p >= 1000) return 0;
-  if (p >= 1) return 2;
+  if (p >= 10) return 2;
   if (p >= 0.01) return 4;
   if (p >= 0.0001) return 6;
   return 8;
@@ -49,6 +51,10 @@ function coinPrice(v) {
   const d = decimalsFor(v);
   return Number(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 }
+// Room for the last date label, which is centred on the final point and was
+// cut to "Oct" at the plot's right edge.
+const CHART_MARGIN = { top: 8, right: 24, bottom: 0, left: 4 };
+
 function athDate(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -93,11 +99,34 @@ export default function Crypto() {
 
   const id = selected && !missing ? selected.id : null;
   const { data: hist, loading: histLoading } = useCryptoChart(id, range);
-  const chartRows = useMemo(() => hist.map((d) => ({ date: d.date || "", price: d.close, volume: d.volume })), [hist]);
+  // The proxy sends every daily close (about 3,650 for MAX). Returns are
+  // measured on that full series; only the drawing is thinned.
+  const chartRows = useMemo(
+    () => thinForDrawing(hist, 600).map((d) => ({ date: d.date || "", price: d.close, volume: d.volume })),
+    [hist]
+  );
   const returns = useMemo(() => periodReturns(hist, CALENDAR_DAY_OFFSETS), [hist]);
   const showYear = range === "1y" || range === "max";
-  const interval = Math.max(1, Math.floor(chartRows.length / (isMobile ? 6 : 12)));
-  const axis = { ...axisProps, tick: { ...axisProps.tick, fontSize: 9 } };
+  const scale = useMemo(() => niceTicks(chartRows.map((r) => r.price), isMobile ? 5 : 6), [chartRows, isMobile]);
+  // One precision for the whole axis, from the tick step: MAX printed "$0.00"
+  // under "$1,500" when each tick chose its own decimals.
+  const yAxis = {
+    ...axisProps,
+    domain: scale ? scale.domain : ["auto", "auto"],
+    ticks: scale ? scale.ticks : undefined,
+    width: 72,
+    tickFormatter: (v) => `$${fmtNum(v, scale ? scale.decimals : 2)}`,
+  };
+  // Multi-year axes label month starts, once each; shorter ranges label days.
+  const xTicks = showYear ? monthTicks(chartRows.map((r) => r.date), isMobile ? 6 : 12) : undefined;
+  const xAxis = {
+    ...axisProps,
+    dataKey: "date",
+    ticks: xTicks,
+    interval: xTicks ? 0 : Math.max(1, Math.floor(chartRows.length / (isMobile ? 6 : 12))),
+    tickFormatter: (v) => fmtAxisDate(v, showYear),
+    minTickGap: 20,
+  };
   const tip = { ...tooltipProps, labelFormatter: fmtTooltipDate };
 
   const select = (nextId) => navigate(pathFor("crypto", { id: nextId }, query));
@@ -112,7 +141,7 @@ export default function Crypto() {
           NO MARKETS LOADED. THE UPSTREAM (COINGECKO, WITH COINPAPRIKA FALLBACK) OR THIS PROXY
           MAY BE RATE-LIMITED. IT RETRIES AUTOMATICALLY.
         </EmptyState>
-        {error && <div className="pb-form__hint pb-muted">Last error: {error}</div>}
+        {error && <div className="pb-form__hint pb-muted">LAST ERROR: {error}</div>}
       </Section>
     );
   }
@@ -123,7 +152,8 @@ export default function Crypto() {
   const athPct = selected.ath > 0 && selected.price > 0 ? (selected.price / selected.ath) * 100 : null;
 
   const listColumns = [
-    { key: "name", label: "COIN", align: "left", render: (r) => <span className="pb-eq__sym">{r.symbol}</span> },
+    // Clipped so LAST and 24H always fit beside a long symbol (FIGR_HELOC).
+    { key: "name", label: "COIN", align: "left", render: (r) => <span className="pb-eq__sym pb-clip" style={{ "--clip": "10ch" }} title={r.symbol}>{r.symbol}</span> },
     { key: "price", label: "LAST", render: (r) => (r.price > 0 ? <Price value={r.price} format={(v) => coinPrice(v)} /> : "—") },
     { key: "changePercent24h", label: "24H", render: (r) => <Change value={r.changePercent24h} /> },
   ];
@@ -145,11 +175,11 @@ export default function Crypto() {
   );
 
   const detail = missing ? (
-    <div className="pb-eq__detail">
+    <div className="pb-eq__detail pb-des">
       <EmptyState>COIN {requested.toUpperCase()} NOT FOUND IN TOP 20</EmptyState>
     </div>
   ) : (
-    <div className="pb-eq__detail">
+    <div className="pb-eq__detail pb-des">
       <header className="pb-eq__head">
         <span className="pb-eq__symbig">{selected.name}</span>
         <span className="pb-eq__name pb-muted">{selected.symbol}</span>
@@ -174,30 +204,30 @@ export default function Crypto() {
             <Segmented size="sm" label="Chart type" value={type} onChange={(v) => updateQuery({ type: v === "area" ? null : v })} options={TYPES} />
             <Segmented size="sm" label="Range" value={range} onChange={(v) => updateQuery({ range: v === "3mo" ? null : v })} options={RANGES.map((r) => ({ value: r, label: r.toUpperCase() }))} />
           </div>
-          <ChartFrame height={isMobile ? 240 : 340} loading={histLoading && !chartRows.length} empty={!histLoading && !chartRows.length ? `NO HISTORY FOR ${selected.name}` : null}>
+          <ChartFrame height="fill" minHeight={isMobile ? 240 : 340} loading={histLoading && !chartRows.length} empty={!histLoading && !chartRows.length ? `NO HISTORY FOR ${String(selected.name).toUpperCase()}` : null}>
             {type === "line" ? (
-              <LineChart data={chartRows}>
+              <LineChart data={chartRows} margin={CHART_MARGIN}>
                 <CartesianGrid {...gridProps} />
-                <XAxis dataKey="date" {...axis} interval={interval} tickFormatter={(v) => fmtAxisDate(v, showYear)} minTickGap={20} />
-                <YAxis {...axis} domain={["auto", "auto"]} width={72} tickFormatter={(v) => money(v)} />
+                <XAxis {...xAxis} />
+                <YAxis {...yAxis} />
                 <Tooltip {...tip} formatter={(v) => money(v)} />
                 <Line dataKey="price" name="CLOSE" stroke={colors.series[0]} {...lineProps} />
               </LineChart>
             ) : type === "volume" ? (
-              <ComposedChart data={chartRows}>
+              <ComposedChart data={chartRows} margin={CHART_MARGIN}>
                 <CartesianGrid {...gridProps} />
-                <XAxis dataKey="date" {...axis} interval={interval} tickFormatter={(v) => fmtAxisDate(v, showYear)} minTickGap={20} />
-                <YAxis yAxisId="p" {...axis} domain={["auto", "auto"]} width={72} tickFormatter={(v) => money(v)} />
-                <YAxis yAxisId="v" orientation="right" {...axis} width={52} tickFormatter={(v) => `$${fmtK(v)}`} />
+                <XAxis {...xAxis} />
+                <YAxis yAxisId="p" {...yAxis} />
+                <YAxis yAxisId="v" orientation="right" {...axisProps} width={52} tickFormatter={(v) => `$${fmtK(v)}`} />
                 <Tooltip {...tip} formatter={(v, n) => (n === "VOLUME" ? `$${fmtK(v)}` : money(v))} />
                 <Bar yAxisId="v" dataKey="volume" name="VOLUME" fill={colors.series[2]} isAnimationActive={false} />
                 <Line yAxisId="p" dataKey="price" name="CLOSE" stroke={colors.series[0]} {...lineProps} />
               </ComposedChart>
             ) : (
-              <AreaChart data={chartRows}>
+              <AreaChart data={chartRows} margin={CHART_MARGIN}>
                 <CartesianGrid {...gridProps} />
-                <XAxis dataKey="date" {...axis} interval={interval} tickFormatter={(v) => fmtAxisDate(v, showYear)} minTickGap={20} />
-                <YAxis {...axis} domain={["auto", "auto"]} width={72} tickFormatter={(v) => money(v)} />
+                <XAxis {...xAxis} />
+                <YAxis {...yAxis} />
                 <Tooltip {...tip} formatter={(v) => money(v)} />
                 <Area dataKey="price" name="CLOSE" stroke={colors.series[0]} fill={colors.series[0]} {...areaProps} />
               </AreaChart>
@@ -208,7 +238,7 @@ export default function Crypto() {
 
       {tab === "STATS" && (
         <div className="pb-grid" style={{ gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
-          <Section title="Price action" meta="24h session and all-time">
+          <Section title="Price action" meta="24H · ALL-TIME">
             <KVList cols={2}>
               <KV k="LAST" v={money(selected.price)} />
               <KV k="RANK" v={selected.marketCapRank ? `#${selected.marketCapRank}` : "—"} />
@@ -225,17 +255,17 @@ export default function Crypto() {
               </div>
             )}
           </Section>
-          <Section title="Period returns" meta="calendar-day offsets">
+          <Section title="Period returns" meta="CALENDAR DAYS">
             <PeriodReturns
               returns={returns}
-              note="Crypto trades continuously, so offsets are 7, 30, 90, 180, and 365 calendar days from the loaded window. YTD measures from last year's final close and only appears once the range reaches back that far."
+              note="24/7 MARKET: OFFSETS 7 / 30 / 90 / 180 / 365 CALENDAR DAYS ON THE LOADED RANGE. YTD FROM LAST YEAR'S FINAL CLOSE, ONCE THE RANGE REACHES IT."
             />
           </Section>
         </div>
       )}
 
       {tab === "ABOUT" && (
-        <Section title="Coin reference" meta={`${selected.name} (${selected.symbol})`}>
+        <Section title="Coin reference" meta={`${String(selected.name).toUpperCase()} · ${selected.symbol}`}>
           <KVList cols={2}>
             <KV k="SYMBOL" v={selected.symbol || "—"} />
             <KV k="TIER" v={tier} />
@@ -247,10 +277,8 @@ export default function Crypto() {
             <KV k="FROM ATH" v={<Change value={selected.athChangePercent} decimals={1} />} />
           </KVList>
           <div className="pb-form__hint pb-muted">
-            Prices, supply, and all-time levels come from the CoinGecko public API through this
-            proxy, with CoinPaprika as an automatic fallback when CoinGecko rate-limits the
-            deploy IP. Crypto trades 24/7, so the 24h figures roll continuously rather than
-            resetting at an exchange close.
+            SOURCE: COINGECKO VIA THIS PROXY; COINPAPRIKA WHEN COINGECKO RATE-LIMITS.
+            24/7 MARKET: 24H FIGURES ROLL, NO EXCHANGE CLOSE.
           </div>
         </Section>
       )}
@@ -263,7 +291,8 @@ export default function Crypto() {
 
   return (
     <ListDetail
-      listWidth={200}
+      className="pb-mkt"
+      listWidth={268}
       list={list}
       detail={detail}
       mobile={{

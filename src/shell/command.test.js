@@ -70,10 +70,39 @@ test("buildSuggestions: no exact row for a partial ticker or an index", () => {
   assert.ok(!index.some((i) => i.kind === "exact"));
 });
 
-test("buildSuggestions: a ticker prefix outranks a name that merely contains the text", () => {
-  const list = [{ symbol: "VRTX", name: "Vertex Pharmaceuticals Incorporated" }, { symbol: "ARMK", name: "Aramark" }];
-  const items = buildSuggestions({ value: "arm", parsed: parseCommand("arm"), poolList: list });
-  assert.deepEqual(items.filter((i) => i.kind === "tracked").map((i) => i.label), ["ARMK", "VRTX"]);
+test("buildSuggestions: a ticker prefix outranks a name match, and names match at word starts only", () => {
+  const list = [
+    { symbol: "VRTX", name: "Vertex Pharmaceuticals Incorporated" },
+    { symbol: "GRMN", name: "Garmin Ltd." },
+    { symbol: "ARMK", name: "Aramark" },
+    { symbol: "UAA", name: "Under Armour, Inc." },
+    { symbol: "CSCO", name: "Cisco Systems, Inc." },
+  ];
+  const arm = buildSuggestions({ value: "arm", parsed: parseCommand("arm"), poolList: list });
+  assert.deepEqual(arm.filter((i) => i.kind === "tracked").map((i) => i.label), ["ARMK", "UAA"]);
+  const ms = buildSuggestions({ value: "ms", parsed: parseCommand("ms"), poolList: list });
+  assert.ok(!ms.some((i) => i.symbol === "CSCO"), "Systems is not a word starting with MS");
+});
+
+test("buildSuggestions: Yahoo hits whose ticker starts with the text lead, with exchange names", () => {
+  const items = buildSuggestions({
+    value: "arm", parsed: parseCommand("arm"), poolList: [],
+    yahoo: [
+      { symbol: "ARR", name: "ARMOUR Residential", type: "EQUITY", exchange: "NYQ" },
+      { symbol: "UAA", name: "Under Armour", type: "EQUITY", exchange: "NYQ" },
+      { symbol: "ARMP", name: "Armata Pharmaceuticals", type: "EQUITY", exchange: "ASE" },
+      { symbol: "ARMK", name: "Aramark", type: "EQUITY", exchange: "NMS" },
+    ],
+  });
+  const search = items.filter((i) => i.kind === "search");
+  assert.deepEqual(search.map((i) => i.label), ["ARMP", "ARMK", "ARR", "UAA"]);
+  assert.equal(search[1].right, "EQUITY · NASDAQ");
+});
+
+test("parseCommand: ? is HELP", () => {
+  assert.deepEqual(parseCommand("?"), { kind: "command", command: "help" });
+  const items = buildSuggestions({ value: "?", parsed: parseCommand("?"), poolList: pool });
+  assert.deepEqual(items.map((i) => i.label), ["HELP"]);
 });
 
 test("buildSuggestions: before Yahoo answers, a ticker-shaped word with no exact hit opens as itself", () => {
@@ -84,9 +113,10 @@ test("buildSuggestions: before Yahoo answers, a ticker-shaped word with no exact
   assert.equal(`${sofi[0].kind}:${sofi[0].symbol}`, "exact:SOFI");
   const cls = buildSuggestions({ value: "brk.b", parsed: parseCommand("brk.b"), poolList: [], pending: true });
   assert.equal(cls[0].symbol, "BRK-B");
-  // Once Yahoo has answered without it, the best match leads instead.
+  // Once Yahoo has answered without it, no ticker row is invented, and a
+  // name that only contains the letters mid-word is no match.
   const settled = buildSuggestions({ value: "arm", parsed: parseCommand("arm"), poolList: list });
-  assert.equal(settled[0].label, "VRTX");
+  assert.ok(!settled.some((i) => i.kind === "exact" || i.symbol === "VRTX"));
 });
 
 test("buildSuggestions: the pending fallback leaves full tickers, names and indices alone", () => {
