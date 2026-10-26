@@ -27,6 +27,9 @@
   "engines": {
     "node": ">=21"
   },
+  "overrides": {
+    "qs": "^6.16.1"
+  },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
     "concurrently": "^9.0.1",
