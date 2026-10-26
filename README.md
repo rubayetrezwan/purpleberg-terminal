@@ -1,5 +1,7 @@
 # Purpleberg Terminal
 
+**Live: [purpleberg-terminal.onrender.com](https://purpleberg-terminal.onrender.com/)**
+
 A Bloomberg-style market terminal built as a personal project: React 18 + Vite
 frontend, and a thin Express proxy to Yahoo Finance, CoinGecko, Forex Factory,
 and an optional Finnhub IPO calendar. Twelve function screens, reached by
