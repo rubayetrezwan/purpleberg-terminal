@@ -3,11 +3,18 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import rateLimit from "express-rate-limit";
+import helmet from "helmet";
+import crypto from "crypto";
+import fs from "fs";
 import { LRUCache } from "lru-cache";
 import { raw, plausibleMultiple, normalizeFinnhubIpo, crossRate } from "./format.js";
 import { createCache } from "./cache.js";
 import { createQuoteCache, mapWithConcurrency } from "./quotes.js";
 import { UNIVERSE_SYMBOLS } from "../src/data/universe.js";
+import {
+  INDEX_SYMBOLS, FX_SYMBOLS, COMMODITY_SYMBOLS, BOND_SYMBOLS, IPO_2026_LISTED_TICKERS,
+} from "../src/config.js";
+import { safeHttpUrl, limitUnknownSymbols } from "./guard.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -19,6 +26,46 @@ try {
 
 const app = express();
 app.set("trust proxy", 1); // Render sits behind a proxy
+
+// ── Security headers ────────────────────────────────────
+// index.html carries one inline script (it paints the saved theme before the
+// bundle loads). Rather than allow every inline script, the CSP allows exactly
+// the inline scripts in the built index.html, by hash, read at startup so the
+// policy can never drift from the file.
+const distPath = path.resolve(__dirname, "../dist");
+function inlineScriptHashes(htmlPath) {
+  let html;
+  try { html = fs.readFileSync(htmlPath, "utf8"); } catch { return []; }
+  const hashes = [];
+  for (const m of html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)) {
+    if (!m[1].trim()) continue;
+    hashes.push(`'sha256-${crypto.createHash("sha256").update(m[1], "utf8").digest("base64")}'`);
+  }
+  return hashes;
+}
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", ...inlineScriptHashes(path.join(distPath, "index.html"))],
+        // React's style props go through the CSSOM, which CSP does not govern;
+        // 'unsafe-inline' covers the <style> block in index.html and any
+        // library that injects one. Scripts stay locked down.
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:"],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  })
+);
 
 // CORS allowlist. Comma-separated origins via ALLOWED_ORIGINS; defaults cover
 // local dev. Requests with no Origin header (curl, same-origin server-to-server
@@ -71,6 +118,72 @@ const TICKER_RE = /^[A-Z0-9^][A-Z0-9.\-^=]{0,14}$/i;
 const RANGE_ALLOW = new Set(["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]);
 const INTERVAL_ALLOW = new Set(["1m", "5m", "15m", "30m", "1h", "1d", "1wk", "1mo"]);
 const isTicker = (s) => typeof s === "string" && TICKER_RE.test(s);
+
+// ── Upstream abuse limits ───────────────────────────────
+// Symbols the app itself tracks. Their quotes and charts are shared by every
+// client through the caches, so requests for them cost little upstream. Any
+// other symbol is a fresh Yahoo lookup, so those are budgeted below.
+const KNOWN_SYMBOLS = new Set([
+  ...UNIVERSE_SYMBOLS,
+  ...[INDEX_SYMBOLS, FX_SYMBOLS, COMMODITY_SYMBOLS, BOND_SYMBOLS].flat().map((x) => x.symbol),
+  ...IPO_2026_LISTED_TICKERS,
+].map((s) => String(s).toUpperCase()));
+const isKnown = (s) => KNOWN_SYMBOLS.has(String(s).toUpperCase());
+
+// Per request: a user's watchlist, holdings and alerts outside the universe
+// rarely pass a few dozen, so 100 leaves room while one call can no longer
+// make Yahoo look up 1000 made-up tickers.
+const MAX_UNKNOWN_QUOTE_SYMBOLS = 100;
+
+// Requests that can reach upstream with arbitrary input (an unknown symbol, a
+// search, a coin chart). Per client: the Portfolio screen can fire a history
+// and a financials call per holding at once, so this sits well above that.
+// Across all clients: a ceiling on these lookups so a crowd of addresses
+// cannot run the server's shared Yahoo access into a ban. Known symbols never
+// count, so the core screens keep working even when the ceiling is hit.
+// Over budget, most routes answer 429. /api/quotes instead drops its unknown
+// symbols and still serves the known ones (req.lookupDenied), so a client that
+// spent its budget keeps every screen's live prices.
+const LOOKUP_MSG = { error: "Too many lookups, try again shortly" };
+function lookupHandler(req, res, next, options) {
+  if (req.softLookup) {
+    req.lookupDenied = true;
+    return next();
+  }
+  res.status(options.statusCode).json(LOOKUP_MSG);
+}
+const lookupLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: lookupHandler,
+});
+const globalLookupLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 3000,
+  standardHeaders: false,
+  legacyHeaders: false,
+  keyGenerator: () => "all",
+  handler: lookupHandler,
+});
+// Apply both limiters only when `needsBudget(req)` is true.
+function lookupBudget(needsBudget, { soft = false } = {}) {
+  return (req, res, next) => {
+    if (!needsBudget(req)) return next();
+    if (soft) req.softLookup = true;
+    lookupLimiter(req, res, (err) => {
+      if (err || req.lookupDenied) return next(err);
+      globalLookupLimiter(req, res, next);
+    });
+  };
+}
+const unknownSymbolParam = lookupBudget((req) => !isKnown(req.params.symbol));
+const alwaysBudget = lookupBudget(() => true);
+const unknownQuoteSymbols = lookupBudget(
+  (req) => String(req.query.symbols || "").split(",").some((s) => isTicker(s) && !isKnown(s)),
+  { soft: true }
+);
 
 // ── Bounded LRU cache ───────────────────────────────────
 const { cache, cached, put } = createCache();
@@ -584,10 +697,12 @@ function dividendYieldPct(q) {
   return sameCurrency && q.trailingAnnualDividendYield > 0 ? q.trailingAnnualDividendYield * 100 : 0;
 }
 
-app.get("/api/quotes", apiLimiter, async (req, res) => {
+app.get("/api/quotes", apiLimiter, unknownQuoteSymbols, async (req, res) => {
   try {
     const rawSymbols = String(req.query.symbols || "").split(",");
-    const symbols = [...new Set(rawSymbols.filter(isTicker).map((s) => s.toUpperCase()))].slice(0, MAX_QUOTE_SYMBOLS);
+    const unique = [...new Set(rawSymbols.filter(isTicker).map((s) => s.toUpperCase()))].slice(0, MAX_QUOTE_SYMBOLS);
+    const maxUnknown = req.lookupDenied ? 0 : MAX_UNKNOWN_QUOTE_SYMBOLS;
+    const { symbols } = limitUnknownSymbols(unique, KNOWN_SYMBOLS, maxUnknown);
     if (!symbols.length) return res.json([]);
 
     let data = await quoteCache.get(symbols);
@@ -638,7 +753,7 @@ app.get("/api/quotes", apiLimiter, async (req, res) => {
 });
 
 // ── GET /api/historical/:symbol ─────────────────────────
-app.get("/api/historical/:symbol", apiLimiter, async (req, res) => {
+app.get("/api/historical/:symbol", apiLimiter, unknownSymbolParam, async (req, res) => {
   try {
     const { symbol } = req.params;
     if (!isTicker(symbol)) return res.status(400).json({ error: "invalid symbol" });
@@ -660,7 +775,7 @@ app.get("/api/historical/:symbol", apiLimiter, async (req, res) => {
 });
 
 // ── GET /api/financials/:symbol ─────────────────────────
-app.get("/api/financials/:symbol", apiLimiter, async (req, res) => {
+app.get("/api/financials/:symbol", apiLimiter, unknownSymbolParam, async (req, res) => {
   try {
     const { symbol } = req.params;
     if (!isTicker(symbol)) return res.status(400).json({ error: "invalid symbol" });
@@ -716,7 +831,7 @@ app.get("/api/financials/:symbol", apiLimiter, async (req, res) => {
         country: profile.country || "N/A",
         employees: raw(profile.fullTimeEmployees),
         summary: profile.longBusinessSummary || "",
-        website: profile.website || "",
+        website: safeHttpUrl(profile.website),
       },
       margins: {
         gross: fd.grossMargins ? (raw(fd.grossMargins) * 100).toFixed(1) : "0",
@@ -805,14 +920,14 @@ app.get("/api/news", apiLimiter, async (req, res) => {
             results.push(
               ...searchData.news.map((n) => ({
                 title: n.title,
-                link: n.link,
+                link: safeHttpUrl(n.link),
                 publisher: n.publisher,
                 publishedAt: n.providerPublishTime,
                 // Yahoo returns market-wide stories for a symbol search too
                 // ("GE Vernova's gas turbines" for NVDA). Tag a story only
                 // with a ticker Yahoo says it is about.
                 relatedSymbol: storySymbol(n, sym),
-                thumbnail: n.thumbnail?.resolutions?.[0]?.url || "",
+                thumbnail: safeHttpUrl(n.thumbnail?.resolutions?.[0]?.url),
               }))
             );
           }
@@ -1116,7 +1231,7 @@ async function yahooCryptoHistory(id, range) {
 // Daily close series for a coin. CoinGecko's market_chart returns [ms, price]
 // tuples; we keep the last price per UTC day so a 1mo range is ~30 points
 // instead of ~720 hourly samples (which Recharts struggles to render on mobile).
-app.get("/api/crypto/:id/chart", apiLimiter, async (req, res) => {
+app.get("/api/crypto/:id/chart", apiLimiter, alwaysBudget, async (req, res) => {
   try {
     const { id } = req.params;
     if (!isCryptoId(id)) return res.status(400).json({ error: "invalid id" });
@@ -1179,7 +1294,7 @@ app.get("/api/crypto/:id/chart", apiLimiter, async (req, res) => {
 });
 
 // ── GET /api/search ─────────────────────────────────────
-app.get("/api/search", apiLimiter, async (req, res) => {
+app.get("/api/search", apiLimiter, alwaysBudget, async (req, res) => {
   try {
     const query = String(req.query.q || "").slice(0, 40);
     // Apostrophes are allowed so "McDonald's" finds MCD.
@@ -1239,7 +1354,6 @@ app.get("/api/ipo-calendar", apiLimiter, async (req, res) => {
 });
 
 // ── Serve static files (built frontend) ─────────────────
-import fs from "fs";
 
 // ── GET /api/status ─────────────────────────────────────
 // Which optional integrations are configured. Booleans only, never the keys.
@@ -1256,7 +1370,6 @@ app.get("/api/status", apiLimiter, (req, res) => {
 // reach the SPA fallback below. Keep this after the last API route.
 app.use("/api", (req, res) => res.status(404).json({ error: "not found" }));
 
-const distPath = path.resolve(__dirname, "../dist");
 if (fs.existsSync(distPath)) {
   // Hashed build files never change under the same name, so they cache for a
   // year. A hash that no longer exists (a tab left open across a deploy) is a
