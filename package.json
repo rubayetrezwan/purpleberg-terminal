@@ -18,6 +18,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "express-rate-limit": "^8.3.2",
+    "helmet": "^8.1.0",
     "lru-cache": "^11.3.3",
     "lucide-react": "^0.441.0",
     "react": "^18.3.1",
@@ -25,14 +26,14 @@
     "recharts": "^2.12.7"
   },
   "engines": {
-    "node": ">=21"
+    "node": ">=22.12.0"
   },
   "overrides": {
     "qs": "^6.16.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.1",
+    "@vitejs/plugin-react": "^5.2.0",
     "concurrently": "^9.0.1",
-    "vite": "^5.4.8"
+    "vite": "^7.3.8"
   }
 }
